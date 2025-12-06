@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y wget make git gfortran libomp-20-dev libboost-all-dev clang-20 clang-tools-20 unzip && \
-    apt-get install -y imagemagick vim git-lfs npm && \
+    apt-get install -y imagemagick vim git-lfs npm openssh-client && \
     wget https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh && \
     chmod +x cmake-3.28.0-linux-x86_64.sh && \
     ./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local && \
@@ -58,6 +58,11 @@ RUN echo 'conda activate codex-env' >> ~/.bashrc
 # install the codexcli
 RUN npm i -g @openai/codex
 
+# setup ssh key for git operations
+RUN ssh-keygen -t ed25519 -C "codex_docker_container" -N '' -f ~/.ssh/id_ed25519 <<<y >/dev/null 2>&1
+
+# print the public key to the docker build logs for easy access
+RUN cat ~/.ssh/id_ed25519.pub
 
 # set an environment variable for convenience
 ENV CODEX_ROOT=/codex
