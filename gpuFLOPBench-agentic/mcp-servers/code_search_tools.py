@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import functools
+import json
 import re
+import shlex
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Iterable, Iterator, List, Optional, Tuple
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
@@ -16,6 +19,14 @@ CUDA_SOURCE_EXTENSIONS = {".cu", ".cuh", ".cpp", ".cc", ".c", ".h", ".hpp"}
 NAME_CAPTURE = re.compile(r"([\w:]+)\s*$")
 TRAILING_COMMENT = re.compile(r"(?:/\*.*?\*/\s*|//[^\n\r]*\s*)$", re.DOTALL)
 IDENTIFIER = re.compile(r"[_A-Za-z]\w*")
+#
+
+COMPILE_COMMANDS_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "gpuFLOPBench"
+    / "cuda-profiling"
+    / "compile_commands.json"
+)
 
 
 class CudaSubdirArgs(BaseModel):
@@ -225,6 +236,47 @@ def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]
         pos = match_pos + len(GLOBAL_KEYWORD)
 
 
+@functools.lru_cache(maxsize=1)
+def _load_compile_commands() -> list[dict[str, Any]]:
+    if not COMPILE_COMMANDS_PATH.exists():
+        raise FileNotFoundError(
+            f"{COMPILE_COMMANDS_PATH} was not found. Have you generated the database?"
+        )
+    try:
+        data = json.loads(COMPILE_COMMANDS_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError("compile_commands.json contains invalid JSON") from exc
+    if not isinstance(data, list):
+        raise ValueError("compile_commands.json expected a list of entries")
+    return data
+
+
+def _gather_compile_entries(cuda_name: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for entry in _load_compile_commands():
+        file_path = Path(entry.get("file", ""))
+        if cuda_name not in file_path.parts:
+            continue
+        command = entry.get("command")
+        if not command:
+            continue
+        tokens = shlex.split(command)
+        if not tokens:
+            continue
+        entries.append(
+            {
+                "file": file_path.name,
+                "directory": entry.get("directory", ""),
+                "output": entry.get("output"),
+                "compiler": tokens[0],
+                "arguments": tokens[1:],
+                "command": command,
+            }
+        )
+    entries.sort(key=lambda item: item["file"])
+    return entries
+
+
 @tool(
     "cuda_file_tree",
     args_schema=CudaTreeArgs,
@@ -259,3 +311,16 @@ def cuda_global_functions(cuda_name: str) -> List[dict[str, str | int]]:
             )
     results.sort(key=lambda entry: (entry["file"], entry["line"], entry["kernel"]))
     return results
+
+
+@tool(
+    "cuda_compile_commands",
+    args_schema=CudaSubdirArgs,
+    description="Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the requested *-cuda benchmark.",
+)
+def cuda_compile_commands(cuda_name: str) -> dict[str, Any]:
+    _resolve_cuda_dir(cuda_name)
+    entries = _gather_compile_entries(cuda_name)
+    if not entries:
+        raise ValueError(f"No compile commands were found for {cuda_name!r}")
+    return {"cuda_name": cuda_name, "commands": entries}

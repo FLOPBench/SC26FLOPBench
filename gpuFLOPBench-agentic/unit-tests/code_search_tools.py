@@ -199,7 +199,7 @@ _EXPECTED_ATOMIC_REDUCTION_KERNELS = [
 
 
 @functools.lru_cache(maxsize=1)
-def _load_tools() -> tuple[Any, Any]:
+def _load_tools() -> tuple[Any, Any, Any]:
     """Load the LangChain tools defined in `mcp-servers/code_search_tools.py`."""
     root = Path(__file__).resolve().parents[1]
     tool_path = root / "mcp-servers" / "code_search_tools.py"
@@ -207,40 +207,104 @@ def _load_tools() -> tuple[Any, Any]:
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
-    return module.cuda_file_tree, module.cuda_global_functions
+    return (
+        module.cuda_file_tree,
+        module.cuda_global_functions,
+        module.cuda_compile_commands,
+    )
+
+
+def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_files: set[str]) -> None:
+    commands = result["commands"]
+    assert {entry["file"] for entry in commands} == expected_files
+    assert all(entry["output"].endswith(".o") for entry in commands)
+    assert all(entry["compiler"].endswith("clang++") for entry in commands)
+    # Each command should include the top-level benchmark source path in its include list.
+    assert all(
+        any(arg.startswith("-I") and f"src/{cuda_name}" in arg for arg in entry["arguments"])
+        for entry in commands
+    )
 
 
 def test_lulesh_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_TREE
     assert functions_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_KERNELS
+    compile_result = compile_tool.run({"cuda_name": "lulesh-cuda"})
+    _assert_compile_entries(
+        compile_result,
+        "lulesh-cuda",
+        {"lulesh.cu", "lulesh-init.cu", "lulesh-util.cu", "lulesh-viz.cu"},
+    )
 
 
 def test_tsne_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_TREE
     assert functions_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_KERNELS
+    compile_result = compile_tool.run({"cuda_name": "tsne-cuda"})
+    _assert_compile_entries(
+        compile_result,
+        "tsne-cuda",
+        {
+            "apply_forces.cu",
+            "attr_forces.cu",
+            "cuda_utils.cu",
+            "debug_utils.cu",
+            "distance_utils.cu",
+            "fit_tsne.cu",
+            "main.cu",
+            "matrix_broadcast_utils.cu",
+            "math_utils.cu",
+            "nbodyfft.cu",
+            "perplexity_search.cu",
+            "rep_forces.cu",
+        },
+    )
+    main_entry = next(entry for entry in compile_result["commands"] if entry["file"] == "main.cu")
+    assert any(arg.startswith("-I") and "src/tsne-cuda" in arg and "data" not in arg for arg in main_entry["arguments"])
+    assert any(arg.startswith("-I") and "src/tsne-cuda/data" in arg for arg in main_entry["arguments"])
 
 
 def test_all_pairs_distance_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_TREE
     assert functions_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_KERNELS
+    _assert_compile_entries(
+        compile_tool.run({"cuda_name": "all-pairs-distance-cuda"}),
+        "all-pairs-distance-cuda",
+        {"main.cu"},
+    )
 
 
 def test_add_bias_residual_layer_norm_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_TREE
     assert functions_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_KERNELS
+    _assert_compile_entries(
+        compile_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}),
+        "addBiasResidualLayerNorm-cuda",
+        {"main.cu"},
+    )
 
 
 def test_multimaterial_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_TREE
     assert functions_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_KERNELS
+    _assert_compile_entries(
+        compile_tool.run({"cuda_name": "multimaterial-cuda"}),
+        "multimaterial-cuda",
+        {"compact.cu", "full_matrix.cu", "multimat.cu"},
+    )
 
 
 def test_atomic_reduction_cuda_tools():
-    tree_tool, functions_tool = _load_tools()
+    tree_tool, functions_tool, compile_tool = _load_tools()
     assert tree_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_TREE
     assert functions_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_KERNELS
+    _assert_compile_entries(
+        compile_tool.run({"cuda_name": "atomicReduction-cuda"}),
+        "atomicReduction-cuda",
+        {"reduction.cu"},
+    )
