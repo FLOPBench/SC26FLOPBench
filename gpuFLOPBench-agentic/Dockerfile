@@ -9,7 +9,7 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y wget make git gfortran libomp-20-dev libboost-all-dev clang-20 clang-tools-20 unzip && \
-    apt-get install -y imagemagick vim git-lfs npm openssh-client && \
+    apt-get install -y imagemagick vim git-lfs npm openssh-client pytest && \
     wget https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh && \
     chmod +x cmake-3.28.0-linux-x86_64.sh && \
     ./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local && \
