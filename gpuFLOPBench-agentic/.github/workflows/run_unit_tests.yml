@@ -11,10 +11,16 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       CODEX_ROOT: ${{ github.workspace }}
+      GIT_LFS_SKIP_SMUDGE: '1'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
 
       - name: Install system dependencies
         run: |
