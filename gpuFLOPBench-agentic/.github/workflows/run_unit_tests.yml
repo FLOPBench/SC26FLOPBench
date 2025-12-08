@@ -22,10 +22,10 @@ jobs:
           sudo apt-get update
           sudo apt-get upgrade -y
           sudo apt-get install -y wget make git gfortran libomp-20-dev libboost-all-dev clang-20 clang-tools-20 unzip imagemagick vim git-lfs npm openssh-client
-          wget https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh
-          chmod +x cmake-3.28.0-linux-x86_64.sh
-          ./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local
-          rm cmake-3.28.0-linux-x86_64.sh
+          #wget https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh
+          #chmod +x cmake-3.28.0-linux-x86_64.sh
+          #./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local
+          #rm cmake-3.28.0-linux-x86_64.sh
 
       - name: Configure clang alternatives
         run: |
