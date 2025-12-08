@@ -7,6 +7,8 @@ from typing import Any
 
 import kernel_solutions
 
+import kernel_solutions
+
 _EXPECTED_LULESH_TREE = (
     "lulesh-cuda/\n"
     "  lulesh-init.cu\n"

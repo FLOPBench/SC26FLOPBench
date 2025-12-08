@@ -47,6 +47,16 @@ class CudaGlobalFunctionsArgs(CudaSubdirArgs):
     """Arguments for listing __global__ CUDA functions inside a subdirectory."""
 
 
+class KernelSourceArgs(CudaSubdirArgs):
+    """Arguments for fetching the source code of a specific CUDA kernel."""
+
+    kernel_name: str = Field(
+        ...,
+        description="Name of the __global__ CUDA kernel to extract.",
+        min_length=1,
+    )
+
+
 def _resolve_cuda_dir(cuda_name: str) -> Path:
     """Guardrail the requested path so it stays within gpuFLOPBench/src."""
     candidate = (GPU_SRC_DIR / cuda_name).resolve()
@@ -190,7 +200,7 @@ def _find_first_special_char(text: str, idx: int) -> Optional[int]:
     return None
 
 
-def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, str]]:
+def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, str, int]]:
     search_pos = start_idx
     while True:
         paren_pos = text.find("(", search_pos)
@@ -214,11 +224,45 @@ def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, s
         if text[marker] == "{":
             qualified = name_match.group(1)
             kernel = qualified.split("::")[-1]
-            return qualified, kernel
+            return qualified, kernel, marker
         return None
 
 
-def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]]:
+def _find_matching_brace(text: str, idx: int) -> Optional[int]:
+    if idx >= len(text) or text[idx] != "{":
+        return None
+    depth = 0
+    i = idx
+    length = len(text)
+    while i < length:
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        elif ch in {"\"", "'"}:
+            i = _skip_string(text, i)
+            if i is None:
+                return None
+            continue
+        elif ch == "/" and i + 1 < length:
+            if text[i + 1] == "/":
+                newline = text.find("\n", i + 2)
+                i = newline if newline != -1 else length
+                continue
+            if text[i + 1] == "*":
+                end = text.find("*/", i + 2)
+                if end == -1:
+                    return None
+                i = end + 2
+                continue
+        i += 1
+    return None
+
+
+def _iterate_cuda_kernel_definitions(text: str) -> Iterator[Tuple[int, str, str, int, int]]:
     pos = 0
     while True:
         match_pos = text.find(GLOBAL_KEYWORD, pos)
@@ -230,10 +274,28 @@ def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]
         signature_start = _skip_whitespace(text, signature_start)
         definition = _match_kernel_definition(text, signature_start)
         if definition:
-            qualified, kernel = definition
+            qualified, kernel, brace_start = definition
             line_number = text.count("\n", 0, match_pos) + 1
-            yield qualified, kernel, line_number
+            yield match_pos, qualified, kernel, line_number, brace_start
         pos = match_pos + len(GLOBAL_KEYWORD)
+
+
+def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]]:
+    for _, qualified, kernel, line, _ in _iterate_cuda_kernel_definitions(text):
+        yield qualified, kernel, line
+
+
+def _find_kernel_source_definitions(text: str, kernel_name: str) -> list[Tuple[int, str, str, int, int]]:
+    results: list[Tuple[int, str, str, int, int]] = []
+    for match_pos, qualified, kernel, line, brace_start in _iterate_cuda_kernel_definitions(text):
+        if kernel != kernel_name:
+            continue
+        brace_end = _find_matching_brace(text, brace_start)
+        if brace_end is None:
+            raise ValueError("Could not find matching brace for kernel definition")
+        start_idx = _include_template_prefix(text, match_pos)
+        results.append((start_idx, qualified, kernel, line, brace_end))
+    return results
 
 
 @functools.lru_cache(maxsize=1)
@@ -314,6 +376,39 @@ def cuda_global_functions(cuda_name: str) -> List[dict[str, str | int]]:
 
 
 @tool(
+    "extract_kernel_source_definition",
+    args_schema=KernelSourceArgs,
+    description="Return the source code for a specific __global__ kernel within a *-cuda benchmark.",
+)
+def extract_kernel_source_definition(cuda_name: str, kernel_name: str) -> List[dict[str, str | int]]:
+    cuda_dir = _resolve_cuda_dir(cuda_name)
+    results: List[dict[str, str | int]] = []
+    for source_file in _gather_cuda_files(cuda_dir):
+        try:
+            text = source_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        matches = _find_kernel_source_definitions(text, kernel_name)
+        if not matches:
+            continue
+        for start_idx, qualified, kernel, line, brace_end in matches:
+            source = text[start_idx : brace_end + 1]
+            results.append(
+                {
+                    "cuda_name": cuda_name,
+                    "file": str(source_file.relative_to(cuda_dir)),
+                    "kernel": kernel,
+                    "qualified": qualified,
+                    "line": line,
+                    "source": source,
+                }
+            )
+    if not results:
+        raise ValueError(f"Kernel {kernel_name!r} was not found under {cuda_name!r}")
+    return results
+
+
+@tool(
     "cuda_compile_commands",
     args_schema=CudaSubdirArgs,
     description="Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the requested *-cuda benchmark.",
@@ -324,3 +419,57 @@ def cuda_compile_commands(cuda_name: str) -> dict[str, Any]:
     if not entries:
         raise ValueError(f"No compile commands were found for {cuda_name!r}")
     return {"cuda_name": cuda_name, "commands": entries}
+def _find_matching_angle(text: str, idx: int) -> Optional[int]:
+    if idx >= len(text) or text[idx] != "<":
+        return None
+    depth = 0
+    i = idx
+    length = len(text)
+    while i < length:
+        ch = text[i]
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth -= 1
+            if depth == 0:
+                return i
+        elif ch in {"\"", "'"}:
+            i = _skip_string(text, i)
+            if i is None:
+                return None
+            continue
+        elif ch == "/" and i + 1 < length:
+            if text[i + 1] == "/":
+                newline = text.find("\n", i + 2)
+                i = newline if newline != -1 else length
+                continue
+            if text[i + 1] == "*":
+                end = text.find("*/", i + 2)
+                if end == -1:
+                    return None
+                i = end + 2
+                continue
+        i += 1
+    return None
+
+
+def _include_template_prefix(text: str, start_idx: int) -> int:
+    cursor = start_idx
+    search_end = start_idx
+    while True:
+        template_pos = text.rfind("template", 0, search_end)
+        if template_pos == -1:
+            return cursor
+        after_keyword = template_pos + len("template")
+        after_keyword = _skip_whitespace(text, after_keyword)
+        if after_keyword < len(text) and text[after_keyword] == "<":
+            angle_end = _find_matching_angle(text, after_keyword)
+            if angle_end is None:
+                return cursor
+            gap = text[angle_end + 1 : search_end]
+            if gap.strip() == "":
+                cursor = template_pos
+                search_end = template_pos
+                continue
+        search_end = template_pos
+    return cursor
