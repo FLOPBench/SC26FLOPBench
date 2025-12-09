@@ -70,6 +70,7 @@ _EXPECTED_GMM_TREE, _EXPECTED_GMM_KERNELS = _load_expected_tree_and_kernel_names
 _EXPECTED_PARTICLEFILTER_TREE, _EXPECTED_PARTICLEFILTER_KERNELS = _load_expected_tree_and_kernel_names("particlefilter-cuda")
 _EXPECTED_ERT_TREE, _EXPECTED_ERT_KERNELS = _load_expected_tree_and_kernel_names("ert-cuda")
 _EXPECTED_BMF_TREE, _EXPECTED_BMF_KERNELS = _load_expected_tree_and_kernel_names("bmf-cuda")
+_EXPECTED_MINIFE_TREE, _EXPECTED_MINIFE_KERNELS = _load_expected_tree_and_kernel_names("miniFE-cuda")
 
 _EXPECTED_KERNELS_BY_CUDA = {
     "lulesh-cuda": _EXPECTED_LULESH_KERNELS,
@@ -82,6 +83,7 @@ _EXPECTED_KERNELS_BY_CUDA = {
     "particlefilter-cuda": _EXPECTED_PARTICLEFILTER_KERNELS,
     "ert-cuda": _EXPECTED_ERT_KERNELS,
     "bmf-cuda": _EXPECTED_BMF_KERNELS,
+    "miniFE-cuda": _EXPECTED_MINIFE_KERNELS,
 }
 
 _KERNEL_NAME_RE = re.compile(r"__global__\s+void\s+([A-Za-z0-9_:]+)")
@@ -157,7 +159,22 @@ def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
         normalized_sources = [_normalize_kernel_source(item) for item in solution_list]
         if not normalized_sources:
             raise AssertionError(f"{path} defined an empty solution list")
-        canonical_kernel = _extract_kernel_name(normalized_sources[0])
+        canonical_kernel = None
+        for source in normalized_sources:
+            try:
+                canonical_kernel = _extract_kernel_name(source)
+                break
+            except AssertionError:
+                continue
+        if canonical_kernel is None:
+            stem = path.stem
+            prefix = f"{cuda_name}---"
+            if stem.startswith(prefix):
+                canonical_kernel = stem[len(prefix) :]
+            elif "---" in stem:
+                canonical_kernel = stem.split("---", 1)[1]
+            else:
+                raise AssertionError(f"{path} does not contain a __global__ definition")
         solutions[canonical_kernel] = normalized_sources
     return solutions
 
@@ -408,6 +425,35 @@ def test_bmf_cuda_tools():
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
             {"cuda_name": "bmf-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
+
+
+def test_minife_cuda_tools():
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "miniFE-cuda"}) == _EXPECTED_MINIFE_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "miniFE-cuda"}) == _EXPECTED_MINIFE_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"cuda_name": "miniFE-cuda"})
+    _assert_compile_entries(
+        compile_result,
+        "miniFE-cuda",
+        {
+            "BoxPartition.cpp",
+            "YAML_Doc.cpp",
+            "YAML_Element.cpp",
+            "main.cpp",
+            "mytimer.cpp",
+            "param_utils.cpp",
+            "utils.cpp",
+        },
+    )
+    kernel_solutions_map = _load_kernel_solutions("miniFE-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_MINIFE_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "miniFE-cuda", "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
