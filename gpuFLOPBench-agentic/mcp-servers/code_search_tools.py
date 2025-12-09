@@ -345,6 +345,69 @@ def _find_kernel_source_definitions(text: str, kernel_name: str) -> list[Tuple[i
     return results
 
 
+def _contains_main_definition(text: str) -> bool:
+    """Return True if the provided text contains a free-function main definition."""
+    idx = 0
+    length = len(text)
+    while idx < length:
+        ch = text[idx]
+        if ch in {"\"", "'"}:
+            new_idx = _skip_string(text, idx)
+            if new_idx is None:
+                return False
+            idx = new_idx
+            continue
+        if ch == "/" and idx + 1 < length:
+            if text[idx + 1] == "/":
+                newline = text.find("\n", idx + 2)
+                idx = newline if newline != -1 else length
+                continue
+            if text[idx + 1] == "*":
+                end = text.find("*/", idx + 2)
+                idx = end + 2 if end != -1 else length
+                continue
+        if text.startswith("main", idx):
+            if idx > 0:
+                prev = text[idx - 1]
+                if prev.isalnum() or prev == "_" or prev == ":":
+                    idx += 1
+                    continue
+            after_main = idx + len("main")
+            if after_main < length and (text[after_main].isalnum() or text[after_main] == "_" or text[after_main] == ":"):
+                idx += 1
+                continue
+            after_main = _skip_whitespace(text, after_main)
+            if after_main >= length or text[after_main] != "(":
+                idx += 1
+                continue
+            close_paren = _find_matching_paren(text, after_main)
+            if close_paren is None:
+                idx += 1
+                continue
+            marker = _find_first_special_char(text, close_paren + 1)
+            if marker is not None and marker < len(text) and text[marker] == "{":
+                return True
+            idx = close_paren + 1
+            continue
+        idx += 1
+    return False
+
+
+def _gather_main_files(cuda_dir: Path) -> List[str]:
+    """Return a sorted list of CUDA source files that define main()."""
+    files: List[str] = []
+    for source_file in _gather_cuda_files(cuda_dir):
+        try:
+            text = source_file.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if _contains_main_definition(text):
+            files.append(str(source_file.relative_to(cuda_dir)))
+    files.sort()
+    return files
+
+
+
 @functools.lru_cache(maxsize=1)
 def _load_compile_commands() -> list[dict[str, Any]]:
     if not COMPILE_COMMANDS_PATH.exists():
@@ -466,6 +529,21 @@ def cuda_compile_commands(cuda_name: str) -> dict[str, Any]:
     if not entries:
         raise ValueError(f"No compile commands were found for {cuda_name!r}")
     return {"cuda_name": cuda_name, "commands": entries}
+
+
+@tool(
+    "cuda_main_files",
+    args_schema=CudaSubdirArgs,
+    description="List source files under the requested *-cuda directory that define a free-function main().",
+)
+def cuda_main_files(cuda_name: str) -> List[str]:
+    cuda_dir = _resolve_cuda_dir(cuda_name)
+    main_files = _gather_main_files(cuda_dir)
+    if not main_files:
+        raise ValueError(f"No main() definitions were found under {cuda_name!r}")
+    return main_files
+
+
 def _find_matching_angle(text: str, idx: int) -> Optional[int]:
     if idx >= len(text) or text[idx] != "<":
         return None

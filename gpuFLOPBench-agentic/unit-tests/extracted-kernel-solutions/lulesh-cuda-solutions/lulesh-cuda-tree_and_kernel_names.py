@@ -8,6 +8,8 @@ EXPECTED_TREE = (
     "  Makefile"
 )
 
+EXPECTED_MAIN_FILES = ["lulesh.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "lulesh.cu", "kernel": "fill_sig", "line": 686},
     {"file": "lulesh.cu", "kernel": "integrateStress", "line": 699},

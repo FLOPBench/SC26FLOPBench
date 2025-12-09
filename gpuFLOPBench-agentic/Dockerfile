@@ -77,6 +77,6 @@ RUN cat ~/.ssh/id_ed25519.pub
 ENV CODEX_ROOT=/codex
 
 # expose the Jupyter notebook port
-EXPOSE 22 8888
-
-CMD ["/usr/sbin/sshd", "-D"]
+# we should later remove this, we instead use the VSCode interface to access and edit the contianer files
+# ssh is too much work, unnecessary.
+EXPOSE 8888

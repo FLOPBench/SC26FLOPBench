@@ -40,7 +40,8 @@ from typing import Any
 _SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
 
 
-def _load_expected_tree_and_kernel_names(cuda_name: str) -> tuple[str, list[dict[str, Any]]]:
+@functools.lru_cache(maxsize=None)
+def _load_solution_metadata_module(cuda_name: str) -> Any:
     solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
     metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
     spec = importlib.util.spec_from_file_location(
@@ -51,6 +52,13 @@ def _load_expected_tree_and_kernel_names(cuda_name: str) -> tuple[str, list[dict
         raise AssertionError(f"could not import metadata for {cuda_name} from {metadata_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def _load_expected_tree_and_kernel_names(cuda_name: str) -> tuple[str, list[dict[str, Any]]]:
+    module = _load_solution_metadata_module(cuda_name)
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
     tree = getattr(module, "EXPECTED_TREE", None)
     kernels = getattr(module, "EXPECTED_KERNELS", None)
     if not isinstance(tree, str):
@@ -60,7 +68,20 @@ def _load_expected_tree_and_kernel_names(cuda_name: str) -> tuple[str, list[dict
     return tree, kernels
 
 
+def _load_expected_main_files(cuda_name: str) -> list[str]:
+    module = _load_solution_metadata_module(cuda_name)
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
+    main_files = getattr(module, "EXPECTED_MAIN_FILES", None)
+    if not isinstance(main_files, list):
+        raise AssertionError(f"{metadata_path} must define EXPECTED_MAIN_FILES")
+    if not all(isinstance(item, str) for item in main_files):
+        raise AssertionError(f"{metadata_path} EXPECTED_MAIN_FILES must be a list of strings")
+    return main_files
+
+
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
+_EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
 _EXPECTED_TSNE_TREE, _EXPECTED_TSNE_KERNELS = _load_expected_tree_and_kernel_names("tsne-cuda")
 _EXPECTED_ALL_PAIRS_TREE, _EXPECTED_ALL_PAIRS_KERNELS = _load_expected_tree_and_kernel_names("all-pairs-distance-cuda")
 _EXPECTED_ADD_BIAS_TREE, _EXPECTED_ADD_BIAS_KERNELS = _load_expected_tree_and_kernel_names("addBiasResidualLayerNorm-cuda")
@@ -193,20 +214,32 @@ def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
 
 
 @functools.lru_cache(maxsize=1)
-def _load_tools() -> tuple[Any, Any, Any, Any]:
-    """Load the LangChain tools defined in `mcp-servers/code_search_tools.py`."""
+def _load_code_search_module() -> Any:
+    """Import the LangChain tool module for reuse across helpers/tests."""
     root = Path(__file__).resolve().parents[1]
     tool_path = root / "mcp-servers" / "code_search_tools.py"
     spec = importlib.util.spec_from_file_location("code_search_tools", tool_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module
+
+
+@functools.lru_cache(maxsize=1)
+def _load_tools() -> tuple[Any, Any, Any, Any]:
+    """Load the LangChain tools defined in `mcp-servers/code_search_tools.py`."""
+    module = _load_code_search_module()
     return (
         module.cuda_file_tree,
         module.cuda_global_functions,
         module.cuda_compile_commands,
         module.extract_kernel_source_definition,
     )
+
+
+def _load_main_files_tool() -> Any:
+    module = _load_code_search_module()
+    return module.cuda_main_files
 
 
 def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_files: set[str]) -> None:
@@ -240,6 +273,11 @@ def test_lulesh_cuda_tools():
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
+
+
+def test_lulesh_main_files_tool():
+    main_files_tool = _load_main_files_tool()
+    assert main_files_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_MAIN_FILES
 
 
 def test_tsne_cuda_tools():
