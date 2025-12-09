@@ -15,6 +15,11 @@ RUN apt-get update && \
     ./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local && \
     rm cmake-3.28.0-linux-x86_64.sh
 
+# Configure sshd so it can run inside the container
+RUN mkdir -p /var/run/sshd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+
 # setup alternative names for the compiler
 RUN update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 && \
     update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
@@ -72,4 +77,6 @@ RUN cat ~/.ssh/id_ed25519.pub
 ENV CODEX_ROOT=/codex
 
 # expose the Jupyter notebook port
-EXPOSE 8888
+EXPOSE 22 8888
+
+CMD ["/usr/sbin/sshd", "-D"]

@@ -14,6 +14,21 @@ docker build --progress=plain -t 'codex-env' .
 docker run -ti --network=host --gpus all --name codex-container --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_VISIBLE_DEVICES=all codex-env 
 ```
 
+## Container on Macbook (Apple Silicon M1/2/3/4) -- no NVIDIA GPU
+```
+git clone git@github.com:gregbolet/gpuFLOPBench-agentic.git ./gpuFLOPBench-agentic
+
+# we only really need the Dockerfile from the repo
+cd ./gpuFLOPBench-agentic
+
+# this takes about 10 minutes on my Macbook Air M4
+docker build --platform=linux/amd64 --progress=plain -t 'codex-env' .
+
+# please make sure that the Settings > Resources > Network > 'Enable Host Networking' option is enabled on Docker Desktop
+docker run -ti --network=host --name codex-container --platform=linux/amd64 codex-env 
+```
+
+
 ## Later commands
 ```
 docker start codex-container
