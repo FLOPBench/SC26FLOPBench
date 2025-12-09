@@ -200,6 +200,40 @@ def _find_first_special_char(text: str, idx: int) -> Optional[int]:
     return None
 
 
+def _extract_kernel_name_from_prefix(prefix: str) -> Optional[str]:
+    """Return the namespace-qualified kernel name before any template arguments."""
+    idx = len(prefix) - 1
+    while idx >= 0 and prefix[idx].isspace():
+        idx -= 1
+    while idx >= 0 and prefix[idx] == ">":
+        depth = 0
+        while idx >= 0:
+            ch = prefix[idx]
+            if ch == ">":
+                depth += 1
+            elif ch == "<":
+                depth -= 1
+                idx -= 1
+                break
+            idx -= 1
+        else:
+            return None
+        while idx >= 0 and prefix[idx].isspace():
+            idx -= 1
+    end = idx
+    if end < 0:
+        return None
+    while idx >= 0 and (
+        prefix[idx].isalnum() or prefix[idx] == "_" or prefix[idx] == ":"
+    ):
+        idx -= 1
+    start = idx + 1
+    name = prefix[start : end + 1]
+    if not name or all(ch == ":" for ch in name):
+        return None
+    return name
+
+
 def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, str, int]]:
     search_pos = start_idx
     while True:
@@ -211,8 +245,8 @@ def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, s
         if not prefix or not re.search(r"\s", prefix):
             search_pos = paren_pos + 1
             continue
-        name_match = NAME_CAPTURE.search(prefix)
-        if not name_match:
+        qualified = _extract_kernel_name_from_prefix(prefix)
+        if not qualified:
             search_pos = paren_pos + 1
             continue
         close_paren = _find_matching_paren(text, paren_pos)
@@ -222,7 +256,6 @@ def _match_kernel_definition(text: str, start_idx: int) -> Optional[Tuple[str, s
         if marker is None:
             return None
         if text[marker] == "{":
-            qualified = name_match.group(1)
             kernel = qualified.split("::")[-1]
             return qualified, kernel, marker
         return None
