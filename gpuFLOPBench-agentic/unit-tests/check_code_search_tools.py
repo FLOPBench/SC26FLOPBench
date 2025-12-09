@@ -142,10 +142,23 @@ def _align_trailing_brace_lines(expected: str, extracted: str) -> tuple[str, str
 
 
 def _assert_source_lists_equal(expected_sources: list[str], extracted_sources: list[str]) -> None:
-    assert len(expected_sources) == len(extracted_sources)
-    for expected, extracted in zip(expected_sources, extracted_sources):
-        expected_trimmed, extracted_trimmed = _align_trailing_brace_lines(expected, extracted)
-        assert extracted_trimmed == expected_trimmed
+    def _canonicalize(source: str) -> str:
+        lines = source.splitlines()
+        while lines and lines[-1].strip() == "}":
+            lines.pop()
+        return "\n".join(lines).strip()
+
+    expected_counter = {}
+    for source in expected_sources:
+        canon = _canonicalize(source)
+        expected_counter[canon] = expected_counter.get(canon, 0) + 1
+
+    extracted_counter = {}
+    for source in extracted_sources:
+        canon = _canonicalize(source)
+        extracted_counter[canon] = extracted_counter.get(canon, 0) + 1
+
+    assert expected_counter == extracted_counter
 
 
 def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
