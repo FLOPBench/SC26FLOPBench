@@ -234,6 +234,7 @@ def _find_matching_brace(text: str, idx: int) -> Optional[int]:
     depth = 0
     i = idx
     length = len(text)
+    preprocessor_stack: list[int] = []
     while i < length:
         ch = text[i]
         if ch == "{":
@@ -258,6 +259,19 @@ def _find_matching_brace(text: str, idx: int) -> Optional[int]:
                     return None
                 i = end + 2
                 continue
+        elif ch == "#":
+            newline = text.find("\n", i + 1)
+            newline = newline if newline != -1 else length
+            directive = text[i + 1 : newline].strip()
+            keyword = directive.split(None, 1)[0] if directive else ""
+            if keyword in {"if", "ifdef", "ifndef"}:
+                preprocessor_stack.append(depth)
+            elif keyword in {"else", "elif"} and preprocessor_stack:
+                depth = preprocessor_stack[-1]
+            elif keyword == "endif" and preprocessor_stack:
+                preprocessor_stack.pop()
+            i = newline
+            continue
         i += 1
     return None
 

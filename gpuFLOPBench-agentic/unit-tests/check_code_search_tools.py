@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import functools
 import importlib.util
+import re
+import runpy
 from pathlib import Path
 from typing import Any
-
-import kernel_solutions
-
-import kernel_solutions
 
 _EXPECTED_LULESH_TREE = (
     "lulesh-cuda/\n"
@@ -201,6 +199,93 @@ _EXPECTED_ATOMIC_REDUCTION_KERNELS = [
     {"file": "kernels.h", "kernel": "atomic_reduction_v16", "line": 37},
 ]
 
+_EXPECTED_KERNELS_BY_CUDA = {
+    "lulesh-cuda": _EXPECTED_LULESH_KERNELS,
+    "tsne-cuda": _EXPECTED_TSNE_KERNELS,
+    "all-pairs-distance-cuda": _EXPECTED_ALL_PAIRS_KERNELS,
+    "addBiasResidualLayerNorm-cuda": _EXPECTED_ADD_BIAS_KERNELS,
+    "multimaterial-cuda": _EXPECTED_MULTIMATERIAL_KERNELS,
+    "atomicReduction-cuda": _EXPECTED_ATOMIC_REDUCTION_KERNELS,
+}
+
+_SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
+_KERNEL_NAME_RE = re.compile(r"__global__\s+void\s+([A-Za-z0-9_:]+)")
+
+
+def _normalize_kernel_source(source: str) -> str:
+    normalized = source.strip().expandtabs(4)
+    while True:
+        if normalized.startswith("/*"):
+            end = normalized.find("*/", 2)
+            if end == -1:
+                return normalized
+            normalized = normalized[end + 2 :].strip()
+            continue
+        if normalized.startswith("//"):
+            newline = normalized.find("\n", 2)
+            if newline == -1:
+                return ""
+            normalized = normalized[newline + 1 :].strip()
+            continue
+        break
+    return normalized
+
+
+def _extract_kernel_name(source: str) -> str:
+    match = _KERNEL_NAME_RE.search(source)
+    if match is None:
+        raise AssertionError(f"could not find __global__ definition in {source!r}")
+    return match.group(1).split("::")[-1]
+
+
+def _count_trailing_brace_lines(lines: list[str]) -> int:
+    count = 0
+    for line in reversed(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped == "}":
+            count += 1
+            continue
+        break
+    return count
+
+
+def _align_trailing_brace_lines(expected: str, extracted: str) -> tuple[str, str]:
+    expected_lines = expected.splitlines()
+    extracted_lines = extracted.splitlines()
+    expected_trailing = _count_trailing_brace_lines(expected_lines)
+    extracted_trailing = _count_trailing_brace_lines(extracted_lines)
+    diff = expected_trailing - extracted_trailing
+    if diff > 0:
+        expected_lines = expected_lines[: len(expected_lines) - diff]
+    elif diff < 0:
+        extracted_lines = extracted_lines[: len(extracted_lines) + diff]
+    return "\n".join(expected_lines), "\n".join(extracted_lines)
+
+
+def _assert_source_lists_equal(expected_sources: list[str], extracted_sources: list[str]) -> None:
+    assert len(expected_sources) == len(extracted_sources)
+    for expected, extracted in zip(expected_sources, extracted_sources):
+        expected_trimmed, extracted_trimmed = _align_trailing_brace_lines(expected, extracted)
+        assert extracted_trimmed == expected_trimmed
+
+
+def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    solutions: dict[str, list[str]] = {}
+    for path in sorted(solution_dir.glob(f"{cuda_name}---*.py")):
+        namespace = runpy.run_path(path)
+        solution_list = namespace["solution"]
+        if not isinstance(solution_list, list):
+            raise AssertionError(f"{path} did not define a list called solution")
+        normalized_sources = [_normalize_kernel_source(item) for item in solution_list]
+        if not normalized_sources:
+            raise AssertionError(f"{path} defined an empty solution list")
+        canonical_kernel = _extract_kernel_name(normalized_sources[0])
+        solutions[canonical_kernel] = normalized_sources
+    return solutions
+
 
 @functools.lru_cache(maxsize=1)
 def _load_tools() -> tuple[Any, Any, Any, Any]:
@@ -232,22 +317,31 @@ def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_fil
 
 
 def test_lulesh_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_TREE
-    assert functions_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_KERNELS
-    compile_result = compile_tool.run({"cuda_name": "lulesh-cuda"})
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"cuda_name": "lulesh-cuda"})
     _assert_compile_entries(
         compile_result,
         "lulesh-cuda",
         {"lulesh.cu", "lulesh-init.cu", "lulesh-util.cu", "lulesh-viz.cu"},
     )
+    kernel_solutions_map = _load_kernel_solutions("lulesh-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_LULESH_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "lulesh-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
 def test_tsne_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_TREE
-    assert functions_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_KERNELS
-    compile_result = compile_tool.run({"cuda_name": "tsne-cuda"})
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"cuda_name": "tsne-cuda"})
     _assert_compile_entries(
         compile_result,
         "tsne-cuda",
@@ -269,69 +363,92 @@ def test_tsne_cuda_tools():
     main_entry = next(entry for entry in compile_result["commands"] if entry["file"] == "main.cu")
     assert any(arg.startswith("-I") and "src/tsne-cuda" in arg and "data" not in arg for arg in main_entry["arguments"])
     assert any(arg.startswith("-I") and "src/tsne-cuda/data" in arg for arg in main_entry["arguments"])
+    kernel_solutions_map = _load_kernel_solutions("tsne-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_TSNE_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "tsne-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
 def test_all_pairs_distance_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_TREE
-    assert functions_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_KERNELS
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_KERNELS
     _assert_compile_entries(
-        compile_tool.run({"cuda_name": "all-pairs-distance-cuda"}),
+        compile_commands_extractor_tool.run({"cuda_name": "all-pairs-distance-cuda"}),
         "all-pairs-distance-cuda",
         {"main.cu"},
     )
+    kernel_solutions_map = _load_kernel_solutions("all-pairs-distance-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_ALL_PAIRS_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "all-pairs-distance-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
-def test_add_bias_residual_layer_norm_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_TREE
-    assert functions_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_KERNELS
+def test_addBiasResidualLayerNorm_cuda_tools():
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_KERNELS
     _assert_compile_entries(
-        compile_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}),
+        compile_commands_extractor_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}),
         "addBiasResidualLayerNorm-cuda",
         {"main.cu"},
     )
+    kernel_solutions_map = _load_kernel_solutions("addBiasResidualLayerNorm-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_ADD_BIAS_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "addBiasResidualLayerNorm-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
 def test_multimaterial_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_TREE
-    assert functions_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_KERNELS
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_KERNELS
     _assert_compile_entries(
-        compile_tool.run({"cuda_name": "multimaterial-cuda"}),
+        compile_commands_extractor_tool.run({"cuda_name": "multimaterial-cuda"}),
         "multimaterial-cuda",
         {"compact.cu", "full_matrix.cu", "multimat.cu"},
     )
+    kernel_solutions_map = _load_kernel_solutions("multimaterial-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_MULTIMATERIAL_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "multimaterial-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
 def test_atomic_reduction_cuda_tools():
-    tree_tool, functions_tool, compile_tool, _ = _load_tools()
-    assert tree_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_TREE
-    assert functions_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_KERNELS
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_KERNELS
     _assert_compile_entries(
-        compile_tool.run({"cuda_name": "atomicReduction-cuda"}),
+        compile_commands_extractor_tool.run({"cuda_name": "atomicReduction-cuda"}),
         "atomicReduction-cuda",
         {"reduction.cu"},
     )
-
-
-def test_kernel_source_definition():
-    _, _, _, source_tool = _load_tools()
-    for (cuda_name, kernel_name), expected in kernel_solutions.KERNEL_SOURCE_SOLUTIONS.items():
-        results = source_tool.run({"cuda_name": cuda_name, "kernel_name": kernel_name})
-        assert isinstance(results, list)
-        assert results, "No kernel matches were returned"
-        match = next(
-            (
-                entry
-                for entry in results
-                if entry["file"] == expected["file"]
-                and entry["kernel"] == kernel_name
-                and entry["line"] == expected["line"]
-                and entry["source"] == expected["source"]
-            ),
-            None,
+    kernel_solutions_map = _load_kernel_solutions("atomicReduction-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_ATOMIC_REDUCTION_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "atomicReduction-cuda", "kernel_name": kernel}
         )
-        assert match is not None, f"No matching definition found for {kernel_name} in {cuda_name}"
-        assert match["cuda_name"] == cuda_name
-        assert match["qualified"].split("::")[-1] == kernel_name
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
