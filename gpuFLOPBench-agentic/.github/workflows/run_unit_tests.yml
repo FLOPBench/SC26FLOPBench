@@ -27,11 +27,7 @@ jobs:
           set -euxo pipefail
           sudo apt-get update
           sudo apt-get upgrade -y
-          sudo apt-get install -y wget make git gfortran libomp-20-dev libboost-all-dev clang-20 clang-tools-20 unzip imagemagick vim git-lfs npm openssh-client
-          #wget https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh
-          #chmod +x cmake-3.28.0-linux-x86_64.sh
-          #./cmake-3.28.0-linux-x86_64.sh --skip-license --prefix=/usr/local
-          #rm cmake-3.28.0-linux-x86_64.sh
+          sudo apt-get install -y wget make git gfortran libomp-20-dev libboost-all-dev clang-20 clang-tools-20 unzip imagemagick vim git-lfs npm openssh-client openssh-server
 
       - name: Configure clang alternatives
         run: |
@@ -58,6 +54,7 @@ jobs:
           conda create --name codex-env python=3.11.11 -y
           conda activate codex-env
           conda install --channel conda-forge -y pygraphviz
+          # should change this to a requirements.txt file later with pip frozen package numbers
           pip install --upgrade pip setuptools wheel
           pip install jupyterlab notebook ipywidgets matplotlib pandas scikit-learn scipy seaborn langgraph langchain
           pip install langchain_core langchain-azure-ai langchain-mcp-adapters fastmcp pytest
@@ -68,4 +65,14 @@ jobs:
           set -euxo pipefail
           source ~/anaconda3/bin/activate
           conda activate codex-env
-          python -m pytest -v -s ./unit-tests/check_code_search_tools.py
+          python -m pytest -vv -s ./unit-tests/check_code_search_tools.py
+          python -m pytest -vv -s ./unit-tests/test_cuda_kernel_uniqueness.py
+
+      - name: Install codex-1up package 
+        shell: bash
+        run: |
+          set -euxo pipefail
+          source ~/anaconda3/bin/activate
+          conda activate codex-env
+          npx -y codex-1up install
+
