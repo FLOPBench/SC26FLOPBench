@@ -7,197 +7,65 @@ import runpy
 from pathlib import Path
 from typing import Any
 
-_EXPECTED_LULESH_TREE = (
-    "lulesh-cuda/\n"
-    "  lulesh-init.cu\n"
-    "  lulesh-util.cu\n"
-    "  lulesh-viz.cu\n"
-    "  lulesh.cu\n"
-    "  lulesh.h\n"
-    "  Makefile"
-)
+# Each CUDA benchmark adds a small helper module under
+# `unit-tests/extracted-kernel-solutions/<cuda-name>-solutions/`
+# named `<cuda-name>-tree_and_kernel_names.py`. Those helpers export
+# `EXPECTED_TREE` and `EXPECTED_KERNELS` so the main test file can
+# keep the hard-coded metadata with the extraction solutions themselves.
+# The helper modules are imported via `_load_expected_tree_and_kernel_names`,
+# which loads the tree/kernel expectations alongside the per-kernel
+# solution scripts (`<cuda-name>---*.py`).
+#
+# To add tests for a new CUDA benchmark:
+#   * create `<cuda-name>-tree_and_kernel_names.py` with `EXPECTED_TREE`
+#     (string) and `EXPECTED_KERNELS` (list of dicts) inside the
+#     appropriate `extracted-kernel-solutions/<cuda-name>-solutions/`.
+#   * add the usual `<cuda-name>---<kernel>.py` solution files under the
+#     same directory to capture each kernel's source snippet.
+#   * import the metadata in this module by calling
+#     `_load_expected_tree_and_kernel_names("<cuda-name>")` so the shared
+#     constants can be reused by the assertions.
+#   * add a new `test_<cuda-name>_cuda_tools()` that follows the established
+#     pattern: load the four LangChain tools (`cuda_file_tree`,
+#     `cuda_global_functions`, `cuda_compile_commands`,
+#     `extract_kernel_source_definition`), assert the tree and kernel lists,
+#     verify compile commands, and compare extracted sources against the
+#     solutions directory.
+#   * For reference, see the existing test functions below, along with their
+#     corresponding files in the extracted-kernel-solutions subdirectory.
+#
+# To test whether these unit tests pass, you can use the following command:
+#   python -m pytest -vv -s ./unit-tests/check_code_search_tools.py
 
-_EXPECTED_LULESH_KERNELS = [
-    {"file": "lulesh.cu", "kernel": "fill_sig", "line": 686},
-    {"file": "lulesh.cu", "kernel": "integrateStress", "line": 699},
-    {"file": "lulesh.cu", "kernel": "acc_final_force", "line": 773},
-    {"file": "lulesh.cu", "kernel": "hgc", "line": 804},
-    {"file": "lulesh.cu", "kernel": "fb", "line": 891},
-    {"file": "lulesh.cu", "kernel": "collect_final_force", "line": 1098},
-    {"file": "lulesh.cu", "kernel": "accelerationForNode", "line": 1129},
-    {
-        "file": "lulesh.cu",
-        "kernel": "applyAccelerationBoundaryConditionsForNodes",
-        "line": 1147,
-    },
-    {"file": "lulesh.cu", "kernel": "calcVelocityForNodes", "line": 1167},
-    {"file": "lulesh.cu", "kernel": "calcPositionForNodes", "line": 1197},
-    {"file": "lulesh.cu", "kernel": "calcKinematicsForElems", "line": 1214},
-    {"file": "lulesh.cu", "kernel": "calcStrainRates", "line": 1327},
-    {
-        "file": "lulesh.cu",
-        "kernel": "calcMonotonicQGradientsForElems",
-        "line": 1356,
-    },
-    {"file": "lulesh.cu", "kernel": "calcMonotonicQForElems", "line": 1514},
-    {"file": "lulesh.cu", "kernel": "applyMaterialPropertiesForElems", "line": 1686},
-]
-
-_EXPECTED_TSNE_TREE = (
-    "tsne-cuda/\n"
-    "  data/\n"
-    "    cifar10_faissed/\n"
-    "      distances\n"
-    "      indices\n"
-    "    mnist_faissed/\n"
-    "      distances\n"
-    "      indices\n"
-    "  apply_forces.cu\n"
-    "  apply_forces.h\n"
-    "  attr_forces.cu\n"
-    "  attr_forces.h\n"
-    "  common.h\n"
-    "  cuda_utils.cu\n"
-    "  cuda_utils.h\n"
-    "  cxxopts.hpp\n"
-    "  debug_utils.cu\n"
-    "  debug_utils.h\n"
-    "  distance_utils.cu\n"
-    "  distance_utils.h\n"
-    "  fit_tsne.cu\n"
-    "  fit_tsne.h\n"
-    "  main.cu\n"
-    "  Makefile\n"
-    "  math_utils.cu\n"
-    "  math_utils.h\n"
-    "  matrix_broadcast_utils.cu\n"
-    "  matrix_broadcast_utils.h\n"
-    "  nbodyfft.cu\n"
-    "  nbodyfft.h\n"
-    "  options.h\n"
-    "  perplexity_search.cu\n"
-    "  perplexity_search.h\n"
-    "  rep_forces.cu\n"
-    "  rep_forces.h\n"
-    "  thrust_transform_functions.h"
-)
-
-_EXPECTED_TSNE_KERNELS = [
-    {"file": "apply_forces.cu", "kernel": "IntegrationKernel", "line": 41},
-    {"file": "attr_forces.cu", "kernel": "ComputePijxQijKernelV3", "line": 41},
-    {"file": "attr_forces.cu", "kernel": "reduce_sum_kernel", "line": 71},
-    {
-        "file": "distance_utils.cu",
-        "kernel": "PostprocessNeighborIndicesKernel",
-        "line": 94,
-    },
-    {"file": "math_utils.cu", "kernel": "syv2k", "line": 62},
-    {
-        "file": "matrix_broadcast_utils.cu",
-        "kernel": "BroadcastRowVector",
-        "line": 46,
-    },
-    {
-        "file": "matrix_broadcast_utils.cu",
-        "kernel": "BroadcastColumnVector",
-        "line": 65,
-    },
-    {"file": "nbodyfft.cu", "kernel": "copy_to_fft_input", "line": 50},
-    {"file": "nbodyfft.cu", "kernel": "copy_from_fft_output", "line": 72},
-    {"file": "nbodyfft.cu", "kernel": "compute_point_box_idx", "line": 94},
-    {"file": "nbodyfft.cu", "kernel": "interpolate_device", "line": 128},
-    {
-        "file": "nbodyfft.cu",
-        "kernel": "compute_interpolated_indices",
-        "line": 159,
-    },
-    {"file": "nbodyfft.cu", "kernel": "compute_potential_indices", "line": 193},
-    {"file": "nbodyfft.cu", "kernel": "compute_kernel_tilde", "line": 233},
-    {
-        "file": "nbodyfft.cu",
-        "kernel": "compute_upper_and_lower_bounds",
-        "line": 259,
-    },
-    {"file": "nbodyfft.cu", "kernel": "DFT2D1gpu", "line": 285},
-    {"file": "nbodyfft.cu", "kernel": "DFT2D2gpu", "line": 307},
-    {"file": "nbodyfft.cu", "kernel": "iDFT2D1gpu", "line": 331},
-    {"file": "nbodyfft.cu", "kernel": "iDFT2D2gpu", "line": 359},
-    {"file": "perplexity_search.cu", "kernel": "ComputePijKernel", "line": 40},
-    {"file": "perplexity_search.cu", "kernel": "RowSumKernel", "line": 66},
-    {"file": "perplexity_search.cu", "kernel": "NegEntropyKernel", "line": 86},
-    {
-        "file": "perplexity_search.cu",
-        "kernel": "PerplexitySearchKernel",
-        "line": 107,
-    },
-    {
-        "file": "rep_forces.cu",
-        "kernel": "compute_repulsive_forces_kernel",
-        "line": 33,
-    },
-    {
-        "file": "rep_forces.cu",
-        "kernel": "compute_chargesQij_kernel",
-        "line": 90,
-    },
-]
+_SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
 
 
-_EXPECTED_ALL_PAIRS_TREE = "all-pairs-distance-cuda/\n  main.cu\n  Makefile"
-_EXPECTED_ALL_PAIRS_KERNELS = [
-    {"file": "main.cu", "kernel": "k1", "line": 37},
-    {"file": "main.cu", "kernel": "k2", "line": 66},
-    {"file": "main.cu", "kernel": "k3", "line": 131},
-]
+def _load_expected_tree_and_kernel_names(cuda_name: str) -> tuple[str, list[dict[str, Any]]]:
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
+    spec = importlib.util.spec_from_file_location(
+        f"{cuda_name.replace('-', '_')}_tree_and_kernel_names",
+        metadata_path,
+    )
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"could not import metadata for {cuda_name} from {metadata_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    tree = getattr(module, "EXPECTED_TREE", None)
+    kernels = getattr(module, "EXPECTED_KERNELS", None)
+    if not isinstance(tree, str):
+        raise AssertionError(f"{metadata_path} must define EXPECTED_TREE")
+    if not isinstance(kernels, list):
+        raise AssertionError(f"{metadata_path} must define EXPECTED_KERNELS")
+    return tree, kernels
 
 
-_EXPECTED_ADD_BIAS_TREE = (
-    "addBiasResidualLayerNorm-cuda/\n"
-    "  kernels.h\n"
-    "  main.cu\n"
-    "  Makefile"
-)
-_EXPECTED_ADD_BIAS_KERNELS = [
-    {"file": "kernels.h", "kernel": "addBiasResidualPostLayerNormV2", "line": 202},
-    {"file": "kernels.h", "kernel": "addBiasResidualPostLayerNorm", "line": 275},
-    {
-        "file": "kernels.h",
-        "kernel": "generalAddBiasResidualPostLayerNorm",
-        "line": 327,
-    },
-]
-
-
-_EXPECTED_MULTIMATERIAL_TREE = (
-    "multimaterial-cuda/\n"
-    "  compact.cu\n"
-    "  full_matrix.cu\n"
-    "  Makefile\n"
-    "  multimat.cu\n"
-    "  volfrac.dat.tgz"
-)
-_EXPECTED_MULTIMATERIAL_KERNELS = [
-    {"file": "compact.cu", "kernel": "ccc_loop1", "line": 18},
-    {"file": "compact.cu", "kernel": "ccc_loop1_2", "line": 60},
-    {"file": "compact.cu", "kernel": "ccc_loop2", "line": 80},
-    {"file": "compact.cu", "kernel": "ccc_loop2_2", "line": 128},
-    {"file": "compact.cu", "kernel": "ccc_loop3", "line": 144},
-]
-
-
-_EXPECTED_ATOMIC_REDUCTION_TREE = (
-    "atomicReduction-cuda/\n"
-    "  kernels.h\n"
-    "  Makefile\n"
-    "  reduction.cu"
-)
-_EXPECTED_ATOMIC_REDUCTION_KERNELS = [
-    {"file": "kernels.h", "kernel": "atomic_reduction", "line": 1},
-    {"file": "kernels.h", "kernel": "atomic_reduction_v2", "line": 10},
-    {"file": "kernels.h", "kernel": "atomic_reduction_v4", "line": 19},
-    {"file": "kernels.h", "kernel": "atomic_reduction_v8", "line": 28},
-    {"file": "kernels.h", "kernel": "atomic_reduction_v16", "line": 37},
-]
+_EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
+_EXPECTED_TSNE_TREE, _EXPECTED_TSNE_KERNELS = _load_expected_tree_and_kernel_names("tsne-cuda")
+_EXPECTED_ALL_PAIRS_TREE, _EXPECTED_ALL_PAIRS_KERNELS = _load_expected_tree_and_kernel_names("all-pairs-distance-cuda")
+_EXPECTED_ADD_BIAS_TREE, _EXPECTED_ADD_BIAS_KERNELS = _load_expected_tree_and_kernel_names("addBiasResidualLayerNorm-cuda")
+_EXPECTED_MULTIMATERIAL_TREE, _EXPECTED_MULTIMATERIAL_KERNELS = _load_expected_tree_and_kernel_names("multimaterial-cuda")
+_EXPECTED_ATOMIC_REDUCTION_TREE, _EXPECTED_ATOMIC_REDUCTION_KERNELS = _load_expected_tree_and_kernel_names("atomicReduction-cuda")
 
 _EXPECTED_KERNELS_BY_CUDA = {
     "lulesh-cuda": _EXPECTED_LULESH_KERNELS,
@@ -208,7 +76,6 @@ _EXPECTED_KERNELS_BY_CUDA = {
     "atomicReduction-cuda": _EXPECTED_ATOMIC_REDUCTION_KERNELS,
 }
 
-_SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
 _KERNEL_NAME_RE = re.compile(r"__global__\s+void\s+([A-Za-z0-9_:]+)")
 
 
