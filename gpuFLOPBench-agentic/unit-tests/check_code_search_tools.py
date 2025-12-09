@@ -66,6 +66,8 @@ _EXPECTED_ALL_PAIRS_TREE, _EXPECTED_ALL_PAIRS_KERNELS = _load_expected_tree_and_
 _EXPECTED_ADD_BIAS_TREE, _EXPECTED_ADD_BIAS_KERNELS = _load_expected_tree_and_kernel_names("addBiasResidualLayerNorm-cuda")
 _EXPECTED_MULTIMATERIAL_TREE, _EXPECTED_MULTIMATERIAL_KERNELS = _load_expected_tree_and_kernel_names("multimaterial-cuda")
 _EXPECTED_ATOMIC_REDUCTION_TREE, _EXPECTED_ATOMIC_REDUCTION_KERNELS = _load_expected_tree_and_kernel_names("atomicReduction-cuda")
+_EXPECTED_GMM_TREE, _EXPECTED_GMM_KERNELS = _load_expected_tree_and_kernel_names("gmm-cuda")
+_EXPECTED_PARTICLEFILTER_TREE, _EXPECTED_PARTICLEFILTER_KERNELS = _load_expected_tree_and_kernel_names("particlefilter-cuda")
 
 _EXPECTED_KERNELS_BY_CUDA = {
     "lulesh-cuda": _EXPECTED_LULESH_KERNELS,
@@ -74,6 +76,8 @@ _EXPECTED_KERNELS_BY_CUDA = {
     "addBiasResidualLayerNorm-cuda": _EXPECTED_ADD_BIAS_KERNELS,
     "multimaterial-cuda": _EXPECTED_MULTIMATERIAL_KERNELS,
     "atomicReduction-cuda": _EXPECTED_ATOMIC_REDUCTION_KERNELS,
+    "gmm-cuda": _EXPECTED_GMM_KERNELS,
+    "particlefilter-cuda": _EXPECTED_PARTICLEFILTER_KERNELS,
 }
 
 _KERNEL_NAME_RE = re.compile(r"__global__\s+void\s+([A-Za-z0-9_:]+)")
@@ -316,6 +320,48 @@ def test_atomic_reduction_cuda_tools():
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
             {"cuda_name": "atomicReduction-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
+
+
+def test_gmm_cuda_tools():
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "gmm-cuda"}) == _EXPECTED_GMM_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "gmm-cuda"}) == _EXPECTED_GMM_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"cuda_name": "gmm-cuda"})
+    _assert_compile_entries(
+        compile_result,
+        "gmm-cuda",
+        {"main.cu"},
+    )
+    kernel_solutions_map = _load_kernel_solutions("gmm-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_GMM_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "gmm-cuda", "kernel_name": kernel}
+        )
+        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
+        _assert_source_lists_equal(expected_sources, extracted_sources)
+
+
+def test_particlefilter_cuda_tools():
+    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
+    assert file_list_tree_tool.run({"cuda_name": "particlefilter-cuda"}) == _EXPECTED_PARTICLEFILTER_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "particlefilter-cuda"}) == _EXPECTED_PARTICLEFILTER_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"cuda_name": "particlefilter-cuda"})
+    _assert_compile_entries(
+        compile_result,
+        "particlefilter-cuda",
+        {"main.cu"},
+    )
+    kernel_solutions_map = _load_kernel_solutions("particlefilter-cuda")
+    expected_kernels = {entry["kernel"] for entry in _EXPECTED_PARTICLEFILTER_KERNELS}
+    assert set(kernel_solutions_map) == expected_kernels
+    for kernel, expected_sources in kernel_solutions_map.items():
+        extracted = source_extractor_tool.run(
+            {"cuda_name": "particlefilter-cuda", "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
