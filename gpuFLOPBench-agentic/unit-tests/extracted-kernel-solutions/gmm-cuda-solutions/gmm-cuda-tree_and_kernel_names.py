@@ -11,6 +11,8 @@ EXPECTED_TREE = (
     "  README.txt"
 )
 
+EXPECTED_MAIN_FILES = ["main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "gaussian_kernel.cu", "kernel": "constants_kernel", "line": 210},
     {"file": "gaussian_kernel.cu", "kernel": "seed_clusters_kernel", "line": 294},

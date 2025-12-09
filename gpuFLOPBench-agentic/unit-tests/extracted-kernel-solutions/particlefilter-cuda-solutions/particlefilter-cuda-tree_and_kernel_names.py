@@ -8,6 +8,8 @@ EXPECTED_TREE = (
     "  Makefile"
 )
 
+EXPECTED_MAIN_FILES = ["main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "kernel_find_index.h", "kernel": "kernel_find_index", "line": 1},
     {"file": "kernel_likelihood.h", "kernel": "kernel_likelihood", "line": 1},

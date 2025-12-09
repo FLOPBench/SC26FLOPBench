@@ -7,6 +7,8 @@ EXPECTED_TREE = (
     "  volfrac.dat.tgz"
 )
 
+EXPECTED_MAIN_FILES = ["multimat.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "compact.cu", "kernel": "ccc_loop1", "line": 18},
     {"file": "compact.cu", "kernel": "ccc_loop1_2", "line": 60},

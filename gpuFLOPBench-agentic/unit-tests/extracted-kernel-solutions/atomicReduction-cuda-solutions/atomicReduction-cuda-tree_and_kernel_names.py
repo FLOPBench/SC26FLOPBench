@@ -5,6 +5,8 @@ EXPECTED_TREE = (
     "  reduction.cu"
 )
 
+EXPECTED_MAIN_FILES = ["reduction.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "kernels.h", "kernel": "atomic_reduction", "line": 1},
     {"file": "kernels.h", "kernel": "atomic_reduction_v2", "line": 10},

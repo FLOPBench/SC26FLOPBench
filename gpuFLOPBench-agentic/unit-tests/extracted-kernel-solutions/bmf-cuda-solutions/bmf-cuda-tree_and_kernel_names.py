@@ -21,6 +21,8 @@ EXPECTED_TREE = (
     "  README.md"
 )
 
+EXPECTED_MAIN_FILES = ["src/main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "src/bit_vector_kernels.cuh", "kernel": "initFactor", "line": 31},
     {"file": "src/bit_vector_kernels.cuh", "kernel": "computeDistanceRows", "line": 59},

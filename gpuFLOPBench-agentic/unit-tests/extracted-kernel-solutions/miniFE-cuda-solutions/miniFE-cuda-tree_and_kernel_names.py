@@ -229,6 +229,22 @@ EXPECTED_TREE = (
     "  LICENSE"
 )
 
+EXPECTED_MAIN_FILES = [
+    "basic/BoxPartition.cpp",
+    "basic/main.cpp",
+    "basic/optional/ThreadPool/test/hhpccg/BoxPartitionIB.c",
+    "basic/optional/ThreadPool/test/hhpccg/main.c",
+    "basic/optional/ThreadPool/test/hpccg/BoxPartition.c",
+    "basic/optional/ThreadPool/test/hpccg/main.c",
+    "basic/optional/ThreadPool/test/test_c_dnax.c",
+    "basic/optional/ThreadPool/test/test_mpi_sum.c",
+    "basic/optional/ThreadPool/test/test_tpi.cpp",
+    "basic/optional/ThreadPool/test/test_tpi_unit.c",
+    "basic/utest.cpp",
+    "src/main.cpp",
+    "utils/BoxPartition.cpp",
+]
+
 EXPECTED_KERNELS = [
     {
         "file": "basic/optional/cuda/CudaNode.cuh",

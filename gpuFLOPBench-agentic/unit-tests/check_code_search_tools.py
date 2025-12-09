@@ -10,15 +10,16 @@ from typing import Any
 # Each CUDA benchmark adds a small helper module under
 # `unit-tests/extracted-kernel-solutions/<cuda-name>-solutions/`
 # named `<cuda-name>-tree_and_kernel_names.py`. Those helpers export
-# `EXPECTED_TREE` and `EXPECTED_KERNELS` so the main test file can
-# keep the hard-coded metadata with the extraction solutions themselves.
+# `EXPECTED_TREE`, `EXPECTED_KERNELS`, and `EXPECTED_MAIN_FILES` so the main test
+# file can keep the hard-coded metadata with the extraction solutions themselves.
 # The helper modules are imported via `_load_expected_tree_and_kernel_names`,
 # which loads the tree/kernel expectations alongside the per-kernel
 # solution scripts (`<cuda-name>---*.py`).
 #
 # To add tests for a new CUDA benchmark:
 #   * create `<cuda-name>-tree_and_kernel_names.py` with `EXPECTED_TREE`
-#     (string) and `EXPECTED_KERNELS` (list of dicts) inside the
+#     (string), `EXPECTED_KERNELS` (list of dicts), and `EXPECTED_MAIN_FILES`
+#     (list of strings) inside the
 #     appropriate `extracted-kernel-solutions/<cuda-name>-solutions/`.
 #   * add the usual `<cuda-name>---<kernel>.py` solution files under the
 #     same directory to capture each kernel's source snippet.
@@ -82,16 +83,36 @@ def _load_expected_main_files(cuda_name: str) -> list[str]:
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
 _EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
+
 _EXPECTED_TSNE_TREE, _EXPECTED_TSNE_KERNELS = _load_expected_tree_and_kernel_names("tsne-cuda")
+_EXPECTED_TSNE_MAIN_FILES = _load_expected_main_files("tsne-cuda")
+
 _EXPECTED_ALL_PAIRS_TREE, _EXPECTED_ALL_PAIRS_KERNELS = _load_expected_tree_and_kernel_names("all-pairs-distance-cuda")
+_EXPECTED_ALL_PAIRS_MAIN_FILES = _load_expected_main_files("all-pairs-distance-cuda")
+
 _EXPECTED_ADD_BIAS_TREE, _EXPECTED_ADD_BIAS_KERNELS = _load_expected_tree_and_kernel_names("addBiasResidualLayerNorm-cuda")
+_EXPECTED_ADD_BIAS_MAIN_FILES = _load_expected_main_files("addBiasResidualLayerNorm-cuda")
+
 _EXPECTED_MULTIMATERIAL_TREE, _EXPECTED_MULTIMATERIAL_KERNELS = _load_expected_tree_and_kernel_names("multimaterial-cuda")
+_EXPECTED_MULTIMATERIAL_MAIN_FILES = _load_expected_main_files("multimaterial-cuda")
+
 _EXPECTED_ATOMIC_REDUCTION_TREE, _EXPECTED_ATOMIC_REDUCTION_KERNELS = _load_expected_tree_and_kernel_names("atomicReduction-cuda")
+_EXPECTED_ATOMIC_REDUCTION_MAIN_FILES = _load_expected_main_files("atomicReduction-cuda")
+
 _EXPECTED_GMM_TREE, _EXPECTED_GMM_KERNELS = _load_expected_tree_and_kernel_names("gmm-cuda")
+_EXPECTED_GMM_MAIN_FILES = _load_expected_main_files("gmm-cuda")
+
 _EXPECTED_PARTICLEFILTER_TREE, _EXPECTED_PARTICLEFILTER_KERNELS = _load_expected_tree_and_kernel_names("particlefilter-cuda")
+_EXPECTED_PARTICLEFILTER_MAIN_FILES = _load_expected_main_files("particlefilter-cuda")
+
 _EXPECTED_ERT_TREE, _EXPECTED_ERT_KERNELS = _load_expected_tree_and_kernel_names("ert-cuda")
+_EXPECTED_ERT_MAIN_FILES = _load_expected_main_files("ert-cuda")
+
 _EXPECTED_BMF_TREE, _EXPECTED_BMF_KERNELS = _load_expected_tree_and_kernel_names("bmf-cuda")
+_EXPECTED_BMF_MAIN_FILES = _load_expected_main_files("bmf-cuda")
+
 _EXPECTED_MINIFE_TREE, _EXPECTED_MINIFE_KERNELS = _load_expected_tree_and_kernel_names("miniFE-cuda")
+_EXPECTED_MINIFE_MAIN_FILES = _load_expected_main_files("miniFE-cuda")
 
 _EXPECTED_KERNELS_BY_CUDA = {
     "lulesh-cuda": _EXPECTED_LULESH_KERNELS,
@@ -105,6 +126,20 @@ _EXPECTED_KERNELS_BY_CUDA = {
     "ert-cuda": _EXPECTED_ERT_KERNELS,
     "bmf-cuda": _EXPECTED_BMF_KERNELS,
     "miniFE-cuda": _EXPECTED_MINIFE_KERNELS,
+}
+
+_EXPECTED_MAIN_FILES_BY_CUDA = {
+    "lulesh-cuda": _EXPECTED_LULESH_MAIN_FILES,
+    "tsne-cuda": _EXPECTED_TSNE_MAIN_FILES,
+    "all-pairs-distance-cuda": _EXPECTED_ALL_PAIRS_MAIN_FILES,
+    "addBiasResidualLayerNorm-cuda": _EXPECTED_ADD_BIAS_MAIN_FILES,
+    "multimaterial-cuda": _EXPECTED_MULTIMATERIAL_MAIN_FILES,
+    "atomicReduction-cuda": _EXPECTED_ATOMIC_REDUCTION_MAIN_FILES,
+    "gmm-cuda": _EXPECTED_GMM_MAIN_FILES,
+    "particlefilter-cuda": _EXPECTED_PARTICLEFILTER_MAIN_FILES,
+    "ert-cuda": _EXPECTED_ERT_MAIN_FILES,
+    "bmf-cuda": _EXPECTED_BMF_MAIN_FILES,
+    "miniFE-cuda": _EXPECTED_MINIFE_MAIN_FILES,
 }
 
 _KERNEL_NAME_RE = re.compile(r"__global__\s+void\s+([A-Za-z0-9_:]+)")
@@ -278,6 +313,13 @@ def test_lulesh_cuda_tools():
 def test_lulesh_main_files_tool():
     main_files_tool = _load_main_files_tool()
     assert main_files_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_MAIN_FILES
+
+
+def test_all_cuda_main_files_tool():
+    main_files_tool = _load_main_files_tool()
+    for cuda_name, expected_main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
+        result = main_files_tool.run({"cuda_name": cuda_name})
+        assert result == expected_main_files
 
 
 def test_tsne_cuda_tools():

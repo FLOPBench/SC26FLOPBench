@@ -37,6 +37,8 @@ EXPECTED_TREE = (
     "  thrust_transform_functions.h"
 )
 
+EXPECTED_MAIN_FILES = ["main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "apply_forces.cu", "kernel": "IntegrationKernel", "line": 41},
     {"file": "attr_forces.cu", "kernel": "ComputePijxQijKernelV3", "line": 41},

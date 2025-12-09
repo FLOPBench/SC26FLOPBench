@@ -1,5 +1,7 @@
 EXPECTED_TREE = "all-pairs-distance-cuda/\n  main.cu\n  Makefile"
 
+EXPECTED_MAIN_FILES = ["main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "main.cu", "kernel": "k1", "line": 37},
     {"file": "main.cu", "kernel": "k2", "line": 66},

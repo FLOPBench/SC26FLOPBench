@@ -8,6 +8,8 @@ EXPECTED_TREE = (
     "  rep.h"
 )
 
+EXPECTED_MAIN_FILES = ["main.cu"]
+
 EXPECTED_KERNELS = [
     {"file": "kernel.h", "kernel": "block_stride", "line": 39},
     {"file": "kernel.h", "kernel": "block_stride", "line": 85},
