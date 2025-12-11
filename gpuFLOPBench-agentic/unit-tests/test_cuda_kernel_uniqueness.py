@@ -2,21 +2,26 @@ from __future__ import annotations
 
 import functools
 from pathlib import Path
+import importlib.util
 
 import pytest
 
-CODE_SEARCH_TOOLS_PATH = (
-    Path(__file__).resolve().parents[1] / "mcp-servers" / "code_search_tools.py"
+_EXTRACT_TOOL_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "mcp-servers"
+    / "code-search-tools"
+    / "extract-kernel-source-definition.py"
 )
 
 
 @functools.lru_cache(maxsize=1)
 def _extract_kernel_source_definition():
-    import importlib.util
-
     spec = importlib.util.spec_from_file_location(
-        "code_search_tools", CODE_SEARCH_TOOLS_PATH
+        "code_search_tools.extract_kernel_source_definition",
+        _EXTRACT_TOOL_PATH,
     )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load tool at {_EXTRACT_TOOL_PATH}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.extract_kernel_source_definition.func

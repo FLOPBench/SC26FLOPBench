@@ -39,6 +39,7 @@ from typing import Any
 #   python -m pytest -vv -s ./unit-tests/check_code_search_tools.py
 
 _SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
+_TOOL_DIR = Path(__file__).resolve().parents[1] / "mcp-servers" / "code-search-tools"
 
 
 @functools.lru_cache(maxsize=None)
@@ -248,32 +249,43 @@ def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
     return solutions
 
 
-@functools.lru_cache(maxsize=1)
-def _load_code_search_module() -> Any:
-    """Import the LangChain tool module for reuse across helpers/tests."""
-    root = Path(__file__).resolve().parents[1]
-    tool_path = root / "mcp-servers" / "code_search_tools.py"
-    spec = importlib.util.spec_from_file_location("code_search_tools", tool_path)
-    assert spec is not None and spec.loader is not None
+@functools.lru_cache(maxsize=None)
+def _load_tool_module(filename: str, module_name: str) -> Any:
+    """Load a LangChain tool module that was moved into the code-search-tools directory."""
+    tool_path = _TOOL_DIR / filename
+    spec = importlib.util.spec_from_file_location(module_name, tool_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load module at {tool_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
     return module
 
 
-@functools.lru_cache(maxsize=1)
 def _load_tools() -> tuple[Any, Any, Any, Any]:
-    """Load the LangChain tools defined in `mcp-servers/code_search_tools.py`."""
-    module = _load_code_search_module()
+    """Load the LangChain tools defined in the split tool modules."""
+    file_tree_module = _load_tool_module("cuda-file-tree.py", "code_search_tools.cuda_file_tree")
+    global_functions_module = _load_tool_module(
+        "cuda-global-functions.py",
+        "code_search_tools.cuda_global_functions",
+    )
+    compile_commands_module = _load_tool_module(
+        "cuda-compile-commands.py",
+        "code_search_tools.cuda_compile_commands",
+    )
+    source_definition_module = _load_tool_module(
+        "extract-kernel-source-definition.py",
+        "code_search_tools.extract_kernel_source_definition",
+    )
     return (
-        module.cuda_file_tree,
-        module.cuda_global_functions,
-        module.cuda_compile_commands,
-        module.extract_kernel_source_definition,
+        file_tree_module.cuda_file_tree,
+        global_functions_module.cuda_global_functions,
+        compile_commands_module.cuda_compile_commands,
+        source_definition_module.extract_kernel_source_definition,
     )
 
 
 def _load_main_files_tool() -> Any:
-    module = _load_code_search_module()
+    module = _load_tool_module("cuda-main-files.py", "code_search_tools.cuda_main_files")
     return module.cuda_main_files
 
 
