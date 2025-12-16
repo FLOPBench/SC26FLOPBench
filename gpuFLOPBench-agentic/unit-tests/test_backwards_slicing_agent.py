@@ -76,6 +76,8 @@ def test_backwards_slicing_agent_can_run():
     result: dict | None = None
     try:
         tools = _load_all_code_search_tools()
+        assert len(tools) == len(_CODE_SEARCH_TOOL_SPECS), "Should load all code search tools"
+
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
         llm = build_openrouter_llm(openrouter_settings)
 
