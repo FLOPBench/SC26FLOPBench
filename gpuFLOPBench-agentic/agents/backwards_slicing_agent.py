@@ -8,10 +8,9 @@ from langchain.agents.middleware import (
 )
 from langchain.messages import ToolMessage, SystemMessage
 from langgraph.runtime import Runtime
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
 
 
-@dataclass
 class BackwardsSlicingState(TypedDict):
     target_name: str
     kernel_name: str
@@ -76,7 +75,7 @@ def make_backwards_slicing_agent(llm,
                          tool_call_limit_middleware]
 
     agent = create_agent(
-        llm=llm,
+        model=llm,
         tools=tools,
         middleware=middleware + extra_middlewares,
         checkpointer=checkpointer,

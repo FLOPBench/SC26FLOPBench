@@ -7,5 +7,7 @@ python -m pytest -vv -s ./unit-tests/check_code_search_tools.py
 
 python -m pytest -vv -s ./unit-tests/test_cuda_kernel_uniqueness.py
 
+python -m pytest -vv -s ./unit-tests/test_backwards_slicing_agent.py
+
 python -m pytest -vv -s ./unit-tests/check_openrouter_api.py
 

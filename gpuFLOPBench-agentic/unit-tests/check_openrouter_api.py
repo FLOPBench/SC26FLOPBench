@@ -43,7 +43,7 @@ def test_openrouter_api_query() -> None:
             "Missing OPENAI_API_KEY/OPENROUTER_API_KEY; set one before running the OpenRouter check."
         )
 
-    settings = OpenRouterLLMSettings(model_name="openai/gpt-5-mini")
+    settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
     llm = build_openrouter_llm(settings)
 
     prompt = [HumanMessage(content=QUESTION)]
