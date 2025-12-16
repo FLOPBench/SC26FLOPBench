@@ -54,17 +54,23 @@ def _load_all_code_search_tools():
         for filename, module_name, attribute in _CODE_SEARCH_TOOL_SPECS
     ]
 
+def delete_sqlite_db_if_exists(db_path: Path) -> None:
+    """Delete the SQLite database file if it exists."""
+    if db_path.exists():
+        db_path.unlink()
+
 
 # TODO: Replace these placeholders with realistic backwards slicing prompts later.
 SYSTEM_PROMPT = SystemMessage(content="TODO: describe the system-level instructions for this agent.")
 INITIAL_PROMPT = HumanMessage(content="TODO: define the initial question or target for the agent.")
 
+SQLITE_DB_PATH = Path(__file__).resolve().parent / "test_backwards_slicing_with_llm_checkpoint.sqlite"
 
 def test_backwards_slicing_agent_can_run():
     """The backwards-slicing agent should build with the code-search tools and run once."""
 
-    sqlite_db_path = Path(__file__).resolve().parent / "test_backwards_slicing_with_llm_checkpoint"
-    conn = sqlite3.connect(sqlite_db_path, check_same_thread=False)
+    delete_sqlite_db_if_exists(SQLITE_DB_PATH)
+    conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
     checkpointer = SqliteSaver(conn)
 
     result: dict | None = None
