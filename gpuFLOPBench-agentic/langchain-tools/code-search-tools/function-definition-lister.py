@@ -69,7 +69,7 @@ _TEMPLATE_PARAMETER_NODE_TYPES: tuple[str, ...] = (
     "template_type_parameter_list",
 )
 
-_QUALIFIER_KEYWORDS: tuple[str, ...] = ("__global__", "__device__", "__host__", "inline")
+_QUALIFIER_KEYWORDS: tuple[str, ...] = ("__global__", "__device__", "__host__", "inline", "__shared__")
 
 @dataclass(frozen=True)
 class FunctionEntry:

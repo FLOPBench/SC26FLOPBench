@@ -55,7 +55,7 @@ RUN source ~/anaconda3/bin/activate && \
     pwd && ls -lah && \
     pip install --upgrade pip setuptools wheel && \
     pip install jupyterlab notebook ipywidgets matplotlib pandas scikit-learn scipy seaborn langgraph langchain && \
-    pip install langchain_core langchain-azure-ai langchain-mcp-adapters fastmcp pytest
+    pip install langchain_core langchain-azure-ai langchain-mcp-adapters fastmcp pytest tree-sitter tree-sitter-cuda
     #&& pip install -r /codex/requirements.txt
 
 # write out to the bashrc to source conda and activate the environment on container startup
