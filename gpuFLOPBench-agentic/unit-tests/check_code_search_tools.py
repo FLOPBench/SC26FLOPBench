@@ -83,6 +83,16 @@ def _load_expected_main_files(cuda_name: str) -> list[str]:
     return main_files
 
 
+def _load_expected_include_tree(cuda_name: str) -> str:
+    module = _load_solution_metadata_module(cuda_name)
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
+    include_tree = getattr(module, "EXPECTED_INCLUDE_TREE", None)
+    if not isinstance(include_tree, str):
+        raise AssertionError(f"{metadata_path} must define EXPECTED_INCLUDE_TREE")
+    return include_tree
+
+
 def _load_expected_function_entries(cuda_name: str, attribute: str) -> dict[str, str]:
     module = _load_solution_metadata_module(cuda_name)
     solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
@@ -108,6 +118,7 @@ def _load_expected_function_declarations(cuda_name: str) -> dict[str, str]:
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
 _EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
+_EXPECTED_LULESH_INCLUDE_TREE = _load_expected_include_tree("lulesh-cuda")
 
 _EXPECTED_TSNE_TREE, _EXPECTED_TSNE_KERNELS = _load_expected_tree_and_kernel_names("tsne-cuda")
 _EXPECTED_TSNE_MAIN_FILES = _load_expected_main_files("tsne-cuda")
@@ -325,6 +336,14 @@ def _load_main_files_tool() -> Any:
     return module.cuda_main_files
 
 
+def _load_include_tree_tool() -> Any:
+    module = _load_tool_module(
+        "include-tree-extractor.py",
+        "code_search_tools.include_tree_extractor",
+    )
+    return module.include_tree_extractor
+
+
 def _load_function_definitions_tool() -> Any:
     module = _load_tool_module(
         "function-definition-lister.py",
@@ -397,7 +416,13 @@ def test_lulesh_cuda_tools():
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
 
-    _assert_function_definition_listings("lulesh-cuda")
+_assert_function_definition_listings("lulesh-cuda")
+
+
+def test_include_tree_extractor_lulesh():
+    include_tree_tool = _load_include_tree_tool()
+    result = include_tree_tool.run({"cuda_name": "lulesh-cuda", "file_name": "lulesh.cu"})
+    assert result == _EXPECTED_LULESH_INCLUDE_TREE
 
 
 def test_lulesh_main_files_tool():

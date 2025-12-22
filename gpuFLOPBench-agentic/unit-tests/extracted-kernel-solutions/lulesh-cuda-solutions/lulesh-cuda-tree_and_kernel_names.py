@@ -36,6 +36,30 @@ EXPECTED_KERNELS = [
     {"file": "lulesh.cu", "kernel": "applyMaterialPropertiesForElems", "line": 1686},
 ]
 
+EXPECTED_INCLUDE_TREE = (
+    "lulesh.cu\n"
+    "  #include <math.h> (DNE)\n"
+    "  #include <stdio.h> (DNE)\n"
+    "  #include <stdlib.h> (DNE)\n"
+    "  #include <string.h> (DNE)\n"
+    "  #include <ctype.h> (DNE)\n"
+    "  #include <time.h> (DNE)\n"
+    "  #include <sys/time.h> (DNE)\n"
+    "  #include <unistd.h> (DNE)\n"
+    "  #include <climits> (DNE)\n"
+    "  #include <iostream> (DNE)\n"
+    "  #include <sstream> (DNE)\n"
+    "  #include <limits> (DNE)\n"
+    "  #include <fstream> (DNE)\n"
+    "  #include <string> (DNE)\n"
+    "  #include <random> (DNE)\n"
+    "  #include <cassert> (DNE)\n"
+    "  #include \"lulesh.h\"\n"
+    "    #include <math.h> (DNE)\n"
+    "    #include <vector> (DNE)\n"
+    "    #include <cuda.h> (DNE)"
+)
+
 EXPECTED_FUNCTION_DEFINITIONS = {
     "lulesh-init.cu": """Domain::Domain(Int_t numRanks, Index_t colLoc, Index_t rowLoc, Index_t planeLoc, Index_t nx, int tp, int nr, int balance, Int_t cost) (defnt)
 void Domain::BuildMesh(Int_t nx, Int_t edgeNodes, Int_t edgeElems) (defnt)
