@@ -57,7 +57,7 @@ jobs:
           # should change this to a requirements.txt file later with pip frozen package numbers
           pip install --upgrade pip setuptools wheel
           pip install jupyterlab notebook ipywidgets matplotlib pandas scikit-learn scipy seaborn langgraph langchain
-          pip install langchain_core langchain-azure-ai langchain-mcp-adapters fastmcp pytest
+          pip install langchain_core langchain-azure-ai langchain-mcp-adapters fastmcp pytest tree-sitter tree-sitter-cuda
 
       - name: Run check_code_search_tools unit test
         shell: bash
