@@ -4,6 +4,7 @@ import functools
 import importlib.util
 import re
 import runpy
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,29 @@ def _load_expected_main_files(cuda_name: str) -> list[str]:
     if not all(isinstance(item, str) for item in main_files):
         raise AssertionError(f"{metadata_path} EXPECTED_MAIN_FILES must be a list of strings")
     return main_files
+
+
+def _load_expected_function_entries(cuda_name: str, attribute: str) -> dict[str, str]:
+    module = _load_solution_metadata_module(cuda_name)
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
+    entries = getattr(module, attribute, None)
+    if not isinstance(entries, dict):
+        raise AssertionError(f"{metadata_path} must define {attribute} as a dict[str, str]")
+    normalized: dict[str, str] = {}
+    for key, value in entries.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise AssertionError(f"{metadata_path} {attribute} must map strings to strings")
+        normalized[key] = value
+    return normalized
+
+
+def _load_expected_function_definitions(cuda_name: str) -> dict[str, str]:
+    return _load_expected_function_entries(cuda_name, "EXPECTED_FUNCTION_DEFINITIONS")
+
+
+def _load_expected_function_declarations(cuda_name: str) -> dict[str, str]:
+    return _load_expected_function_entries(cuda_name, "EXPECTED_FUNCTION_DECLARATIONS")
 
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
@@ -218,6 +242,13 @@ def _assert_source_lists_equal(expected_sources: list[str], extracted_sources: l
     assert expected_counter == extracted_counter
 
 
+def _function_lines_by_kind(output: str, kind: str) -> str:
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    kind_suffix = f"({kind})"
+    filtered = [line for line in lines if line.endswith(kind_suffix)]
+    return "\n".join(filtered)
+
+
 def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
     solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
     solutions: dict[str, list[str]] = {}
@@ -257,6 +288,7 @@ def _load_tool_module(filename: str, module_name: str) -> Any:
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load module at {tool_path}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
     return module
 
@@ -287,6 +319,14 @@ def _load_tools() -> tuple[Any, Any, Any, Any]:
 def _load_main_files_tool() -> Any:
     module = _load_tool_module("cuda-main-files.py", "code_search_tools.cuda_main_files")
     return module.cuda_main_files
+
+
+def _load_function_definitions_tool() -> Any:
+    module = _load_tool_module(
+        "function-definition-lister.py",
+        "code_search_tools.function_definition_lister",
+    )
+    return module.function_definition_lister
 
 
 def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_files: set[str]) -> None:
@@ -320,6 +360,17 @@ def test_lulesh_cuda_tools():
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
+
+    function_definitions_tool = _load_function_definitions_tool()
+    expected_function_definitions = _load_expected_function_definitions("lulesh-cuda")
+    expected_function_declarations = _load_expected_function_declarations("lulesh-cuda")
+    all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
+    for file_name in all_files:
+        function_list = function_definitions_tool.run(
+            {"cuda_name": "lulesh-cuda", "file_name": file_name}
+        )
+        assert _function_lines_by_kind(function_list, "defnt") == expected_function_definitions.get(file_name, "")
+        assert _function_lines_by_kind(function_list, "decl") == expected_function_declarations.get(file_name, "")
 
 
 def test_lulesh_main_files_tool():

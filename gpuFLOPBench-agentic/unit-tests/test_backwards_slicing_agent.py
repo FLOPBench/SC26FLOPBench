@@ -20,6 +20,11 @@ _CODE_SEARCH_TOOL_SPECS = (
     ("cuda-compile-commands.py", "code_search_tools.cuda_compile_commands", "cuda_compile_commands"),
     ("cuda-main-files.py", "code_search_tools.cuda_main_files", "cuda_main_files"),
     (
+        "function-definition-lister.py",
+        "code_search_tools.function_definition_lister",
+        "function_definition_lister",
+    ),
+    (
         "extract-kernel-source-definition.py",
         "code_search_tools.extract_kernel_source_definition",
         "extract_kernel_source_definition",

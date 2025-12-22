@@ -18,8 +18,9 @@
   - `cuda_file_tree` (`cuda-file-tree.py`): Builds a sorted, indented tree of the requested `*-cuda` directory so callers know the layout before inspecting files.
   - `cuda_global_functions` (`cuda-global-functions.py`): Scans CUDA/CPP/HEADER files for `__global__` definitions and emits kernel names with file/line coordinates.
   - `cuda_compile_commands` (`cuda-compile-commands.py`): Reads `gpuFLOPBench/cuda-profiling/compile_commands.json`, filters for the benchmark, and reports compiler/arguments/output pairs for every source mentioned.
-  - `cuda_main_files` (`cuda-main-files.py`): Searches for free-function `main()` definitions in the benchmark tree so integration tests can later confirm which files act as entry points.
-  - `extract_kernel_source_definition` (`extract-kernel-source-definition.py`): Replays the `__global__` definitions (including template headers and qualifiers) for a particular kernel name, letting consumers compare against known source snapshots.
+- `cuda_main_files` (`cuda-main-files.py`): Searches for free-function `main()` definitions in the benchmark tree so integration tests can later confirm which files act as entry points.
+- `extract_kernel_source_definition` (`extract-kernel-source-definition.py`): Replays the `__global__` definitions (including template headers and qualifiers) for a particular kernel name, letting consumers compare against known source snapshots.
+- `function_definition_lister` (`function-definition-lister.py`): Enumerates every declaration/definition that `tree_sitter` sees inside the benchmark's C/C++/CUDA sources (relying on `gpuFLOPBench/utils/ts_helper.py` for parser setup) and emits a newline-delimited list containing the template signature (if any), CUDA qualifiers such as `__global__`/`__device__`, the return type, and the fully qualified name annotated with `(decl)` or `(defnt)` so callers can cross-check what methods exist and where they live. Supply the optional `file_name` (relative to the benchmark root) to focus on a single source file; omit it to scan every supported source file together.
 - To add a new tool:
   1. Follow the established pattern: import the shared helpers (`utils.py`), define any additional argument model(s), and wrap the functionality in a `@tool` function that validates the `cuda_name`.
   2. Update `_CODE_SEARCH_TOOL_SPECS` in `unit-tests/test_backwards_slicing_agent.py` if the backwards-slicing agent should load the new tool so the agent still wires up to all available helpers.
@@ -34,6 +35,7 @@
  4. `extract_kernel_source_definition`, comparing extracted sources against the scripts in the same solution directory (each `<cuda-name>---<kernel>.py` must define a `solution` list of canonicalized kernel bodies).
  5. `cuda_main_files`, matching the helper’s `EXPECTED_MAIN_FILES` list.
 - The solution directories (`unit-tests/extracted-kernel-solutions/<cuda-name>-solutions/`) must contain one metadata module plus one kernel solution per extracted kernel; metadata modules serve as the glue between tool expectations and the extracted solution snippets.
+- When `function_definition_lister` needs verification, the metadata helpers should expose per-file `EXPECTED_FUNCTION_DEFINITIONS` and `EXPECTED_FUNCTION_DECLARATIONS` dictionaries so the unit tests can assert that each file returns the right `(defnt)`/`(decl)` lines instead of relying on a single aggregated string.
 - When adding a new benchmark/test case:
   1. Create the `<cuda-name>-tree_and_kernel_names.py` metadata (string tree, list of kernel dictionaries, main file list).
  2. Add `<cuda-name>---<kernel>.py` files that expose their `solution` list so `_normalize_kernel_source` can compare against the extractor output.
