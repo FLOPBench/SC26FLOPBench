@@ -245,6 +245,16 @@ EXPECTED_MAIN_FILES = [
     "utils/BoxPartition.cpp",
 ]
 
+EXPECTED_FUNCTION_DEFINITIONS = {
+    "src/main.cpp": """int main (defnt)
+void add_params_to_yaml (defnt)
+void add_configuration_to_yaml (defnt)
+void add_timestring_to_yaml (defnt)""",
+    "src/driver.hpp": "template <typename Scalar, typename LocalOrdinal, typename GlobalOrdinal> int miniFE::driver (defnt)",
+}
+
+EXPECTED_FUNCTION_DECLARATIONS = {}
+
 EXPECTED_KERNELS = [
     {
         "file": "basic/optional/cuda/CudaNode.cuh",

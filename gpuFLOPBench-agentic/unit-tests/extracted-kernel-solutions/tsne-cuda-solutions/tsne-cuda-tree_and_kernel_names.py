@@ -98,3 +98,16 @@ EXPECTED_KERNELS = [
         "line": 90,
     },
 ]
+
+
+EXPECTED_FUNCTION_DEFINITIONS = {
+    "apply_forces.cu": """__global__ void IntegrationKernel (defnt)
+void tsne::ApplyForces (defnt)""",
+    "attr_forces.cu": """__global__ void ComputePijxQijKernelV3 (defnt)
+__global__ void reduce_sum_kernel (defnt)
+void tsne::ComputeAttractiveForcesV3 (defnt)""",
+    "main.cu": """int main (defnt)
+TIMER_START (defnt)""",
+}
+
+EXPECTED_FUNCTION_DECLARATIONS = {}

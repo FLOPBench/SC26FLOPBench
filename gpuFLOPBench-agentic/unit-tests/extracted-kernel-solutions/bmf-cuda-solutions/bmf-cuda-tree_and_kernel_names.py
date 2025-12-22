@@ -32,3 +32,18 @@ EXPECTED_KERNELS = [
     {"file": "src/float_kernels.cuh", "kernel": "initFactor", "line": 5},
     {"file": "src/float_kernels.cuh", "kernel": "computeDistanceRowsShared", "line": 28},
 ]
+
+EXPECTED_FUNCTION_DEFINITIONS = {
+    "src/bit_vector_kernels.cuh": """template <typename T> __device__ T warpReduceSum (defnt)
+template <typename T> __device__ T blockReduceSum (defnt)
+template <typename bit_vector_t, typename index_t> __global__ void initFactor (defnt)
+template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t> __global__ void computeDistanceRows (defnt)
+template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t> __global__ void computeDistanceRowsShared (defnt)
+template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t> __global__ void vectorMatrixMultCompareRowWarpShared (defnt)
+template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t> __global__ void vectorMatrixMultCompareColWarpShared (defnt)""",
+    "src/float_kernels.cuh": """__global__ void initFactor (defnt)
+__global__ void computeDistanceRowsShared (defnt)""",
+    "src/main.cu": "int main (defnt)",
+}
+
+EXPECTED_FUNCTION_DECLARATIONS = {}

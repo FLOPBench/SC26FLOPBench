@@ -341,6 +341,23 @@ def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_fil
     )
 
 
+def _assert_function_definition_listings(cuda_name: str) -> None:
+    function_definitions_tool = _load_function_definitions_tool()
+    expected_function_definitions = _load_expected_function_definitions(cuda_name)
+    expected_function_declarations = _load_expected_function_declarations(cuda_name)
+    all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
+    for file_name in all_files:
+        function_list = function_definitions_tool.run(
+            {"cuda_name": cuda_name, "file_name": file_name}
+        )
+        assert _function_lines_by_kind(function_list, "defnt") == expected_function_definitions.get(
+            file_name, ""
+        )
+        assert _function_lines_by_kind(function_list, "decl") == expected_function_declarations.get(
+            file_name, ""
+        )
+
+
 def test_lulesh_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
     assert file_list_tree_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_TREE
@@ -361,16 +378,7 @@ def test_lulesh_cuda_tools():
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
 
-    function_definitions_tool = _load_function_definitions_tool()
-    expected_function_definitions = _load_expected_function_definitions("lulesh-cuda")
-    expected_function_declarations = _load_expected_function_declarations("lulesh-cuda")
-    all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
-    for file_name in all_files:
-        function_list = function_definitions_tool.run(
-            {"cuda_name": "lulesh-cuda", "file_name": file_name}
-        )
-        assert _function_lines_by_kind(function_list, "defnt") == expected_function_definitions.get(file_name, "")
-        assert _function_lines_by_kind(function_list, "decl") == expected_function_declarations.get(file_name, "")
+    _assert_function_definition_listings("lulesh-cuda")
 
 
 def test_lulesh_main_files_tool():
@@ -422,6 +430,10 @@ def test_tsne_cuda_tools():
         _assert_source_lists_equal(expected_sources, extracted_sources)
 
 
+def test_tsne_function_definition_listings():
+    _assert_function_definition_listings("tsne-cuda")
+
+
 def test_all_pairs_distance_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
     assert file_list_tree_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_TREE
@@ -440,6 +452,24 @@ def test_all_pairs_distance_cuda_tools():
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
+
+
+def test_all_pairs_distance_function_definition_listings():
+    _assert_function_definition_listings("all-pairs-distance-cuda")
+
+
+def test_additional_cuda_function_definition_listings():
+    for cuda_name in (
+        "addBiasResidualLayerNorm-cuda",
+        "multimaterial-cuda",
+        "atomicReduction-cuda",
+        "gmm-cuda",
+        "particlefilter-cuda",
+        "ert-cuda",
+        "bmf-cuda",
+        "miniFE-cuda",
+    ):
+        _assert_function_definition_listings(cuda_name)
 
 
 def test_addBiasResidualLayerNorm_cuda_tools():
