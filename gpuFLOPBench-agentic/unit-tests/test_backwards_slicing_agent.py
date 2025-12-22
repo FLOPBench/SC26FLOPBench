@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sqlite3
+import sys
 from pathlib import Path
 
 from langchain.messages import HumanMessage, SystemMessage
@@ -11,7 +12,7 @@ from agents.backwards_slicing_agent import make_backwards_slicing_agent
 from agents.llm_models import OpenRouterLLMSettings, build_openrouter_llm
 
 _CODE_SEARCH_TOOLS_DIR = (
-    Path(__file__).resolve().parents[1] / "mcp-servers" / "code-search-tools"
+    Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
 )
 
 _CODE_SEARCH_TOOL_SPECS = (
@@ -41,6 +42,7 @@ def _load_code_search_tool(filename: str, module_name: str, attribute: str):
         raise ImportError(f"failed to load module {module_name} from {path}")
 
     module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)  # type: ignore[union-attr]
 
     try:

@@ -2,9 +2,9 @@
 
 ## 1) Your role
 - Document the code-search tools and unit-test conventions so future contributors can quickly understand what is available and how to extend it.
-- Treat `mcp-servers/code-search-tools` as the single source of truth for CUDA tooling and `unit-tests/` as the verification batch for those tools plus some ancillary checks; anybody touching either area should update this file as part of new work.
+- Treat `langchain-tools/code-search-tools` as the single source of truth for CUDA tooling and `unit-tests/` as the verification batch for those tools plus some ancillary checks; anybody touching either area should update this file as part of new work.
 - Whenever you describe a tool or a test, mention both the intent (what it is supposed to do) and the concrete module/path so readers can immediately find the implementation.
-- The repository layout is deliberate: `gpuFLOPBench/` holds the `*-cuda` benchmarks under `src/`, `mcp-servers/` exposes LangChain agents (including `code-search-tools`) and shared helpers, `unit-tests/` houses the regression suite plus the extracted-kernel-solution data, and higher-level helpers like `agents/` and `helper-scripts/` sit alongside `run_tests.sh` for project-wide operations.
+- The repository layout is deliberate: `gpuFLOPBench/` holds the `*-cuda` benchmarks under `src/`, `langchain-tools/` exposes LangChain agents (including `code-search-tools`) and shared helpers, `unit-tests/` houses the regression suite plus the extracted-kernel-solution data, and higher-level helpers like `agents/` and `helper-scripts/` sit alongside `run_tests.sh` for project-wide operations.
 
 ## 1.1) Agent guidance
 - Agents live in `agents/` and should be documented whenever new tooling or workflows depend on them.
@@ -13,7 +13,7 @@
 - Document the expected runtime behavior: what prompts it requires, which state schema it uses, and how middleware (logging, tool/model call limits, error handling) is configured.
 
 ## 2) Adding new code search tools
-- The tools live under `mcp-servers/code-search-tools`. Each module loads the shared `utils.py` helpers, defines a `langchain.tools.tool` decorated function, and exposes a single entrypoint that takes a `cuda_name` (via `CudaSubdirArgs`) so it cannot escape `gpuFLOPBench/src`.
+- The tools live under `langchain-tools/code-search-tools`. Each module loads the shared `utils.py` helpers, defines a `langchain.tools.tool` decorated function, and exposes a single entrypoint that takes a `cuda_name` (via `CudaSubdirArgs`) so it cannot escape `gpuFLOPBench/src`.
 - Current tools:
   - `cuda_file_tree` (`cuda-file-tree.py`): Builds a sorted, indented tree of the requested `*-cuda` directory so callers know the layout before inspecting files.
   - `cuda_global_functions` (`cuda-global-functions.py`): Scans CUDA/CPP/HEADER files for `__global__` definitions and emits kernel names with file/line coordinates.
@@ -50,3 +50,23 @@
 ## 4) Agent unit tests
 - `unit-tests/test_backwards_slicing_agent.py` is the exemplar. It loads every tool listed in `_CODE_SEARCH_TOOL_SPECS`, builds an LLM by calling the helpers in `agents/llm_models.py`, deletes `test_backwards_slicing_with_llm_checkpoint.sqlite` before creating the checkpointer (to prevent unbounded growth), and instantiates `agents.backwards_slicing_agent.make_backwards_slicing_agent` (including middleware/checkpointer). The test runs a single invocation with placeholder prompts and asserts a response message, ensuring the agent wiring and tool access stay healthy.
 - Add similar tests whenever a new agent is introduced: load only the tools the agent actually needs, create the required prompts/state, and exercise at least one tool call if the agent is expected to perform work. Keep the SQLite checkpoint driver or another durable saver around, and delete or reset its backing file before each run so the artifact does not keep growing between test runs.
+
+
+## 5) Project Files Description
+- `gpuFLOPBench/`
+  - `src/`: hosts the benchmark sources; each `cuda_name` under here takes the form `*-cuda` and corresponds to one CUDA program we train and test.
+- `agents/`
+  - `backwards_slicing_agent.py`: LangChain agent wiring that exercises the code-search tools with middleware/checkpointer helpers.
+  - `llm_models.py`: LLM factory helpers (OpenRouter/OpenAI) that agents call to build configurable models with the expected credentials/overrides.
+- `helper-scripts/`
+  - `find_duplicate_kernels.py`: standalone helper used to spot duplicate kernel definitions across the extracted solution set.
+- `langchain-tools/`
+  - `code-search-tools/`: LangChain tool collection (`cuda-file-tree.py`, `cuda-global-functions.py`, `cuda-compile-commands.py`, `cuda-main-files.py`, `extract-kernel-source-definition.py`, `function-definition-lister.py`, and shared `utils.py`) that operate over the `gpuFLOPBench/src` tree and drive the regression suite.
+- `unit-tests/`
+  - `check_code_search_tools.py`: regression harness that loads the tool modules plus metadata helpers under `extracted-kernel-solutions/` to validate tree listings, kernels, compile commands, extracted sources, and function metadata per benchmark.
+  - `extracted-kernel-solutions/`: per-benchmark metadata (`<cuda-name>-tree_and_kernel_names.py`) and per-kernel solution snippets (`<cuda-name>---*.py`) that canonicalize the expected output of the tools.
+  - `test_backwards_slicing_agent.py`: agent-level smoke test that loads `_CODE_SEARCH_TOOL_SPECS`, boots the backwards slicing agent, and ensures the checkpointed run completes.
+  - `test_cuda_kernel_uniqueness.py`: extra guardrail that exercises `extract_kernel_source_definition` to ensure every tracked kernel has the right number of definitions.
+- Root-level helpers
+  - `run_tests.sh`: convenience wrapper for running the full regression suite.
+  - `Dockerfile`, `README.md`, `AGENTS.md`: project-level documentation and packaging entrypoints.

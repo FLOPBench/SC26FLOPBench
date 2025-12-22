@@ -40,7 +40,7 @@ from typing import Any
 #   python -m pytest -vv -s ./unit-tests/check_code_search_tools.py
 
 _SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
-_TOOL_DIR = Path(__file__).resolve().parents[1] / "mcp-servers" / "code-search-tools"
+_TOOL_DIR = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
 
 
 @functools.lru_cache(maxsize=None)

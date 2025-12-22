@@ -8,7 +8,7 @@ import pytest
 
 _EXTRACT_TOOL_PATH = (
     Path(__file__).resolve().parents[1]
-    / "mcp-servers"
+    / "langchain-tools"
     / "code-search-tools"
     / "extract-kernel-source-definition.py"
 )
