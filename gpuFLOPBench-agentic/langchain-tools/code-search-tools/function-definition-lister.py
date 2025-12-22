@@ -154,6 +154,16 @@ def _extract_function_signature(declarator) -> str | None:
     return text
 
 
+def _find_function_declarator(node):
+    if node.type == "function_declarator":
+        return node
+    for child in node.named_children:
+        found = _find_function_declarator(child)
+        if found:
+            return found
+    return None
+
+
 def _extract_function_qualifiers(node) -> tuple[str, ...]:
     qualifiers: list[str] = []
     for child in node.children:
@@ -189,7 +199,10 @@ def _maybe_add_function(
     declarator_node=None,
 ) -> None:
     declarator = declarator_node or start_node.child_by_field_name("declarator")
-    if declarator is None or declarator.type != "function_declarator":
+    if declarator is None:
+        return
+    function_declarator = _find_function_declarator(declarator)
+    if function_declarator is None:
         return
     base_name = _find_function_name(declarator)
     if not base_name:

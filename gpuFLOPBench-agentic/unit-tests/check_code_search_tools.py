@@ -249,6 +249,10 @@ def _function_lines_by_kind(output: str, kind: str) -> str:
     return "\n".join(filtered)
 
 
+def _count_nonempty_lines(text: str) -> int:
+    return sum(1 for line in text.splitlines() if line.strip())
+
+
 def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
     solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
     solutions: dict[str, list[str]] = {}
@@ -346,16 +350,31 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
     expected_function_definitions = _load_expected_function_definitions(cuda_name)
     expected_function_declarations = _load_expected_function_declarations(cuda_name)
     all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
+    total_actual_definitions = 0
+    total_expected_definitions = 0
+    total_actual_declarations = 0
+    total_expected_declarations = 0
     for file_name in all_files:
         function_list = function_definitions_tool.run(
             {"cuda_name": cuda_name, "file_name": file_name}
         )
-        assert _function_lines_by_kind(function_list, "defnt") == expected_function_definitions.get(
-            file_name, ""
-        )
-        assert _function_lines_by_kind(function_list, "decl") == expected_function_declarations.get(
-            file_name, ""
-        )
+        actual_def = _function_lines_by_kind(function_list, "defnt")
+        expected_def = expected_function_definitions.get(file_name, "")
+        assert actual_def == expected_def
+        assert len(actual_def.splitlines()) == len(expected_def.splitlines())
+
+        actual_decl = _function_lines_by_kind(function_list, "decl")
+        expected_decl = expected_function_declarations.get(file_name, "")
+        assert actual_decl == expected_decl
+        assert len(actual_decl.splitlines()) == len(expected_decl.splitlines())
+
+        total_actual_definitions += _count_nonempty_lines(actual_def)
+        total_expected_definitions += _count_nonempty_lines(expected_def)
+        total_actual_declarations += _count_nonempty_lines(actual_decl)
+        total_expected_declarations += _count_nonempty_lines(expected_decl)
+
+    assert total_actual_definitions == total_expected_definitions
+    assert total_actual_declarations == total_expected_declarations
 
 
 def test_lulesh_cuda_tools():

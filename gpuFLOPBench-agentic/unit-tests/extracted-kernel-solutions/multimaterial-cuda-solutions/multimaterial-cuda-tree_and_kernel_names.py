@@ -18,7 +18,8 @@ EXPECTED_KERNELS = [
 ]
 
 EXPECTED_FUNCTION_DEFINITIONS = {
-    "compact.cu": """void cp_to_host(char *to, char*from, size_t size) (defnt)
+    "compact.cu": """char *cp_to_device(char *from, size_t size) (defnt)
+void cp_to_host(char *to, char*from, size_t size) (defnt)
 __global__ void ccc_loop1_2( const double * __restrict__ rho_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ V, double * __restrict__ rho_ave_compact, const int * __restrict__ mmc_index, const int mmc_cells, const int * __restrict__ mmc_i, const int * __restrict__ mmc_j, int sizex, int sizey) (defnt)
 __global__ void ccc_loop2( const int * __restrict__ imaterial, const int * __restrict__ matids, const int * __restrict__ nextfrac, const double * __restrict__ rho_compact, const double * __restrict__ rho_compact_list, const double * __restrict__ t_compact, const double * __restrict__ t_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ n, double * __restrict__ p_compact, double * __restrict__ p_compact_list, int sizex, int sizey, int * __restrict__ mmc_index) (defnt)
 __global__ void ccc_loop2_2( const int * __restrict__ matids, const double * __restrict__ rho_compact_list, const double * __restrict__ t_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ n, double * __restrict__ p_compact_list, int * __restrict__ mmc_index, int mmc_cells) (defnt)
@@ -35,4 +36,3 @@ int main(int argc, char** argv) (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}
-
