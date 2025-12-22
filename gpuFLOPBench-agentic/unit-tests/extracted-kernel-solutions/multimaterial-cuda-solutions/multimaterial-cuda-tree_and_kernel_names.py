@@ -9,6 +9,19 @@ EXPECTED_TREE = (
 
 EXPECTED_MAIN_FILES = ["multimat.cu"]
 
+EXPECTED_INCLUDE_TREES = {
+    "multimat.cu": """multimat.cu
+  #include <math.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <string.h> (DNE)
+  #include <algorithm> (DNE)
+  #include <chrono> (DNE)
+  #include <hbwmalloc.h> (DNE)
+
+""",
+}
+
 EXPECTED_KERNELS = [
     {"file": "compact.cu", "kernel": "ccc_loop1", "line": 18},
     {"file": "compact.cu", "kernel": "ccc_loop1_2", "line": 60},

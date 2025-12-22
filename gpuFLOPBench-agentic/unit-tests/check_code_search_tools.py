@@ -83,14 +83,27 @@ def _load_expected_main_files(cuda_name: str) -> list[str]:
     return main_files
 
 
-def _load_expected_include_tree(cuda_name: str) -> str:
+def _load_expected_include_trees(cuda_name: str) -> dict[str, str]:
     module = _load_solution_metadata_module(cuda_name)
     solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
     metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
-    include_tree = getattr(module, "EXPECTED_INCLUDE_TREE", None)
-    if not isinstance(include_tree, str):
-        raise AssertionError(f"{metadata_path} must define EXPECTED_INCLUDE_TREE")
-    return include_tree
+    include_trees = getattr(module, "EXPECTED_INCLUDE_TREES", None)
+    if not isinstance(include_trees, dict):
+        raise AssertionError(f"{metadata_path} must define EXPECTED_INCLUDE_TREES")
+    normalized: dict[str, str] = {}
+    for key, value in include_trees.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise AssertionError(f"{metadata_path} EXPECTED_INCLUDE_TREES must map strings to strings")
+        normalized[key] = value.rstrip("\n")
+    return normalized
+
+
+def _load_expected_include_tree(cuda_name: str, file_name: str) -> str:
+    include_trees = _load_expected_include_trees(cuda_name)
+    tree = include_trees.get(file_name)
+    if tree is None:
+        raise AssertionError(f"EXPECTED_INCLUDE_TREES in {cuda_name} does not contain {file_name!r}")
+    return tree
 
 
 def _load_expected_function_entries(cuda_name: str, attribute: str) -> dict[str, str]:
@@ -118,7 +131,6 @@ def _load_expected_function_declarations(cuda_name: str) -> dict[str, str]:
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
 _EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
-_EXPECTED_LULESH_INCLUDE_TREE = _load_expected_include_tree("lulesh-cuda")
 
 _EXPECTED_TSNE_TREE, _EXPECTED_TSNE_KERNELS = _load_expected_tree_and_kernel_names("tsne-cuda")
 _EXPECTED_TSNE_MAIN_FILES = _load_expected_main_files("tsne-cuda")
@@ -421,13 +433,28 @@ _assert_function_definition_listings("lulesh-cuda")
 
 def test_include_tree_extractor_lulesh():
     include_tree_tool = _load_include_tree_tool()
+    expected_tree = _load_expected_include_tree("lulesh-cuda", "lulesh.cu")
     result = include_tree_tool.run({"cuda_name": "lulesh-cuda", "file_name": "lulesh.cu"})
-    assert result == _EXPECTED_LULESH_INCLUDE_TREE
+    assert result == expected_tree
 
 
 def test_lulesh_main_files_tool():
     main_files_tool = _load_main_files_tool()
     assert main_files_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_MAIN_FILES
+
+
+def test_include_tree_extractor_main_files():
+    include_tree_tool = _load_include_tree_tool()
+    for cuda_name, main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
+        expected_trees = _load_expected_include_trees(cuda_name)
+        for file_name in main_files:
+            expected_tree = expected_trees.get(file_name)
+            if expected_tree is None:
+                raise AssertionError(
+                    f"{cuda_name}-tree_and_kernel_names.py must list {file_name!r} in EXPECTED_INCLUDE_TREES"
+                )
+            result = include_tree_tool.run({"cuda_name": cuda_name, "file_name": file_name})
+            assert result == expected_tree
 
 
 def test_all_cuda_main_files_tool():

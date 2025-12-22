@@ -10,6 +10,32 @@ EXPECTED_TREE = (
 
 EXPECTED_MAIN_FILES = ["lulesh.cu"]
 
+EXPECTED_INCLUDE_TREES = {
+    "lulesh.cu": """lulesh.cu
+  #include <math.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <string.h> (DNE)
+  #include <ctype.h> (DNE)
+  #include <time.h> (DNE)
+  #include <sys/time.h> (DNE)
+  #include <unistd.h> (DNE)
+  #include <climits> (DNE)
+  #include <iostream> (DNE)
+  #include <sstream> (DNE)
+  #include <limits> (DNE)
+  #include <fstream> (DNE)
+  #include <string> (DNE)
+  #include <random> (DNE)
+  #include <cassert> (DNE)
+  #include "lulesh.h"
+    #include <math.h> (DNE)
+    #include <vector> (DNE)
+    #include <cuda.h> (DNE)
+
+""",
+}
+
 EXPECTED_KERNELS = [
     {"file": "lulesh.cu", "kernel": "fill_sig", "line": 686},
     {"file": "lulesh.cu", "kernel": "integrateStress", "line": 699},
@@ -35,30 +61,6 @@ EXPECTED_KERNELS = [
     {"file": "lulesh.cu", "kernel": "calcMonotonicQForElems", "line": 1514},
     {"file": "lulesh.cu", "kernel": "applyMaterialPropertiesForElems", "line": 1686},
 ]
-
-EXPECTED_INCLUDE_TREE = (
-    "lulesh.cu\n"
-    "  #include <math.h> (DNE)\n"
-    "  #include <stdio.h> (DNE)\n"
-    "  #include <stdlib.h> (DNE)\n"
-    "  #include <string.h> (DNE)\n"
-    "  #include <ctype.h> (DNE)\n"
-    "  #include <time.h> (DNE)\n"
-    "  #include <sys/time.h> (DNE)\n"
-    "  #include <unistd.h> (DNE)\n"
-    "  #include <climits> (DNE)\n"
-    "  #include <iostream> (DNE)\n"
-    "  #include <sstream> (DNE)\n"
-    "  #include <limits> (DNE)\n"
-    "  #include <fstream> (DNE)\n"
-    "  #include <string> (DNE)\n"
-    "  #include <random> (DNE)\n"
-    "  #include <cassert> (DNE)\n"
-    "  #include \"lulesh.h\"\n"
-    "    #include <math.h> (DNE)\n"
-    "    #include <vector> (DNE)\n"
-    "    #include <cuda.h> (DNE)"
-)
 
 EXPECTED_FUNCTION_DEFINITIONS = {
     "lulesh-init.cu": """Domain::Domain(Int_t numRanks, Index_t colLoc, Index_t rowLoc, Index_t planeLoc, Index_t nx, int tp, int nr, int balance, Int_t cost) (defnt)

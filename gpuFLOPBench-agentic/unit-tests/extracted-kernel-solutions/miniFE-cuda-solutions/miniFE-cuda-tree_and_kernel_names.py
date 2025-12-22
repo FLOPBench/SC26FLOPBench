@@ -929,6 +929,1662 @@ std::string convert_size_t_to_string(size_t value_arg) (decl)""",
 }
 
 
+EXPECTED_INCLUDE_TREES = {
+    "basic/BoxPartition.cpp": """basic/BoxPartition.cpp
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <Box.hpp>
+  #include <BoxPartition.hpp>
+    #include <Box.hpp>
+
+""",
+    "basic/main.cpp": """basic/main.cpp
+  #include <iostream> (DNE)
+  #include <ctime> (DNE)
+  #include <cstdlib> (DNE)
+  #include <vector> (DNE)
+  #include <miniFE_version.h> (DNE)
+  #include <outstream.hpp> (DNE)
+  #include <mpi.h> (DNE)
+  #include <ComputeNodeType.hpp>
+    #include <tbb/task_scheduler_init.h> (DNE)
+    #include <TBBNode.hpp>
+      #include <tbb/blocked_range.h> (DNE)
+      #include <tbb/parallel_for.h> (DNE)
+      #include <tbb/parallel_reduce.h> (DNE)
+      #include <tbb/task_scheduler_init.h> (DNE)
+      #include <stdlib.h> (DNE)
+      #include <NoOpMemoryModel.hpp>
+      #include <iostream> (DNE)
+    #include <TPI.h> (DNE)
+    #include <TPINode.hpp>
+      #include <TPI.h> (DNE)
+      #include <NoOpMemoryModel.hpp>
+      #include <iostream> (DNE)
+    #include <CudaNode.hpp> (DNE)
+    #include <SerialComputeNode.hpp>
+      #include <NoOpMemoryModel.hpp>
+  #include <Box.hpp>
+  #include <BoxPartition.hpp>
+    #include <Box.hpp>
+  #include <box_utils.hpp>
+    #include <vector> (DNE)
+    #include <map> (DNE)
+    #include <mpi.h> (DNE)
+    #include <TypeTraits.hpp>
+      #include <complex> (DNE)
+      #include <mpi.h> (DNE)
+    #include <Box.hpp>
+  #include <Parameters.hpp> (DNE)
+  #include <utils.hpp> (DNE)
+  #include <driver.hpp>
+    #include <cstddef> (DNE)
+    #include <cmath> (DNE)
+    #include <cstdlib> (DNE)
+    #include <iostream> (DNE)
+    #include <sstream> (DNE)
+    #include <iomanip> (DNE)
+    #include <box_utils.hpp>
+      #include <vector> (DNE)
+      #include <map> (DNE)
+      #include <mpi.h> (DNE)
+      #include <TypeTraits.hpp>
+        #include <complex> (DNE)
+        #include <mpi.h> (DNE)
+      #include <Box.hpp>
+    #include <Vector.hpp>
+      #include <vector> (DNE)
+      #include <MemInitOp.hpp>
+    #include <CSRMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <ELLMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <CSRMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <simple_mesh_description.hpp>
+      #include <utils.hpp> (DNE)
+      #include <set> (DNE)
+      #include <map> (DNE)
+    #include <SparseMatrix_functions.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <set> (DNE)
+      #include <algorithm> (DNE)
+      #include <sstream> (DNE)
+      #include <fstream> (DNE)
+      #include <Vector.hpp>
+        #include <vector> (DNE)
+        #include <MemInitOp.hpp>
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+          #include <MemInitOp.hpp>
+        #include <WaxpbyOp.hpp>
+        #include <DotOp.hpp>
+      #include <ElemData.hpp> (DNE)
+      #include <FusedMatvecDotOp.hpp>
+      #include <MatvecOp.hpp>
+        #include <CSRMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <ELLMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <ComputeNodeType.hpp>
+          #include <tbb/task_scheduler_init.h> (DNE)
+          #include <TBBNode.hpp>
+            #include <tbb/blocked_range.h> (DNE)
+            #include <tbb/parallel_for.h> (DNE)
+            #include <tbb/parallel_reduce.h> (DNE)
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <stdlib.h> (DNE)
+            #include <NoOpMemoryModel.hpp>
+            #include <iostream> (DNE)
+          #include <TPI.h> (DNE)
+          #include <TPINode.hpp>
+            #include <TPI.h> (DNE)
+            #include <NoOpMemoryModel.hpp>
+            #include <iostream> (DNE)
+          #include <CudaNode.hpp> (DNE)
+          #include <SerialComputeNode.hpp>
+            #include <NoOpMemoryModel.hpp>
+      #include <MatrixInitOp.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <box_utils.hpp>
+          #include <vector> (DNE)
+          #include <map> (DNE)
+          #include <mpi.h> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+          #include <Box.hpp>
+        #include <ComputeNodeType.hpp>
+          #include <tbb/task_scheduler_init.h> (DNE)
+          #include <TBBNode.hpp>
+            #include <tbb/blocked_range.h> (DNE)
+            #include <tbb/parallel_for.h> (DNE)
+            #include <tbb/parallel_reduce.h> (DNE)
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <stdlib.h> (DNE)
+            #include <NoOpMemoryModel.hpp>
+            #include <iostream> (DNE)
+          #include <TPI.h> (DNE)
+          #include <TPINode.hpp>
+            #include <TPI.h> (DNE)
+            #include <NoOpMemoryModel.hpp>
+            #include <iostream> (DNE)
+          #include <CudaNode.hpp> (DNE)
+          #include <SerialComputeNode.hpp>
+            #include <NoOpMemoryModel.hpp>
+        #include <CSRMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <ELLMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <algorithm> (DNE)
+      #include <MatrixCopyOp.hpp>
+      #include <exchange_externals.hpp>
+        #include <cstdlib> (DNE)
+        #include <iostream> (DNE)
+        #include <mpi.h> (DNE)
+        #include <outstream.hpp> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+      #include <mytimer.hpp> (DNE)
+      #include <LockingMatrix.hpp>
+        #include <vector> (DNE)
+        #include <Lock.hpp>
+          #include <iostream> (DNE)
+          #include <tbb/atomic.h> (DNE)
+      #include <mpi.h> (DNE)
+    #include <generate_matrix_structure.hpp>
+      #include <sstream> (DNE)
+      #include <stdexcept> (DNE)
+      #include <map> (DNE)
+      #include <algorithm> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <SparseMatrix_functions.hpp>
+        #include <cstddef> (DNE)
+        #include <vector> (DNE)
+        #include <set> (DNE)
+        #include <algorithm> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+          #include <MemInitOp.hpp>
+        #include <Vector_functions.hpp>
+          #include <vector> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <mpi.h> (DNE)
+          #include <LockingVector.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <WaxpbyOp.hpp>
+          #include <DotOp.hpp>
+        #include <ElemData.hpp> (DNE)
+        #include <FusedMatvecDotOp.hpp>
+        #include <MatvecOp.hpp>
+          #include <CSRMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ELLMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ComputeNodeType.hpp>
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <TBBNode.hpp>
+              #include <tbb/blocked_range.h> (DNE)
+              #include <tbb/parallel_for.h> (DNE)
+              #include <tbb/parallel_reduce.h> (DNE)
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <stdlib.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <TPI.h> (DNE)
+            #include <TPINode.hpp>
+              #include <TPI.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <CudaNode.hpp> (DNE)
+            #include <SerialComputeNode.hpp>
+              #include <NoOpMemoryModel.hpp>
+        #include <MatrixInitOp.hpp>
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ComputeNodeType.hpp>
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <TBBNode.hpp>
+              #include <tbb/blocked_range.h> (DNE)
+              #include <tbb/parallel_for.h> (DNE)
+              #include <tbb/parallel_reduce.h> (DNE)
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <stdlib.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <TPI.h> (DNE)
+            #include <TPINode.hpp>
+              #include <TPI.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <CudaNode.hpp> (DNE)
+            #include <SerialComputeNode.hpp>
+              #include <NoOpMemoryModel.hpp>
+          #include <CSRMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ELLMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <algorithm> (DNE)
+        #include <MatrixCopyOp.hpp>
+        #include <exchange_externals.hpp>
+          #include <cstdlib> (DNE)
+          #include <iostream> (DNE)
+          #include <mpi.h> (DNE)
+          #include <outstream.hpp> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+        #include <mytimer.hpp> (DNE)
+        #include <LockingMatrix.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <mpi.h> (DNE)
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <utils.hpp> (DNE)
+      #include <mpi.h> (DNE)
+    #include <assemble_FE_data.hpp>
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <perform_element_loop_TBB_pllfor1.hpp>
+        #include <LockingMatrix.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <LockingVector.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <BoxIterator.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <SparseMatrix_functions.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <set> (DNE)
+          #include <algorithm> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <Vector_functions.hpp>
+            #include <vector> (DNE)
+            #include <sstream> (DNE)
+            #include <fstream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <LockingVector.hpp>
+              #include <vector> (DNE)
+              #include <Lock.hpp>
+                #include <iostream> (DNE)
+                #include <tbb/atomic.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Vector.hpp>
+              #include <vector> (DNE)
+              #include <MemInitOp.hpp>
+            #include <WaxpbyOp.hpp>
+            #include <DotOp.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <FusedMatvecDotOp.hpp>
+          #include <MatvecOp.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+          #include <MatrixInitOp.hpp>
+            #include <simple_mesh_description.hpp>
+              #include <utils.hpp> (DNE)
+              #include <set> (DNE)
+              #include <map> (DNE)
+            #include <box_utils.hpp>
+              #include <vector> (DNE)
+              #include <map> (DNE)
+              #include <mpi.h> (DNE)
+              #include <TypeTraits.hpp>
+                #include <complex> (DNE)
+                #include <mpi.h> (DNE)
+              #include <Box.hpp>
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <algorithm> (DNE)
+          #include <MatrixCopyOp.hpp>
+          #include <exchange_externals.hpp>
+            #include <cstdlib> (DNE)
+            #include <iostream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <outstream.hpp> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+          #include <mytimer.hpp> (DNE)
+          #include <LockingMatrix.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Hex8_box_utils.hpp>
+          #include <stdexcept> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <Hex8.hpp> (DNE)
+        #include <Hex8_ElemData.hpp> (DNE)
+        #include <mytimer.hpp> (DNE)
+      #include <perform_element_loop.hpp>
+        #include <BoxIterator.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <SparseMatrix_functions.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <set> (DNE)
+          #include <algorithm> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <Vector_functions.hpp>
+            #include <vector> (DNE)
+            #include <sstream> (DNE)
+            #include <fstream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <LockingVector.hpp>
+              #include <vector> (DNE)
+              #include <Lock.hpp>
+                #include <iostream> (DNE)
+                #include <tbb/atomic.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Vector.hpp>
+              #include <vector> (DNE)
+              #include <MemInitOp.hpp>
+            #include <WaxpbyOp.hpp>
+            #include <DotOp.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <FusedMatvecDotOp.hpp>
+          #include <MatvecOp.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+          #include <MatrixInitOp.hpp>
+            #include <simple_mesh_description.hpp>
+              #include <utils.hpp> (DNE)
+              #include <set> (DNE)
+              #include <map> (DNE)
+            #include <box_utils.hpp>
+              #include <vector> (DNE)
+              #include <map> (DNE)
+              #include <mpi.h> (DNE)
+              #include <TypeTraits.hpp>
+                #include <complex> (DNE)
+                #include <mpi.h> (DNE)
+              #include <Box.hpp>
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <algorithm> (DNE)
+          #include <MatrixCopyOp.hpp>
+          #include <exchange_externals.hpp>
+            #include <cstdlib> (DNE)
+            #include <iostream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <outstream.hpp> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+          #include <mytimer.hpp> (DNE)
+          #include <LockingMatrix.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <mpi.h> (DNE)
+        #include <box_utils.hpp>
+          #include <vector> (DNE)
+          #include <map> (DNE)
+          #include <mpi.h> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+          #include <Box.hpp>
+        #include <Hex8_box_utils.hpp>
+          #include <stdexcept> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <Hex8.hpp> (DNE)
+        #include <Hex8_ElemData.hpp> (DNE)
+    #include <verify_solution.hpp>
+      #include <sstream> (DNE)
+      #include <stdexcept> (DNE)
+      #include <map> (DNE)
+      #include <algorithm> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <analytic_soln.hpp>
+        #include <cmath> (DNE)
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <utils.hpp> (DNE)
+      #include <mpi.h> (DNE)
+    #include <compute_matrix_stats.hpp>
+      #include <cstddef> (DNE)
+      #include <cmath> (DNE)
+      #include <cstdlib> (DNE)
+      #include <iostream> (DNE)
+      #include <sstream> (DNE)
+      #include <iomanip> (DNE)
+      #include <outstream.hpp> (DNE)
+      #include <utils.hpp> (DNE)
+      #include <YAML_Doc.hpp> (DNE)
+    #include <make_local_matrix.hpp>
+      #include <map> (DNE)
+      #include <mpi.h> (DNE)
+    #include <imbalance.hpp>
+      #include <cmath> (DNE)
+      #include <mpi.h> (DNE)
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <utils.hpp> (DNE)
+      #include <YAML_Doc.hpp> (DNE)
+    #include <cg_solve.hpp>
+      #include <cmath> (DNE)
+      #include <limits> (DNE)
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+          #include <MemInitOp.hpp>
+        #include <WaxpbyOp.hpp>
+        #include <DotOp.hpp>
+      #include <mytimer.hpp> (DNE)
+      #include <outstream.hpp> (DNE)
+    #include <time_kernels.hpp>
+      #include <cmath> (DNE)
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+          #include <MemInitOp.hpp>
+        #include <WaxpbyOp.hpp>
+        #include <DotOp.hpp>
+      #include <mytimer.hpp> (DNE)
+      #include <cuda.h> (DNE)
+    #include <outstream.hpp> (DNE)
+    #include <utils.hpp> (DNE)
+    #include <mytimer.hpp> (DNE)
+    #include <YAML_Doc.hpp> (DNE)
+    #include <mpi.h> (DNE)
+  #include <YAML_Doc.hpp> (DNE)
+  #include <miniFE_info.hpp> (DNE)
+  #include <miniFE_no_info.hpp> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/hhpccg/BoxPartitionIB.c": """basic/optional/ThreadPool/test/hhpccg/BoxPartitionIB.c
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <BoxPartitionIB.h>
+
+""",
+    "basic/optional/ThreadPool/test/hhpccg/main.c": """basic/optional/ThreadPool/test/hhpccg/main.c
+  #include <math.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <string.h> (DNE)
+  #include <ThreadPool_config.h> (DNE)
+  #include <TPI.h> (DNE)
+  #include <BoxPartitionIB.h>
+  #include <dcrs_matrix.h>
+    #include <tpi_vector.h>
+  #include <CGSolver.h>
+    #include <tpi_vector.h>
+    #include <dcrs_matrix.h>
+      #include <tpi_vector.h>
+  #include <mpi.h> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/hpccg/BoxPartition.c": """basic/optional/ThreadPool/test/hpccg/BoxPartition.c
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <BoxPartition.h>
+
+""",
+    "basic/optional/ThreadPool/test/hpccg/main.c": """basic/optional/ThreadPool/test/hpccg/main.c
+  #include <math.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <string.h> (DNE)
+  #include <ThreadPool_config.h> (DNE)
+  #include <TPI.h> (DNE)
+  #include <BoxPartition.h>
+  #include <CGSolver.h>
+    #include <tpi_vector.h>
+      #include <ThreadPool_config.h> (DNE)
+  #include <mpi.h> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/test_c_dnax.c": """basic/optional/ThreadPool/test/test_c_dnax.c
+  #include <math.h> (DNE)
+  #include <stddef.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <TPI.h> (DNE)
+  #include <mpi.h> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/test_mpi_sum.c": """basic/optional/ThreadPool/test/test_mpi_sum.c
+  #include <math.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <TPI.h> (DNE)
+  #include <ThreadPool_config.h> (DNE)
+  #include <mpi.h> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/test_tpi.cpp": """basic/optional/ThreadPool/test/test_tpi.cpp
+  #include <stdexcept> (DNE)
+  #include <iostream> (DNE)
+  #include <TPI.hpp> (DNE)
+
+""",
+    "basic/optional/ThreadPool/test/test_tpi_unit.c": """basic/optional/ThreadPool/test/test_tpi_unit.c
+  #include <stdlib.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <math.h> (DNE)
+  #include <TPI.h> (DNE)
+  #include <mpi.h> (DNE)
+
+""",
+    "basic/utest.cpp": """basic/utest.cpp
+  #include <iostream> (DNE)
+  #include <mpi.h> (DNE)
+  #include <utest_case.hpp>
+    #include <vector> (DNE)
+  #include <utest_cases.hpp>
+    #include <iostream> (DNE)
+    #include <cmath> (DNE)
+    #include <BoxPartition.hpp>
+      #include <Box.hpp>
+    #include <box_utils.hpp>
+      #include <vector> (DNE)
+      #include <map> (DNE)
+      #include <mpi.h> (DNE)
+      #include <TypeTraits.hpp>
+        #include <complex> (DNE)
+        #include <mpi.h> (DNE)
+      #include <Box.hpp>
+    #include <simple_mesh_description.hpp>
+      #include <utils.hpp> (DNE)
+      #include <set> (DNE)
+      #include <map> (DNE)
+    #include <generate_matrix_structure.hpp>
+      #include <sstream> (DNE)
+      #include <stdexcept> (DNE)
+      #include <map> (DNE)
+      #include <algorithm> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <SparseMatrix_functions.hpp>
+        #include <cstddef> (DNE)
+        #include <vector> (DNE)
+        #include <set> (DNE)
+        #include <algorithm> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+          #include <MemInitOp.hpp>
+        #include <Vector_functions.hpp>
+          #include <vector> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <mpi.h> (DNE)
+          #include <LockingVector.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <WaxpbyOp.hpp>
+          #include <DotOp.hpp>
+        #include <ElemData.hpp> (DNE)
+        #include <FusedMatvecDotOp.hpp>
+        #include <MatvecOp.hpp>
+          #include <CSRMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ELLMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ComputeNodeType.hpp>
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <TBBNode.hpp>
+              #include <tbb/blocked_range.h> (DNE)
+              #include <tbb/parallel_for.h> (DNE)
+              #include <tbb/parallel_reduce.h> (DNE)
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <stdlib.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <TPI.h> (DNE)
+            #include <TPINode.hpp>
+              #include <TPI.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <CudaNode.hpp> (DNE)
+            #include <SerialComputeNode.hpp>
+              #include <NoOpMemoryModel.hpp>
+        #include <MatrixInitOp.hpp>
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ComputeNodeType.hpp>
+            #include <tbb/task_scheduler_init.h> (DNE)
+            #include <TBBNode.hpp>
+              #include <tbb/blocked_range.h> (DNE)
+              #include <tbb/parallel_for.h> (DNE)
+              #include <tbb/parallel_reduce.h> (DNE)
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <stdlib.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <TPI.h> (DNE)
+            #include <TPINode.hpp>
+              #include <TPI.h> (DNE)
+              #include <NoOpMemoryModel.hpp>
+              #include <iostream> (DNE)
+            #include <CudaNode.hpp> (DNE)
+            #include <SerialComputeNode.hpp>
+              #include <NoOpMemoryModel.hpp>
+          #include <CSRMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ELLMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <algorithm> (DNE)
+        #include <MatrixCopyOp.hpp>
+        #include <exchange_externals.hpp>
+          #include <cstdlib> (DNE)
+          #include <iostream> (DNE)
+          #include <mpi.h> (DNE)
+          #include <outstream.hpp> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+        #include <mytimer.hpp> (DNE)
+        #include <LockingMatrix.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <mpi.h> (DNE)
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <utils.hpp> (DNE)
+      #include <mpi.h> (DNE)
+    #include <Hex8.hpp> (DNE)
+    #include <Hex8_box_utils.hpp>
+      #include <stdexcept> (DNE)
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <ElemData.hpp> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <Hex8.hpp> (DNE)
+    #include <assemble_FE_data.hpp>
+      #include <box_utils.hpp>
+        #include <vector> (DNE)
+        #include <map> (DNE)
+        #include <mpi.h> (DNE)
+        #include <TypeTraits.hpp>
+          #include <complex> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Box.hpp>
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <perform_element_loop_TBB_pllfor1.hpp>
+        #include <LockingMatrix.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <LockingVector.hpp>
+          #include <vector> (DNE)
+          #include <Lock.hpp>
+            #include <iostream> (DNE)
+            #include <tbb/atomic.h> (DNE)
+        #include <BoxIterator.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <SparseMatrix_functions.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <set> (DNE)
+          #include <algorithm> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <Vector_functions.hpp>
+            #include <vector> (DNE)
+            #include <sstream> (DNE)
+            #include <fstream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <LockingVector.hpp>
+              #include <vector> (DNE)
+              #include <Lock.hpp>
+                #include <iostream> (DNE)
+                #include <tbb/atomic.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Vector.hpp>
+              #include <vector> (DNE)
+              #include <MemInitOp.hpp>
+            #include <WaxpbyOp.hpp>
+            #include <DotOp.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <FusedMatvecDotOp.hpp>
+          #include <MatvecOp.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+          #include <MatrixInitOp.hpp>
+            #include <simple_mesh_description.hpp>
+              #include <utils.hpp> (DNE)
+              #include <set> (DNE)
+              #include <map> (DNE)
+            #include <box_utils.hpp>
+              #include <vector> (DNE)
+              #include <map> (DNE)
+              #include <mpi.h> (DNE)
+              #include <TypeTraits.hpp>
+                #include <complex> (DNE)
+                #include <mpi.h> (DNE)
+              #include <Box.hpp>
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <algorithm> (DNE)
+          #include <MatrixCopyOp.hpp>
+          #include <exchange_externals.hpp>
+            #include <cstdlib> (DNE)
+            #include <iostream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <outstream.hpp> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+          #include <mytimer.hpp> (DNE)
+          #include <LockingMatrix.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <mpi.h> (DNE)
+        #include <Hex8_box_utils.hpp>
+          #include <stdexcept> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <Hex8.hpp> (DNE)
+        #include <Hex8_ElemData.hpp> (DNE)
+        #include <mytimer.hpp> (DNE)
+      #include <perform_element_loop.hpp>
+        #include <BoxIterator.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <SparseMatrix_functions.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <set> (DNE)
+          #include <algorithm> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+            #include <MemInitOp.hpp>
+          #include <Vector_functions.hpp>
+            #include <vector> (DNE)
+            #include <sstream> (DNE)
+            #include <fstream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <LockingVector.hpp>
+              #include <vector> (DNE)
+              #include <Lock.hpp>
+                #include <iostream> (DNE)
+                #include <tbb/atomic.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Vector.hpp>
+              #include <vector> (DNE)
+              #include <MemInitOp.hpp>
+            #include <WaxpbyOp.hpp>
+            #include <DotOp.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <FusedMatvecDotOp.hpp>
+          #include <MatvecOp.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+          #include <MatrixInitOp.hpp>
+            #include <simple_mesh_description.hpp>
+              #include <utils.hpp> (DNE)
+              #include <set> (DNE)
+              #include <map> (DNE)
+            #include <box_utils.hpp>
+              #include <vector> (DNE)
+              #include <map> (DNE)
+              #include <mpi.h> (DNE)
+              #include <TypeTraits.hpp>
+                #include <complex> (DNE)
+                #include <mpi.h> (DNE)
+              #include <Box.hpp>
+            #include <ComputeNodeType.hpp>
+              #include <tbb/task_scheduler_init.h> (DNE)
+              #include <TBBNode.hpp>
+                #include <tbb/blocked_range.h> (DNE)
+                #include <tbb/parallel_for.h> (DNE)
+                #include <tbb/parallel_reduce.h> (DNE)
+                #include <tbb/task_scheduler_init.h> (DNE)
+                #include <stdlib.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <TPI.h> (DNE)
+              #include <TPINode.hpp>
+                #include <TPI.h> (DNE)
+                #include <NoOpMemoryModel.hpp>
+                #include <iostream> (DNE)
+              #include <CudaNode.hpp> (DNE)
+              #include <SerialComputeNode.hpp>
+                #include <NoOpMemoryModel.hpp>
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <algorithm> (DNE)
+          #include <MatrixCopyOp.hpp>
+          #include <exchange_externals.hpp>
+            #include <cstdlib> (DNE)
+            #include <iostream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <outstream.hpp> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+          #include <mytimer.hpp> (DNE)
+          #include <LockingMatrix.hpp>
+            #include <vector> (DNE)
+            #include <Lock.hpp>
+              #include <iostream> (DNE)
+              #include <tbb/atomic.h> (DNE)
+          #include <mpi.h> (DNE)
+        #include <box_utils.hpp>
+          #include <vector> (DNE)
+          #include <map> (DNE)
+          #include <mpi.h> (DNE)
+          #include <TypeTraits.hpp>
+            #include <complex> (DNE)
+            #include <mpi.h> (DNE)
+          #include <Box.hpp>
+        #include <Hex8_box_utils.hpp>
+          #include <stdexcept> (DNE)
+          #include <box_utils.hpp>
+            #include <vector> (DNE)
+            #include <map> (DNE)
+            #include <mpi.h> (DNE)
+            #include <TypeTraits.hpp>
+              #include <complex> (DNE)
+              #include <mpi.h> (DNE)
+            #include <Box.hpp>
+          #include <ElemData.hpp> (DNE)
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <Hex8.hpp> (DNE)
+        #include <Hex8_ElemData.hpp> (DNE)
+    #include <Parameters.hpp> (DNE)
+    #include <make_local_matrix.hpp>
+      #include <map> (DNE)
+      #include <mpi.h> (DNE)
+    #include <exchange_externals.hpp>
+      #include <cstdlib> (DNE)
+      #include <iostream> (DNE)
+      #include <mpi.h> (DNE)
+      #include <outstream.hpp> (DNE)
+      #include <TypeTraits.hpp>
+        #include <complex> (DNE)
+        #include <mpi.h> (DNE)
+    #include <Vector_functions.hpp>
+      #include <vector> (DNE)
+      #include <sstream> (DNE)
+      #include <fstream> (DNE)
+      #include <mpi.h> (DNE)
+      #include <LockingVector.hpp>
+        #include <vector> (DNE)
+        #include <Lock.hpp>
+          #include <iostream> (DNE)
+          #include <tbb/atomic.h> (DNE)
+      #include <TypeTraits.hpp>
+        #include <complex> (DNE)
+        #include <mpi.h> (DNE)
+      #include <Vector.hpp>
+        #include <vector> (DNE)
+        #include <MemInitOp.hpp>
+      #include <WaxpbyOp.hpp>
+      #include <DotOp.hpp>
+    #include <BoxIterator.hpp>
+    #include <mytimer.hpp> (DNE)
+    #include <SerialComputeNode.hpp>
+      #include <NoOpMemoryModel.hpp>
+    #include <TPI.h> (DNE)
+    #include <TPINode.hpp>
+      #include <TPI.h> (DNE)
+      #include <NoOpMemoryModel.hpp>
+      #include <iostream> (DNE)
+    #include <tbb/task_scheduler_init.h> (DNE)
+    #include <TBBNode.hpp>
+      #include <tbb/blocked_range.h> (DNE)
+      #include <tbb/parallel_for.h> (DNE)
+      #include <tbb/parallel_reduce.h> (DNE)
+      #include <tbb/task_scheduler_init.h> (DNE)
+      #include <stdlib.h> (DNE)
+      #include <NoOpMemoryModel.hpp>
+      #include <iostream> (DNE)
+    #include <CudaNode.hpp> (DNE)
+    #include <utest_case.hpp>
+      #include <vector> (DNE)
+
+""",
+    "src/main.cpp": """src/main.cpp
+  #include <iostream> (DNE)
+  #include <ctime> (DNE)
+  #include <cstdlib> (DNE)
+  #include <vector> (DNE)
+  #include <miniFE_version.h> (DNE)
+  #include <outstream.hpp> (DNE)
+  #include <omp.h> (DNE)
+  #include <sys/time.h> (DNE)
+  #include <sys/resource.h> (DNE)
+  #include <mpi.h> (DNE)
+  #include <Box.hpp> (DNE)
+  #include <BoxPartition.hpp> (DNE)
+  #include <box_utils.hpp> (DNE)
+  #include <Parameters.hpp> (DNE)
+  #include <utils.hpp> (DNE)
+  #include <driver.hpp>
+    #include <cstddef> (DNE)
+    #include <cmath> (DNE)
+    #include <cstdlib> (DNE)
+    #include <iostream> (DNE)
+    #include <sstream> (DNE)
+    #include <iomanip> (DNE)
+    #include <box_utils.hpp> (DNE)
+    #include <Vector.hpp>
+      #include <vector> (DNE)
+    #include <CSRMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <ELLMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <CSRMatrix.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <algorithm> (DNE)
+      #include <mpi.h> (DNE)
+    #include <simple_mesh_description.hpp>
+      #include <utils.hpp> (DNE)
+      #include <set> (DNE)
+      #include <map> (DNE)
+    #include <SparseMatrix_functions.hpp>
+      #include <cstddef> (DNE)
+      #include <vector> (DNE)
+      #include <set> (DNE)
+      #include <algorithm> (DNE)
+      #include <sstream> (DNE)
+      #include <fstream> (DNE)
+      #include <Vector.hpp>
+        #include <vector> (DNE)
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <cuda.h> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp> (DNE)
+        #include <TypeTraits.hpp> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+      #include <ElemData.hpp> (DNE)
+      #include <MatrixInitOp.hpp>
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <box_utils.hpp> (DNE)
+        #include <CSRMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <ELLMatrix.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <algorithm> (DNE)
+          #include <mpi.h> (DNE)
+        #include <algorithm> (DNE)
+      #include <MatrixCopyOp.hpp>
+      #include <exchange_externals.hpp>
+        #include <cstdlib> (DNE)
+        #include <iostream> (DNE)
+        #include <mpi.h> (DNE)
+        #include <outstream.hpp> (DNE)
+        #include <TypeTraits.hpp> (DNE)
+      #include <mytimer.hpp> (DNE)
+      #include <LockingMatrix.hpp> (DNE)
+      #include <mpi.h> (DNE)
+    #include <generate_matrix_structure.hpp>
+      #include <sstream> (DNE)
+      #include <stdexcept> (DNE)
+      #include <map> (DNE)
+      #include <algorithm> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <SparseMatrix_functions.hpp>
+        #include <cstddef> (DNE)
+        #include <vector> (DNE)
+        #include <set> (DNE)
+        #include <algorithm> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+        #include <Vector_functions.hpp>
+          #include <vector> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <cuda.h> (DNE)
+          #include <mpi.h> (DNE)
+          #include <LockingVector.hpp> (DNE)
+          #include <TypeTraits.hpp> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+        #include <ElemData.hpp> (DNE)
+        #include <MatrixInitOp.hpp>
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <box_utils.hpp> (DNE)
+          #include <CSRMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <ELLMatrix.hpp>
+            #include <cstddef> (DNE)
+            #include <vector> (DNE)
+            #include <algorithm> (DNE)
+            #include <mpi.h> (DNE)
+          #include <algorithm> (DNE)
+        #include <MatrixCopyOp.hpp>
+        #include <exchange_externals.hpp>
+          #include <cstdlib> (DNE)
+          #include <iostream> (DNE)
+          #include <mpi.h> (DNE)
+          #include <outstream.hpp> (DNE)
+          #include <TypeTraits.hpp> (DNE)
+        #include <mytimer.hpp> (DNE)
+        #include <LockingMatrix.hpp> (DNE)
+        #include <mpi.h> (DNE)
+      #include <box_utils.hpp> (DNE)
+      #include <utils.hpp> (DNE)
+      #include <mpi.h> (DNE)
+    #include <assemble_FE_data.hpp>
+      #include <box_utils.hpp> (DNE)
+      #include <simple_mesh_description.hpp>
+        #include <utils.hpp> (DNE)
+        #include <set> (DNE)
+        #include <map> (DNE)
+      #include <perform_element_loop.hpp>
+        #include <BoxIterator.hpp> (DNE)
+        #include <simple_mesh_description.hpp>
+          #include <utils.hpp> (DNE)
+          #include <set> (DNE)
+          #include <map> (DNE)
+        #include <SparseMatrix_functions.hpp>
+          #include <cstddef> (DNE)
+          #include <vector> (DNE)
+          #include <set> (DNE)
+          #include <algorithm> (DNE)
+          #include <sstream> (DNE)
+          #include <fstream> (DNE)
+          #include <Vector.hpp>
+            #include <vector> (DNE)
+          #include <Vector_functions.hpp>
+            #include <vector> (DNE)
+            #include <sstream> (DNE)
+            #include <fstream> (DNE)
+            #include <cuda.h> (DNE)
+            #include <mpi.h> (DNE)
+            #include <LockingVector.hpp> (DNE)
+            #include <TypeTraits.hpp> (DNE)
+            #include <Vector.hpp>
+              #include <vector> (DNE)
+          #include <ElemData.hpp> (DNE)
+          #include <MatrixInitOp.hpp>
+            #include <simple_mesh_description.hpp>
+              #include <utils.hpp> (DNE)
+              #include <set> (DNE)
+              #include <map> (DNE)
+            #include <box_utils.hpp> (DNE)
+            #include <CSRMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <ELLMatrix.hpp>
+              #include <cstddef> (DNE)
+              #include <vector> (DNE)
+              #include <algorithm> (DNE)
+              #include <mpi.h> (DNE)
+            #include <algorithm> (DNE)
+          #include <MatrixCopyOp.hpp>
+          #include <exchange_externals.hpp>
+            #include <cstdlib> (DNE)
+            #include <iostream> (DNE)
+            #include <mpi.h> (DNE)
+            #include <outstream.hpp> (DNE)
+            #include <TypeTraits.hpp> (DNE)
+          #include <mytimer.hpp> (DNE)
+          #include <LockingMatrix.hpp> (DNE)
+          #include <mpi.h> (DNE)
+        #include <box_utils.hpp> (DNE)
+        #include <Hex8_box_utils.hpp>
+          #include <stdexcept> (DNE)
+          #include <box_utils.hpp> (DNE)
+          #include <ElemData.hpp> (DNE)
+          #include <simple_mesh_description.hpp>
+            #include <utils.hpp> (DNE)
+            #include <set> (DNE)
+            #include <map> (DNE)
+          #include <Hex8.hpp> (DNE)
+        #include <Hex8_ElemData.hpp> (DNE)
+        #include <omp.h> (DNE)
+    #include <verify_solution.hpp> (DNE)
+    #include <compute_matrix_stats.hpp> (DNE)
+    #include <make_local_matrix.hpp>
+      #include <assert.h> (DNE)
+      #include <utils.hpp> (DNE)
+      #include <map> (DNE)
+      #include <mpi.h> (DNE)
+    #include <imbalance.hpp> (DNE)
+    #include <cg_solve.hpp>
+      #include <cmath> (DNE)
+      #include <limits> (DNE)
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <cuda.h> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp> (DNE)
+        #include <TypeTraits.hpp> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+      #include <mytimer.hpp> (DNE)
+      #include <outstream.hpp> (DNE)
+    #include <time_kernels.hpp>
+      #include <cmath> (DNE)
+      #include <Vector_functions.hpp>
+        #include <vector> (DNE)
+        #include <sstream> (DNE)
+        #include <fstream> (DNE)
+        #include <cuda.h> (DNE)
+        #include <mpi.h> (DNE)
+        #include <LockingVector.hpp> (DNE)
+        #include <TypeTraits.hpp> (DNE)
+        #include <Vector.hpp>
+          #include <vector> (DNE)
+      #include <mytimer.hpp> (DNE)
+      #include <cuda.h> (DNE)
+    #include <outstream.hpp> (DNE)
+    #include <utils.hpp> (DNE)
+    #include <mytimer.hpp> (DNE)
+    #include <YAML_Doc.hpp>
+      #include <string> (DNE)
+      #include <vector> (DNE)
+      #include "YAML_Element.hpp"
+        #include <string> (DNE)
+        #include <vector> (DNE)
+    #include <mpi.h> (DNE)
+  #include <YAML_Doc.hpp>
+    #include <string> (DNE)
+    #include <vector> (DNE)
+    #include "YAML_Element.hpp"
+      #include <string> (DNE)
+      #include <vector> (DNE)
+  #include <miniFE_info.hpp> (DNE)
+  #include <miniFE_no_info.hpp> (DNE)
+
+""",
+    "utils/BoxPartition.cpp": """utils/BoxPartition.cpp
+  #include <stdio.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <Box.hpp>
+  #include <BoxPartition.hpp>
+    #include <Box.hpp>
+
+""",
+}
+
 EXPECTED_KERNELS = [
     {
         "file": "basic/optional/cuda/CudaNode.cuh",

@@ -13,6 +13,31 @@ EXPECTED_TREE = (
 
 EXPECTED_MAIN_FILES = ["main.cu"]
 
+EXPECTED_INCLUDE_TREES = {
+    "main.cu": """main.cu
+  #include <stdlib.h> (DNE)
+  #include <stdio.h> (DNE)
+  #include <string.h> (DNE)
+  #include <math.h> (DNE)
+  #include <time.h> (DNE)
+  #include <stdlib.h> (DNE)
+  #include <float.h> (DNE)
+  #include <chrono> (DNE)
+  #include <iostream> (DNE)
+  #include <fstream> (DNE)
+  #include <vector> (DNE)
+  #include <cuda.h> (DNE)
+  #include "gaussian.h"
+    #include <stdio.h> (DNE)
+  #include "gaussian_kernel.cu"
+    #include "gaussian.h"
+      #include <stdio.h> (DNE)
+  #include "cluster.cu"
+  #include "readData.cu"
+
+""",
+}
+
 EXPECTED_KERNELS = [
     {"file": "gaussian_kernel.cu", "kernel": "constants_kernel", "line": 210},
     {"file": "gaussian_kernel.cu", "kernel": "seed_clusters_kernel", "line": 294},
