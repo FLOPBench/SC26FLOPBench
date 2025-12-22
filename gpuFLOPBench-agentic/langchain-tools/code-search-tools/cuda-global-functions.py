@@ -43,7 +43,10 @@ def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]
 @tool(
     "cuda_global_functions",
     args_schema=CudaGlobalFunctionsArgs,
-    description="List __global__ CUDA kernel definitions (name, file, line) under a specific *-cuda directory.",
+    description=(
+        "List __global__ CUDA kernel definitions (name, file, line) under a specific *-cuda directory. "
+        "Example: cuda_global_functions(cuda_name=\"lulesh-cuda\")."
+    ),
 )
 def cuda_global_functions(cuda_name: str) -> List[dict[str, str | int]]:
     cuda_dir = _resolve_cuda_dir(cuda_name)

@@ -102,7 +102,10 @@ def _gather_main_files(cuda_dir: Path) -> list[str]:
 @tool(
     "cuda_main_files",
     args_schema=CudaSubdirArgs,
-    description="List source files under the requested *-cuda directory that define a free-function main().",
+    description=(
+        "List source files under the requested *-cuda directory that define a free-function main(). "
+        "Example: cuda_main_files(cuda_name=\"lulesh-cuda\")."
+    ),
 )
 def cuda_main_files(cuda_name: str) -> List[str]:
     cuda_dir = _resolve_cuda_dir(cuda_name)

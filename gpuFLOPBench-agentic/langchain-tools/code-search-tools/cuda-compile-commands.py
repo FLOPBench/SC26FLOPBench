@@ -81,7 +81,10 @@ def _gather_compile_entries(cuda_name: str) -> list[dict[str, Any]]:
 @tool(
     "cuda_compile_commands",
     args_schema=CudaSubdirArgs,
-    description="Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the requested *-cuda benchmark.",
+    description=(
+        "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the requested *-cuda benchmark. "
+        "Example: cuda_compile_commands(cuda_name=\"lulesh-cuda\")."
+    ),
 )
 def cuda_compile_commands(cuda_name: str) -> dict[str, Any]:
     _resolve_cuda_dir(cuda_name)

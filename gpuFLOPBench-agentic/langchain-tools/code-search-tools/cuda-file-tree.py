@@ -48,7 +48,10 @@ def _tree_lines(root: Path, indent: str = "") -> List[str]:
 @tool(
     "cuda_file_tree",
     args_schema=CudaTreeArgs,
-    description="Generate an indented file tree for a specific *-cuda directory in gpuFLOPBench/src.",
+    description=(
+        "Generate an indented file tree for a specific *-cuda directory in gpuFLOPBench/src. "
+        "Example: cuda_file_tree(cuda_name=\"lulesh-cuda\")."
+    ),
 )
 def cuda_file_tree(cuda_name: str) -> str:
     cuda_dir = _resolve_cuda_dir(cuda_name)

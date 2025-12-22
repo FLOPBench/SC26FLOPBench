@@ -126,7 +126,7 @@ def _build_include_lines(
     description=(
         "Walk the #include hierarchy for a specific CUDA/C++ file inside a *-cuda "
         "benchmark, annotating missing files (DNE) and stopping recursion when loops "
-        "are detected."
+        "are detected. Example: include_tree_extractor(cuda_name=\"lulesh-cuda\", file_name=\"src/main.cu\")."
     ),
 )
 def include_tree_extractor(cuda_name: str, file_name: str) -> str:

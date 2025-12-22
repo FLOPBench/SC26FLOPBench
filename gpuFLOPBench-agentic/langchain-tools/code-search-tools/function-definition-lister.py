@@ -322,7 +322,7 @@ def _collect_entries_for_file(source_file: Path, cuda_dir: Path) -> list[Functio
         "Return an alphabetically ordered list of every function declaration and definition "
         "found in a benchmark's CUDA/C++/header sources. Provide an optional file_name "
         "(relative to the benchmark directory) to inspect a single file; omit it to scan every "
-        "supported source file together."
+        "supported source file together. Example: function_definition_lister(cuda_name=\"lulesh-cuda\", file_name=\"src/lulesh.cu\")."
     ),
 )
 def function_definition_lister(cuda_name: str, file_name: str | None = None) -> str:

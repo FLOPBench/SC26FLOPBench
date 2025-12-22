@@ -167,7 +167,10 @@ def _find_kernel_source_definitions(
 @tool(
     "extract_kernel_source_definition",
     args_schema=KernelSourceArgs,
-    description="Return the source code for a specific __global__ kernel within a *-cuda benchmark.",
+    description=(
+        "Return the source code for a specific __global__ kernel within a *-cuda benchmark. "
+        "Example: extract_kernel_source_definition(cuda_name=\"lulesh-cuda\", kernel_name=\"yourKernel\")."
+    ),
 )
 def extract_kernel_source_definition(cuda_name: str, kernel_name: str) -> List[dict[str, str | int]]:
     cuda_dir = _resolve_cuda_dir(cuda_name)
