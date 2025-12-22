@@ -25,23 +25,24 @@ EXPECTED_KERNELS = [
 ]
 
 EXPECTED_FUNCTION_DEFINITIONS = {
-    "gaussian_kernel.cu": """__device__ void mvtmeans (defnt)
-__device__ void averageVariance (defnt)
-__device__ void invert (defnt)
-__device__ void compute_pi (defnt)
-__device__ void compute_constants (defnt)
-__global__ void constants_kernel (defnt)
-__global__ void seed_clusters_kernel (defnt)
-__device__ float parallelSum (defnt)
-__device__ void compute_indices (defnt)
-__global__ void estep1 (defnt)
-__global__ void estep2 (defnt)
-__global__ void mstep_means (defnt)
-__global__ void mstep_N (defnt)
-__device__ void compute_row_col (defnt)
-__global__ void mstep_covariance1 (defnt)
-__global__ void mstep_covariance2 (defnt)""",
-    "main.cu": "int main (defnt)",
+    "gaussian_kernel.cu": """__device__ void mvtmeans(float* fcs_data, int num_dimensions, int num_events, float* means) (defnt)
+__device__ void averageVariance(float* fcs_data, float* means, int num_dimensions, int num_events, float* avgvar) (defnt)
+__device__ void invert(float* data, int actualsize, float* log_determinant) (defnt)
+__device__ void compute_pi(clusters_t* clusters, int num_clusters) (defnt)
+__device__ void compute_constants(clusters_t* clusters, int num_clusters, int num_dimensions) (defnt)
+__global__ void constants_kernel(clusters_t* clusters, int num_clusters, int num_dimensions) (defnt)
+__global__ void seed_clusters_kernel( const float* fcs_data, clusters_t* clusters, const int num_dimensions, const int num_clusters, const int num_events) (defnt)
+__device__ float parallelSum(float* data, const unsigned int ndata) (defnt)
+__device__ void compute_indices(int num_events, int* start, int* stop) (defnt)
+__global__ void estep1(float* data, clusters_t* clusters, int num_dimensions, int num_events) (defnt)
+__global__ void estep2(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events, float* likelihood) (defnt)
+__global__ void mstep_means(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events) (defnt)
+__global__ void mstep_N(clusters_t* clusters, int num_dimensions, int num_clusters, int num_events) (defnt)
+__device__ void compute_row_col(int n, int* row, int* col) (defnt)
+__global__ void mstep_covariance1(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events) (defnt)
+__global__ void mstep_covariance2(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events) (defnt)""",
+    "main.cu": """int main( int argc, char** argv) (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}
+

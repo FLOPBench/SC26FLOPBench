@@ -69,7 +69,7 @@ _TEMPLATE_PARAMETER_NODE_TYPES: tuple[str, ...] = (
     "template_type_parameter_list",
 )
 
-_QUALIFIER_KEYWORDS: tuple[str, ...] = ("__global__", "__device__")
+_QUALIFIER_KEYWORDS: tuple[str, ...] = ("__global__", "__device__", "__host__", "inline")
 
 @dataclass(frozen=True)
 class FunctionEntry:
@@ -80,6 +80,7 @@ class FunctionEntry:
     return_type: str | None
     templates: tuple[str, ...]
     qualifiers: tuple[str, ...]
+    signature: str | None
 
 
 def _scope_name_for_node(node) -> str | None:
@@ -144,6 +145,15 @@ def _get_return_type(node) -> str | None:
     return text
 
 
+def _extract_function_signature(declarator) -> str | None:
+    if declarator is None:
+        return None
+    text = _normalize_node_text(declarator)
+    if not text:
+        return None
+    return text
+
+
 def _extract_function_qualifiers(node) -> tuple[str, ...]:
     qualifiers: list[str] = []
     for child in node.children:
@@ -161,7 +171,10 @@ def _format_function_line(entry: FunctionEntry) -> str:
         parts.append(" ".join(entry.qualifiers))
     if entry.return_type:
         parts.append(entry.return_type)
-    parts.append(entry.name)
+    if entry.signature:
+        parts.append(entry.signature)
+    else:
+        parts.append(entry.name)
     parts.append(f"({entry.kind})")
     return " ".join(parts)
 
@@ -185,6 +198,7 @@ def _maybe_add_function(
     line = start_node.start_point[0] + 1
     return_type = _get_return_type(start_node)
     qualifiers = _extract_function_qualifiers(start_node)
+    signature = _extract_function_signature(declarator)
     entries.append(
         FunctionEntry(
             qualified_name,
@@ -194,6 +208,7 @@ def _maybe_add_function(
             return_type,
             templates,
             qualifiers,
+            signature,
         )
     )
 

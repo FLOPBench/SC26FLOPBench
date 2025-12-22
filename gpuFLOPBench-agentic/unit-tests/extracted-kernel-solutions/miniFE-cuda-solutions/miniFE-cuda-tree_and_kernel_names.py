@@ -246,11 +246,11 @@ EXPECTED_MAIN_FILES = [
 ]
 
 EXPECTED_FUNCTION_DEFINITIONS = {
-    "src/main.cpp": """int main (defnt)
-void add_params_to_yaml (defnt)
-void add_configuration_to_yaml (defnt)
-void add_timestring_to_yaml (defnt)""",
-    "src/driver.hpp": "template <typename Scalar, typename LocalOrdinal, typename GlobalOrdinal> int miniFE::driver (defnt)",
+    "src/driver.hpp": """template <typename Scalar, typename LocalOrdinal, typename GlobalOrdinal> int driver(const Box& global_box, Box& my_box, Parameters& params, YAML_Doc& ydoc) (defnt)""",
+    "src/main.cpp": """int main(int argc, char** argv) (defnt)
+void add_params_to_yaml(YAML_Doc& doc, miniFE::Parameters& params) (defnt)
+void add_configuration_to_yaml(YAML_Doc& doc, int numprocs, int numthreads) (defnt)
+void add_timestring_to_yaml(YAML_Doc& doc) (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}

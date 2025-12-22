@@ -101,13 +101,14 @@ EXPECTED_KERNELS = [
 
 
 EXPECTED_FUNCTION_DEFINITIONS = {
-    "apply_forces.cu": """__global__ void IntegrationKernel (defnt)
-void tsne::ApplyForces (defnt)""",
-    "attr_forces.cu": """__global__ void ComputePijxQijKernelV3 (defnt)
-__global__ void reduce_sum_kernel (defnt)
-void tsne::ComputeAttractiveForcesV3 (defnt)""",
-    "main.cu": """int main (defnt)
-TIMER_START (defnt)""",
+    "apply_forces.cu": """__global__ void IntegrationKernel( volatile float* __restrict__ points, // num_points * 2 volatile float* __restrict__ attr_forces, // num_points * 2 volatile float* __restrict__ rep_forces, // num_points * 2 volatile float* __restrict__ gains, // num_points * 2 volatile float* __restrict__ old_forces, // num_points * 2 const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points) (defnt)
+void tsne::ApplyForces( thrust::device_vector<float>& points, thrust::device_vector<float>& attr_forces, thrust::device_vector<float>& rep_forces, thrust::device_vector<float>& gains, thrust::device_vector<float>& old_forces, const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points) (defnt)""",
+    "attr_forces.cu": """__global__ void ComputePijxQijKernelV3( float* __restrict__ workspace_x, float* __restrict__ workspace_y, const float* __restrict__ pij, const int* __restrict__ pij_ind, const float* __restrict__ points, const int num_points, const int num_neighbors) (defnt)
+__global__ void reduce_sum_kernel( float* __restrict__ attractive_forces, const float* __restrict__ workspace_x, const float* __restrict__ workspace_y, const int num_points, const int num_neighbors) (defnt)
+void tsne::ComputeAttractiveForcesV3( thrust::device_vector<float>& attractive_forces, thrust::device_vector<float>& pij_device, thrust::device_vector<int>& pij_indices_device, thrust::device_vector<float>& pij_workspace_device, thrust::device_vector<float>& points_device, thrust::device_vector<float>& ones_vec, const int num_points, const int num_neighbors) (defnt)""",
+    "main.cu": """int main(int argc, char** argv) (defnt)
+TIMER_START() (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}
+

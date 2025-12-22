@@ -10,11 +10,12 @@ EXPECTED_KERNELS = [
 
 
 EXPECTED_FUNCTION_DEFINITIONS = {
-    "main.cu": """void CPU (defnt)
-__global__ void k1 (defnt)
-__global__ void k2 (defnt)
-__global__ void k3 (defnt)
-int main (defnt)""",
+    "main.cu": """void CPU(int * data, int * distance) (defnt)
+__global__ void k1 (const char *data, int *distance) (defnt)
+__global__ void k2 (const char *data, int *distance) (defnt)
+__global__ void k3 (const char *data, int *distance) (defnt)
+int main(int argc, char **argv) (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}
+
