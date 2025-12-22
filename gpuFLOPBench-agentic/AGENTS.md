@@ -46,6 +46,18 @@
   - `unit-tests/test_cuda_kernel_uniqueness.py` exercises `extract_kernel_source_definition` directly to assert every kernel of interest has a specific number of definitions (useful for catching duplicates or missing extractions).
   - `unit-tests/check_openrouter_api.py` ensures the OpenRouter LLM in `agents/llm_models.py` is reachable and returns a sensible reply; it requires `OPENAI_API_KEY` or `OPENROUTER_API_KEY` in the environment.
 - Run the suite via `python -m pytest -vv -s ./unit-tests/check_code_search_tools.py` (and the other pytest targets) whenever you touch the tools or their data to guarantee there are no regressions.
+- The codes that we perform unit tests on are:
+  - `lulesh-cuda`
+  - `tsne-cuda`
+  - `all-pairs-distance-cuda`
+  - `addBiasResidualLayerNorm-cuda`
+  - `multimaterial-cuda`
+  - `atomicReduction-cuda`
+  - `gmm-cuda`
+  - `particlefilter-cuda`
+  - `ert-cuda`
+  - `bmf-cuda`
+  - `miniFE-cuda`
 
 ## 4) Agent unit tests
 - `unit-tests/test_backwards_slicing_agent.py` is the exemplar. It loads every tool listed in `_CODE_SEARCH_TOOL_SPECS`, builds an LLM by calling the helpers in `agents/llm_models.py`, deletes `test_backwards_slicing_with_llm_checkpoint.sqlite` before creating the checkpointer (to prevent unbounded growth), and instantiates `agents.backwards_slicing_agent.make_backwards_slicing_agent` (including middleware/checkpointer). The test runs a single invocation with placeholder prompts and asserts a response message, ensuring the agent wiring and tool access stay healthy.
