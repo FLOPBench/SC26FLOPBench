@@ -1,4 +1,4 @@
-from langchain.agents import create_agent
+from deepagents import create_deep_agent
 from langchain.agents.middleware import (
     AgentMiddleware,
     AgentState,
@@ -74,7 +74,7 @@ def make_backwards_slicing_agent(llm,
                          llm_call_limit_middleware,
                          tool_call_limit_middleware]
 
-    agent = create_agent(
+    agent = create_deep_agent(
         model=llm,
         tools=tools,
         middleware=middleware + extra_middlewares,

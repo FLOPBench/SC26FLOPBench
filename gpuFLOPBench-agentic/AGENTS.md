@@ -11,6 +11,7 @@
 - Each agent must clearly state which LangChain tools it consumes (list the concrete tool entrypoints such as `code_search_tools.cuda_file_tree.cuda_file_tree`) and how it wires them into its middleware/checkpointer. Mention any helper modules it depends on (e.g., `agents/llm_models.py`).
 - When adding a new agent, explain how callers should construct the LLM(s) (e.g., via `agents/llm_models.build_configurable_llm` or similar factory helpers) so that consumers know the expected credentials/overrides. Include notes about checkpointing (e.g., SQLite saver) if relevant.
 - Document the expected runtime behavior: what prompts it requires, which state schema it uses, and how middleware (logging, tool/model call limits, error handling) is configured.
+- You are most likely executing in a Docker container, therefore you'll need to escalate shell access to run shell commands.
 
 ## 2) Adding new code search tools
 - The tools live under `langchain-tools/code-search-tools`. Each module loads the shared `utils.py` helpers, defines a `langchain.tools.tool` decorated function, and exposes a single entrypoint that takes a `cuda_name` (via `CudaSubdirArgs`) so it cannot escape `gpuFLOPBench/src`.
