@@ -4,9 +4,6 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from langchain.tools import tool
-from pydantic import BaseModel, Field
-
 from .callsite import (
     collect_callsites_in_function,
     find_assignments_in_function,
@@ -105,8 +102,6 @@ __all__ = [
     "ompreg_to_json",
     "noderef_to_json",
     "span_to_json",
-    "CstLaunchArgs",
-    "CstOmpArgs",
 ]
 
 
@@ -192,20 +187,6 @@ def _find_matching(
     return None
 
 
-class CstLaunchArgs(BaseModel):
-    file_path: str = Field(..., description="Filesystem path to the CUDA source file.")
-    line: int = Field(..., description="1-indexed line number where the launch occurs.")
-    language: Optional[str] = Field(None, description="Override parser language (e.g., 'cuda').")
-
-
-@tool(
-    "find_cuda_launches_on_line",
-    args_schema=CstLaunchArgs,
-    description=(
-        "Return kernel launch spans and metadata on the given line of a CUDA source file. "
-        "Example: find_cuda_launches_on_line(file_path=\"gpuFLOPBench/src/lulesh-cuda/src/main.cu\", line=123)."
-    ),
-)
 def find_cuda_launches_on_line(file_path: str, line: int, language: Optional[str] = None) -> list[dict]:
     normalized = normpath(file_path)
     text = read_text(normalized)
@@ -231,21 +212,6 @@ def find_cuda_launches_on_line(file_path: str, line: int, language: Optional[str
     return results
 
 
-class CstOmpArgs(BaseModel):
-    file_path: str = Field(..., description="Filesystem path to the source file.")
-    line: int = Field(..., description="1-indexed line near the OpenMP pragma.")
-    window: int = Field(2, description="Number of lines before/after to search.")
-    language: Optional[str] = Field(None, description="Override parser language (e.g., 'cpp').")
-
-
-@tool(
-    "build_omp_region",
-    args_schema=CstOmpArgs,
-    description=(
-        "Return OpenMP pragma spans + associated statement spans for a line in a source file. "
-        "Example: build_omp_region(file_path=\"gpuFLOPBench/src/miniFE-cuda/src/miniFE.cpp\", line=120)."
-    ),
-)
 def build_omp_region(
     file_path: str, line: int, window: int = 2, language: Optional[str] = None
 ) -> list[Dict[str, Optional[dict]]]:

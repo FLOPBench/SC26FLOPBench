@@ -150,17 +150,17 @@ Returns:
 - populates kind_text + clauses
 
 ### find_cuda_launches_on_line(file_path, line, language=None) -> list[dict]
-- exposes the CUDA launch helper as a LangChain tool, returning JSON-friendly spans and extracted kernel metadata (name, cfg, args, template text).
+- exposes the CUDA launch helper as a reusable script function, returning JSON-friendly spans and extracted kernel metadata (name, cfg, args, template text).
 
 ### build_omp_region(file_path, line, window=2, language=None) -> list[dict]
-- exposes the OpenMP region helper as a LangChain tool, returning pragma span/kind/clauses plus the associated statement span so the agent can invoke it directly.
+- exposes the OpenMP region helper as a reusable script function, returning pragma span/kind/clauses plus the associated statement span so agents can invoke it directly from shell-driven Python snippets.
 
 ---
 
 ## `langchain-tools/treesitter-tools/cst_utils.py` overview
-- **Goal:** expose shared Tree-sitter helpers, deterministic span models, and LangChain tools so the agent can analyze CUDA/OpenMP criteria without duplicating the built-in filesystem middleware (`ls`, `read_file`, etc.) already provided by `deepagents`.
+- **Goal:** expose shared Tree-sitter helpers, deterministic span models, and reusable functions so agents can analyze CUDA/OpenMP criteria via short Python scripts without duplicating the built-in filesystem middleware (`ls`, `read_file`, etc.) already provided by `deepagents`.
 - **Caches:** `_TEXT_CACHE`, `_TREE_CACHE`, `_LANG_CACHE`, and `_PARSER_CACHE` keep per-file `mtime`/size data so repeated reads/parses stay fast.
-- **Exports:** `Span`, `NodeRef`, `Callsite`, `OmpRegion`, traversal helpers, and the two LangChain tool wrappers (`find_cuda_launches_on_line`, `build_omp_region`).
+- **Exports:** `Span`, `NodeRef`, `Callsite`, `OmpRegion`, traversal helpers, and the helper functions (`find_cuda_launches_on_line`, `build_omp_region`) that scripts can call directly.
 - **Future helpers (stubs already present in `cst_utils.py`):**
   * Identifier utilities: `is_identifier_token`, `normalize_ws_punct`, `collect_identifiers_in_span`, `collect_identifiers_in_node`.
   * Symbol metadata / signature builders: `function_signature_text`, `extract_template_param_list`, `build_symbol_id`.
@@ -270,3 +270,9 @@ Rules:
 ## Testing Hooks (optional)
 ### _debug_dump_tree(tree, text, out_path)
 ### _self_test_parse(path)
+
+## Agent integration & regression coverage
+- `agents/backwards_slicing_agent.default_backwards_slicing_system_prompt` is the canonical way agents learn about `treesitter_tools.cst_utils`: it enumerates the helpers, reiterates the `/tmp`-only write restriction, and reminds callers to use the built-in DeepAgents filesystem/`execute` tools when invoking analysis scripts.
+- `unit-tests/test_cst_utils.py` directly imports `treesitter_tools.cst_utils` to verify CUDA launch detection, CUDA/OpenMP region helpers, and real-world coverage on `gpuFLOPBench/src/lulesh-cuda/lulesh.cu` and `gpuFLOPBench/src/lulesh-omp/lulesh.cc`. Keep this test in sync with any helper API changes and rerun it via `python -m pytest unit-tests/test_cst_utils.py`.
+- `unit-tests/test_backwards_slicing_agent.py` now instantiates the backwards slicing agent with no LangChain code-search tools, passes the default system prompt, and instructs the model to craft a Python script (written to `/tmp`) that imports `treesitter_tools.cst_utils` to extract `__global__`/`__device__` definitions and OpenMP regions from the lulesh sources. Use this test to guard the prompt wording and the overall script-driven workflow when the agent changes.
+- `helper-scripts/sqlite_reader.py`, together with `unit-tests/test_sqlite_reader.py`, helps debug the agent by deserializing `unit-tests/test_backwards_slicing_with_llm_checkpoint.sqlite`, printing the stored `messages` channel plus any pending writes, and illuminating what the checkpoint captured without rerunning the LLM.

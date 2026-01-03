@@ -101,11 +101,11 @@ def test_cuda_launch_detection_and_extraction(tmp_path: Path) -> None:
     assert "(42)" in arg_text
 
 
-def test_tool_find_cuda_launches_on_line(tmp_path: Path) -> None:
+def test_find_cuda_launches_on_line_helper(tmp_path: Path) -> None:
     path = _write_sample_source(tmp_path)
     text = cst_utils.read_text(path)
     line = next(i for i, val in enumerate(text.splitlines(), start=1) if "kernel<<<" in val)
-    launches = cst_utils.find_cuda_launches_on_line.func(str(path), line=line)
+    launches = cst_utils.find_cuda_launches_on_line(str(path), line=line)
     assert len(launches) == 1
     entry = launches[0]
     assert entry["kernel_name_text"] == "kernel"
@@ -155,11 +155,11 @@ def test_parse_omp_pragma_raw() -> None:
     assert "num_threads(4)" in clauses
 
 
-def test_tool_build_omp_region(tmp_path: Path) -> None:
+def test_build_omp_region_helper(tmp_path: Path) -> None:
     path = _write_openmp_source(tmp_path)
     text = cst_utils.read_text(path)
     line = next(i for i, val in enumerate(text.splitlines(), start=1) if "#pragma omp" in val)
-    results = cst_utils.build_omp_region.func(str(path), line=line)
+    results = cst_utils.build_omp_region(str(path), line=line)
     assert results
     entry = results[0]
     assert entry["kind_text"] == "parallel"
@@ -195,7 +195,7 @@ def test_lulesh_cuda_launch_detection_real_code() -> None:
     assert "d_sigxx" in arg_text
 
 
-def test_tool_find_cuda_launches_on_line_real_code() -> None:
+def test_find_cuda_launches_on_line_real_code() -> None:
     cuda_file = (
         REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-cuda" / "lulesh.cu"
     )
@@ -205,7 +205,7 @@ def test_tool_find_cuda_launches_on_line_real_code() -> None:
         for i, line_text in enumerate(text.splitlines(), start=1)
         if "fill_sig<<<" in line_text
     )
-    launches = cst_utils.find_cuda_launches_on_line.func(str(cuda_file), line=line)
+    launches = cst_utils.find_cuda_launches_on_line(str(cuda_file), line=line)
     assert launches, "Expected find_cuda_launches_on_line to return entries"
     entry = launches[0]
     assert entry["kernel_name_text"] == "fill_sig"
@@ -222,7 +222,7 @@ def test_lulesh_omp_region_detection_real_code() -> None:
         for i, line_text in enumerate(text.splitlines(), start=1)
         if target_directive in line_text
     )
-    regions = cst_utils.build_omp_region.func(str(omp_file), line=line)
+    regions = cst_utils.build_omp_region(str(omp_file), line=line)
     assert regions, "Expected build_omp_region to find at least one region"
     entry = regions[0]
     assert entry["kind_text"] == "target"
