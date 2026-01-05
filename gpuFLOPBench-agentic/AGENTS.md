@@ -75,7 +75,8 @@
   - `llm_models.py`: LLM factory helpers (OpenRouter/OpenAI) that agents call to build configurable models with the expected credentials/overrides.
 - `helper-scripts/`
   - `find_duplicate_kernels.py`: standalone helper used to spot duplicate kernel definitions across the extracted solution set.
-  - `sqlite_reader.py`: inspects `langgraph` SQLite checkpoint files (e.g., `unit-tests/test_backwards_slicing_with_llm_checkpoint.sqlite`) so humans can print every saved message/write when debugging agent runs; accompany any changes with `unit-tests/test_sqlite_reader.py`.
+  - `sqlite_reader.py`: inspects `langgraph` SQLite checkpoint files (e.g., `unit-tests/test_backwards_slicing_with_llm_checkpoint.sqlite`) so humans can print every saved message/write when debugging the backwards slicing agent run; accompany any changes with `unit-tests/test_sqlite_reader.py`.
+  - `unit-tests/test_sqlite_reader.py`: exercises the helper against `unit-tests/test_backwards_slicing_with_llm_checkpoint.sqlite`, prints the first few recovered messages plus any pending writes (run it with `python -m pytest -s unit-tests/test_sqlite_reader.py` for live output), and deliberately lacks defensive guards so schema mismatches surface immediately.
 - `langchain-tools/`
   - `code-search-tools/`: LangChain tool collection (`cuda-file-tree.py`, `cuda-global-functions.py`, `cuda-compile-commands.py`, `cuda-main-files.py`, `extract-kernel-source-definition.py`, `function-definition-lister.py`, and shared `utils.py`) that operate over the `gpuFLOPBench/src` tree and drive the regression suite.
   - `treesitter-tools/`: helper library centered on `cst_utils.py` plus composition modules (`caches.py`, `traversal.py`, `openmp.py`, etc.) that agents invoke by running short Python scripts in the sandboxed shell rather than defining new LangChain tool wrappers.

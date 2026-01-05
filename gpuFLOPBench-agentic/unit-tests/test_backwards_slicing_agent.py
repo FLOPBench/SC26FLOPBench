@@ -18,6 +18,11 @@ from agents.backwards_slicing_agent import (
 )
 from agents.llm_models import OpenRouterLLMSettings, build_openrouter_llm
 
+from langchain.agents.middleware import (
+    ShellToolMiddleware,
+    HostExecutionPolicy,
+)
+
 
 def delete_sqlite_db_if_exists(db_path: Path) -> None:
     """Delete the SQLite database file if it exists."""
@@ -30,10 +35,15 @@ INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
         Your goal is to build a short Python analysis script that imports
-        `treesitter_tools.cst_utils` and inspects the CUDA/OpenMP driver code.
-        Select the repository files:
-        - gpuFLOPBench/src/lulesh-cuda/lulesh.cu
-        - gpuFLOPBench/src/lulesh-omp/lulesh.cc
+        `treesitter_tools.cst_utils` and inspects the CUDA code listed below:
+        Lulesh.cu file to examine:
+        - /codex/gpuFLOPBench/src/lulesh-cuda/lulesh.cu
+
+        Your objective is to extract 
+
+        The /codex/langchain-tools/treesitter-tools/cst_utils.py script can help you to
+        write a python script to explore the source code via concrete syntax trees
+        using treesitter.
 
         Steps:
         1. Use the built-in filesystem tools to create `/tmp/backwards_slice.py`.
@@ -104,7 +114,12 @@ def test_backwards_slicing_agent_can_run():
             llm=llm,
             checkpointer=checkpointer,
             tools=[],
-            middleware=[],  # middleware will be extended inside the helper
+            middleware=[
+                ShellToolMiddleware(
+                    workspace_root="/codex/gpuFLOPBench/lulesh-cuda",
+                    execution_policy=HostExecutionPolicy(),
+                )
+            ],  # middleware will be extended inside the helper
             system_prompt=SYSTEM_PROMPT,
         )
 

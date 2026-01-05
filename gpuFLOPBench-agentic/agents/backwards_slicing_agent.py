@@ -61,6 +61,9 @@ def default_backwards_slicing_system_prompt() -> SystemMessage:
         mention which files you read, which scripts you created, and what key results you produced.
         You will not receive any follow-up human feedback during this run, so only ask the
         agent to ask questions that it can resolve on its own without external clarification.
+
+        In order to not clog up input context, sub-agents should be used for filesystem exploration.
+        Once the desired file(s)/filepaths are found, the subagent should return the requested file(s)/filepath.
         """
     )
     return SystemMessage(content=template)
