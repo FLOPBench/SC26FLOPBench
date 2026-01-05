@@ -5,7 +5,7 @@ from __future__ import annotations
 import pprint
 import sqlite3
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from langchain.messages import AIMessage, SystemMessage, HumanMessage, ToolMessage
 
@@ -211,6 +211,107 @@ def _print_message(msg: Any, idx: int) -> None:
     print("=" * len(header))
 
 
+def _normalize_usage_metadata(usage_metadata: Any) -> Mapping[str, Any]:
+    if usage_metadata is None:
+        return {}
+    if isinstance(usage_metadata, Mapping):
+        return usage_metadata
+    if hasattr(usage_metadata, "model_dump"):
+        try:
+            return usage_metadata.model_dump()
+        except Exception:
+            pass
+    if hasattr(usage_metadata, "__dict__"):
+        return dict(vars(usage_metadata))
+    return {}
+
+
+def _parse_int_value(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, )):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return int(float(value))
+            except ValueError:
+                return None
+    return None
+
+
+def _parse_float_value(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_numeric_from_sources(
+    sources: list[Any], keys: tuple[str, ...], parser: Callable[[Any], Any]
+) -> Any:
+    for source in sources:
+        if not source:
+            continue
+        for key in keys:
+            if isinstance(source, Mapping):
+                val = source.get(key)
+            else:
+                val = getattr(source, key, None)
+            if val is None:
+                continue
+            parsed = parser(val)
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _summarize_llm_usage(messages: list[Any]) -> tuple[int, int, float]:
+    total_input = 0
+    total_output = 0
+    total_cost = 0.0
+    had_cost = False
+    for msg in messages:
+        if not isinstance(msg, AIMessage):
+            continue
+
+        usage_metadata = getattr(msg, "usage_metadata", None)
+        usage_data = _normalize_usage_metadata(usage_metadata)
+        token_usage = (msg.response_metadata or {}).get("token_usage") or {}
+        sources = [usage_data, token_usage]
+
+        input_tokens = _extract_numeric_from_sources(
+            sources, ("input_tokens", "prompt_tokens"), _parse_int_value
+        )
+        if input_tokens is not None:
+            total_input += input_tokens
+
+        output_tokens = _extract_numeric_from_sources(
+            sources, ("output_tokens", "completion_tokens"), _parse_int_value
+        )
+        if output_tokens is not None:
+            total_output += output_tokens
+
+        cost_value = _extract_numeric_from_sources(sources, ("cost",), _parse_float_value)
+        if cost_value is not None:
+            total_cost += cost_value
+            had_cost = True
+
+    if not had_cost:
+        total_cost = 0.0
+    return total_input, total_output, total_cost
+
+
 def get_thread_ids_from_sqlite(full_path: Path | str) -> list[str]:
     with _connect(full_path) as conn:
         cursor = conn.cursor()
@@ -350,6 +451,12 @@ def print_checkpoint_messages(
         print()
         for idx, msg in enumerate(messages):
             _print_message(msg, idx)
+    input_tokens, output_tokens, total_cost = _summarize_llm_usage(messages)
+    print()
+    print("LLM usage summary:")
+    print(f"  input tokens : {input_tokens}")
+    print(f"  output tokens: {output_tokens}")
+    print(f"  total cost   : ${total_cost:.6f}")
 
     print("============ CHECKPOINT END ============\n")
 
