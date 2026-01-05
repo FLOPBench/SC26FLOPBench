@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import pprint
 import sqlite3
 from pathlib import Path
 from typing import Any, Mapping
-
-import json
 
 from langchain.messages import AIMessage, SystemMessage, HumanMessage, ToolMessage
 
@@ -64,6 +63,152 @@ def _serialize_message(message: Any) -> Mapping[str, Any]:
             value = getattr(message, attr)
             serialized[attr] = value
     return serialized
+
+
+def _stringify_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return pprint.pformat(value, width=120)
+
+
+def _print_section(
+    label: str,
+    value: Any,
+    *,
+    indent: int = 2,
+    skip_empty: bool = True,
+) -> None:
+    if skip_empty:
+        if value is None:
+            return
+        if isinstance(value, str) and not value.strip():
+            return
+        if isinstance(value, (list, dict)) and not value:
+            return
+
+    print(" " * indent + f"{label}:")
+    rendered = _stringify_value(value)
+    if not rendered:
+        return
+    for line in rendered.splitlines():
+        print(" " * (indent + 2) + line)
+
+
+def _print_tool_call(call: Mapping[str, Any], *, indent: int) -> None:
+    name = call.get("name") or call.get("tool_name") or "<unnamed>"
+    call_id = call.get("id") or call.get("tool_call_id")
+    header = f"- {name}"
+    if call_id:
+        header += f" (id={call_id})"
+    print(" " * indent + header)
+
+    args = call.get("args")
+    if args is not None:
+        _print_section("args", args, indent=indent + 2, skip_empty=False)
+
+    for key, value in call.items():
+        if key in {"name", "args", "id", "tool_call_id"}:
+            continue
+        _print_section(key, value, indent=indent + 2)
+
+
+def _print_ai_message(message: AIMessage, *, indent: int = 2) -> None:
+    if getattr(message, "content", None):
+        _print_section("content", message.content, indent=indent)
+
+    response_metadata = dict(message.response_metadata or {})
+    token_usage = response_metadata.pop("token_usage", None)
+    if token_usage:
+        _print_section("token_usage", token_usage, indent=indent)
+    if response_metadata:
+        _print_section("response_metadata", response_metadata, indent=indent)
+
+    usage_metadata = getattr(message, "usage_metadata", None)
+    if usage_metadata:
+        if hasattr(usage_metadata, "model_dump"):
+            usage_metadata = usage_metadata.model_dump()
+        _print_section("usage_metadata", usage_metadata, indent=indent)
+
+    tool_calls = getattr(message, "tool_calls", None) or []
+    if tool_calls:
+        print(" " * indent + "tool_calls:")
+        for call in tool_calls:
+            if isinstance(call, Mapping):
+                _print_tool_call(call, indent=indent + 2)
+            else:
+                _print_section("call", call, indent=indent + 2, skip_empty=False)
+
+    invalid_tool_calls = getattr(message, "invalid_tool_calls", None) or []
+    if invalid_tool_calls:
+        print(" " * indent + "invalid_tool_calls:")
+        for call in invalid_tool_calls:
+            if isinstance(call, Mapping):
+                _print_tool_call(call, indent=indent + 2)
+            else:
+                _print_section("call", call, indent=indent + 2, skip_empty=False)
+
+
+def _print_tool_message(message: ToolMessage, *, indent: int = 2) -> None:
+    name = message.name or "<unnamed>"
+    header = f"tool name={name} (tool_call_id={message.tool_call_id})"
+    if getattr(message, "status", None):
+        header += f" status={message.status}"
+    print(" " * indent + header)
+    _print_section("content", message.content, indent=indent + 2)
+    _print_section("artifact", getattr(message, "artifact", None), indent=indent + 2)
+    _print_section("response_metadata", message.response_metadata, indent=indent + 2)
+    _print_section("additional_kwargs", message.additional_kwargs, indent=indent + 2)
+
+
+def _collect_channel_messages(channel_values: Mapping[str, Any] | None) -> list[Any]:
+    if not isinstance(channel_values, Mapping):
+        return []
+    messages: list[Any] = []
+    direct = channel_values.get("messages")
+    if isinstance(direct, list):
+        messages.extend(direct)
+    for value in channel_values.values():
+        if isinstance(value, Mapping):
+            nested = value.get("messages")
+            if isinstance(nested, list):
+                messages.extend(nested)
+    return messages
+
+
+def _print_message_header(msg: Any, idx: int) -> str:
+    if isinstance(msg, Mapping):
+        type_name = msg.get("type") or msg.get("role") or "Mapping"
+        msg_id = msg.get("id")
+    else:
+        type_name = type(msg).__name__
+        msg_id = getattr(msg, "id", None)
+    header = f"======= Message {idx} [{type_name}]"
+    if msg_id:
+        header += f" id={msg_id}"
+    print(header)
+    return header
+
+
+def _print_message(msg: Any, idx: int) -> None:
+    if idx:
+        print()
+    header = _print_message_header(msg, idx)
+    indent = 2
+    if isinstance(msg, AIMessage):
+        _print_ai_message(msg, indent=indent)
+    elif isinstance(msg, ToolMessage):
+        _print_tool_message(msg, indent=indent)
+    elif isinstance(msg, (HumanMessage, SystemMessage)):
+        _print_section("content", msg.content, indent=indent, skip_empty=False)
+        _print_section("additional_kwargs", msg.additional_kwargs, indent=indent)
+        _print_section("response_metadata", msg.response_metadata, indent=indent)
+    elif isinstance(msg, Mapping):
+        _print_section("payload", msg, indent=indent, skip_empty=False)
+    else:
+        _print_section("payload", repr(msg), indent=indent, skip_empty=False)
+    print("=" * len(header))
 
 
 def get_thread_ids_from_sqlite(full_path: Path | str) -> list[str]:
@@ -164,40 +309,48 @@ def print_checkpoint_messages(
     if not entries:
         return
 
-    entry = entries[-1]
+    if target_idx is not None:
+        if target_idx < 0 or target_idx >= len(entries):
+            print(f"target_idx {target_idx} out of range (0-{len(entries) - 1})")
+            return
+        entry = entries[target_idx]
+    else:
+        entry = entries[-1]
+
     header = f"[{entry['thread_id']} {entry['checkpoint_id']}] type[{entry['type']}]"
     print("=========== CHECKPOINT START ===========")
     print(header)
 
     metadata = entry.get("metadata")
-    if metadata:
-        print("  metadata:")
-        print(metadata)
+    _print_section("metadata", metadata, indent=2)
+
     checkpoint = entry.get("checkpoint")
-    if checkpoint:
-        print("  checkpoint:")
-        print(checkpoint)
+    if not checkpoint:
+        print("  (no checkpoint payload)")
+        print("============ CHECKPOINT END ============\n")
+        return
 
-    messages = checkpoint['channel_values']['messages']
-    for msg in messages:
-        print(" ======= MSG BEGIN =======")
-        print(f'msg type: [{msg.type}]')
+    checkpoint_extras = {k: v for k, v in checkpoint.items() if k != "channel_values"}
+    if checkpoint_extras:
+        _print_section("checkpoint", checkpoint_extras, indent=2)
 
-        if type(msg) is AIMessage:
-            msg_cost = msg.response_metadata['token_usage']['cost']
-            has_tool_calls = len(msg.tool_calls)
-            if has_tool_calls:
-                print('has tool calls!')
-            else:
-                print(msg.content)
-            print(f'cost: {msg_cost}')
+    channel_values = checkpoint.get("channel_values")
+    if isinstance(channel_values, Mapping):
+        for key, value in channel_values.items():
+            if key == "messages":
+                continue
+            if isinstance(value, Mapping) and "messages" in value:
+                continue
+            _print_section(f"channel_values.{key}", value, indent=2)
 
-        if type(msg) is ToolMessage:
-            print('got a tool message response!')
+    messages = _collect_channel_messages(channel_values)
+    if not messages:
+        print("  (no channel messages)")
+    else:
+        print()
+        for idx, msg in enumerate(messages):
+            _print_message(msg, idx)
 
-        print(msg.content)
-        print(" ======= MSG END =======")
-            
     print("============ CHECKPOINT END ============\n")
 
 
