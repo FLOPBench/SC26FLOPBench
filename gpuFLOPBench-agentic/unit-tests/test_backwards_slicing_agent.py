@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
+import json
 import os
 import sqlite3
+import sys
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
-import json
 from typing import Any
 
 from langchain.messages import HumanMessage
@@ -34,34 +36,16 @@ SYSTEM_PROMPT = default_backwards_slicing_system_prompt()
 INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
-        Your goal is to build a short Python analysis script that imports
-        `treesitter_tools.cst_utils` and inspects the CUDA code listed below:
-        Lulesh.cu file to examine:
-        - /codex/gpuFLOPBench/src/lulesh-cuda/lulesh.cu
 
-        Your objective is to extract 
+        File to examine:
+        - lulesh-cuda/*
 
-        The /codex/langchain-tools/treesitter-tools/cst_utils.py script can help you to
-        write a python script to explore the source code via concrete syntax trees
-        using treesitter.
+        Target Kernel Name: `fill_sig<<<...>>>`
 
-        Steps:
-        1. Use the built-in filesystem tools to create `/tmp/backwards_slice.py`.
-        2. In the script, read both files with `treesitter_tools.cst_utils` and:
-           - collect every `__global__`/`__device__` definition, recording the
-             file path, line number, and at least the signature or snippet for each.
-           - collect every OpenMP pragma region, including its directive, clauses,
-             and associated statement span.
-        3. Save the script to `/tmp/backwards_slice.py`, then execute it via the
-           `execute` tool (`python /tmp/backwards_slice.py`).
-        4. After the script runs, call the built-in `BackwardsSlicingState` tool
-           with all required fields (`target_file`, `target_line`, `cuda_kernels`,
-           `openmp_regions`) to store the structured results. Summaries can be
-           textual (e.g., `"file:line -> kernel(__global__...)"`), and OpenMP
-           regions should include pragma + clause text along with the span context.
-        5. Return a final answer referencing the filled `BackwardsSlicingState`,
-           mention the CLI command used, and confirm you did not modify the
-           original source files.
+        As additional context, the full source files are located in the
+        `/codex/gpuFLOPBench/src/lulesh-cuda` directory. The shell tool by default
+        starts you in the `/codex/gpuFLOPBench/src` directory.
+
         """
     )
 )
@@ -93,6 +77,49 @@ def _json_default(obj: Any) -> str:
     return repr(obj)
 
 
+_TOOL_DIR = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
+
+
+def _load_tool_module(filename: str, module_name: str) -> Any:
+    tool_path = _TOOL_DIR / filename
+    spec = importlib.util.spec_from_file_location(module_name, tool_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load module {module_name} from {tool_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module
+
+
+def _load_code_search_tools() -> list[Any]:
+    file_tree_module = _load_tool_module("cuda-file-tree.py", "code_search_tools.cuda_file_tree")
+    global_functions_module = _load_tool_module(
+        "cuda-global-functions.py", "code_search_tools.cuda_global_functions"
+    )
+    compile_commands_module = _load_tool_module(
+        "cuda-compile-commands.py", "code_search_tools.cuda_compile_commands"
+    )
+    source_definition_module = _load_tool_module(
+        "extract-kernel-source-definition.py", "code_search_tools.extract_kernel_source_definition"
+    )
+    main_files_module = _load_tool_module("cuda-main-files.py", "code_search_tools.cuda_main_files")
+    include_tree_module = _load_tool_module(
+        "include-tree-extractor.py", "code_search_tools.include_tree_extractor"
+    )
+    function_definitions_module = _load_tool_module(
+        "function-definition-lister.py", "code_search_tools.function_definition_lister"
+    )
+    return [
+        file_tree_module.cuda_file_tree,
+        global_functions_module.cuda_global_functions,
+        compile_commands_module.cuda_compile_commands,
+        source_definition_module.extract_kernel_source_definition,
+        main_files_module.cuda_main_files,
+        include_tree_module.include_tree_extractor,
+        function_definitions_module.function_definition_lister,
+    ]
+
+
 def test_backwards_slicing_agent_can_run():
     """The backwards-slicing agent should run with the script-oriented instructions."""
 
@@ -105,6 +132,7 @@ def test_backwards_slicing_agent_can_run():
 
     config = {"thread_id": "1"}
     checkpoint_query = {"configurable": {"thread_id": "1"}}
+    result: dict[str, Any] | None = None
 
     try:
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
@@ -113,10 +141,10 @@ def test_backwards_slicing_agent_can_run():
         agent = make_backwards_slicing_agent(
             llm=llm,
             checkpointer=checkpointer,
-            tools=[],
+            tools=_load_code_search_tools(),
             middleware=[
                 ShellToolMiddleware(
-                    workspace_root="/codex/gpuFLOPBench/lulesh-cuda",
+                    workspace_root="/codex/gpuFLOPBench/src",
                     execution_policy=HostExecutionPolicy(),
                 )
             ],  # middleware will be extended inside the helper
@@ -128,20 +156,24 @@ def test_backwards_slicing_agent_can_run():
         print("=== agent result messages ===")
         for idx, msg in enumerate(result.get("messages") or []):
             print(f"message[{idx}]:", _message_to_str(msg))
-        checkpoints = list(checkpointer.list(checkpoint_query, limit=5))
-        print("=== recent checkpoints ===")
-        for checkpoint in checkpoints:
-            checkpoint_id = checkpoint.checkpoint["id"]
-            ts = checkpoint.checkpoint["ts"]
-            channel_values = checkpoint.checkpoint["channel_values"]
-            print(f"- id={checkpoint_id} ts={ts}")
-            print("  channel_values:", json.dumps(channel_values, indent=2, default=_json_default))
-            if checkpoint.pending_writes:
-                print("  pending writes:")
-                for task_id, channel, value in checkpoint.pending_writes:
-                    print(f"    task={task_id} channel={channel} value={_serialize_for_print(value)}")
+    except Exception as exc:  # pragma: no cover - allow output to show when failures happen
+        print("backwards slicing agent invocation raised:", exc)
     finally:
         conn.close()
+
+    # we still want to print the checkpointing results
+    checkpoints = list(checkpointer.list(checkpoint_query, limit=5))
+    print("=== recent checkpoints ===")
+    for checkpoint in checkpoints:
+        checkpoint_id = checkpoint.checkpoint["id"]
+        ts = checkpoint.checkpoint["ts"]
+        channel_values = checkpoint.checkpoint["channel_values"]
+        print(f"- id={checkpoint_id} ts={ts}")
+        print("  channel_values:", json.dumps(channel_values, indent=2, default=_json_default))
+        if checkpoint.pending_writes:
+            print("  pending writes:")
+            for task_id, channel, value in checkpoint.pending_writes:
+                print(f"    task={task_id} channel={channel} value={_serialize_for_print(value)}")
 
     assert isinstance(result, dict)
     assert result.get("messages"), "Agent run should always return at least one message"
