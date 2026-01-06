@@ -89,3 +89,8 @@
 - Root-level helpers
   - `run_tests.sh`: convenience wrapper for running the full regression suite.
   - `Dockerfile`, `README.md`, `AGENTS.md`: project-level documentation and packaging entrypoints.
+- `helper-scripts/print_sqlite_file.py`: command-line wrapper around `helper-scripts/sqlite_reader.py` that lets you pretty-print LangGraph checkpoint data directly from a `.sqlite` file. Run it with `PYTHONPATH=helper-scripts python ./helper-scripts/print_sqlite_file.py <checkpoint.sqlite> [-t thread_id] [-n limit]` to inspect the `checkpoints` table output and message stream for any thread.
+
+# 6) Checkpoint schema reference
+- LangGraph checkpoints use two tables: `checkpoints` and `writes`.  Each row in `checkpoints` records `thread_id`, `checkpoint_ns`, `checkpoint_id`, `parent_checkpoint_id`, `type`, `checkpoint`, and `metadata`; the `checkpoint`/`metadata` columns are serialized with `JsonPlusSerializer` so readers must deserialize via `langgraph.checkpoint.serde.jsonplus.JsonPlusSerializer`.  The `writes` table adds `task_id`, `idx`, `channel`, `type`, and `value` to track pending channel writes, with its `value` column similarly JSON-serialized.  `helper-scripts/sqlite_reader.py` already documents this layout near its top comment block.
+- Run this command `clear && python ./helper-scripts/print_sqlite_file.py ./unit-tests/test_backwards_slicing_with_llm_checkpoint.sqlite -t 1` after doing the unit test for the backwards slicing so that you can see all the messages the model made.
