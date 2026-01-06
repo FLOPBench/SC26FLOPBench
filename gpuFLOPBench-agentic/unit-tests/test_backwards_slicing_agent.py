@@ -47,8 +47,8 @@ INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
 
-        Target source files to examine:
-        - /lulesh-cuda/*
+        All your commands will execute in the directory 
+        of the target source code we are trying to examine.
 
         Target Kernel Name: `fill_sig<<<...>>>`
 
@@ -150,17 +150,17 @@ def test_backwards_slicing_agent_can_run():
         agent = make_backwards_slicing_agent(
             llm=llm,
             checkpointer=checkpointer,
-            backend=FilesystemBackend(root_dir='/codex/gpuFLOPBench/src/', virtual_mode=True),
+            backend=FilesystemBackend(root_dir='/codex/gpuFLOPBench/src/lulesh-cuda/', virtual_mode=True),
             tools=_load_code_search_tools(),
             middleware=[
                 ShellToolMiddleware(
-                    workspace_root="/codex/gpuFLOPBench/src/",
+                    workspace_root="/codex/gpuFLOPBench/src/lulesh-cuda/",
                     execution_policy=HostExecutionPolicy(),
                 ),
             ],  # middleware will be extended inside the helper
             system_prompt=SYSTEM_PROMPT,
-            max_model_calls_limit=20,
-            max_tool_calls_limit=20
+            max_model_calls_limit=30,
+            max_tool_calls_limit=30
         )
 
         config = {"thread_id": "1"}

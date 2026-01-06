@@ -10,6 +10,8 @@ from typing import Any, Callable, Mapping
 
 from langchain.messages import AIMessage, SystemMessage, HumanMessage, ToolMessage
 
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
@@ -277,11 +279,12 @@ def _extract_numeric_from_sources(
     return None
 
 
-def _summarize_llm_usage(messages: list[Any]) -> tuple[int, int, float]:
+def _summarize_llm_usage(messages: list[Any]) -> tuple[int, int, float, list[dict[str, float | int]]]:
     total_input = 0
     total_output = 0
     total_cost = 0.0
     had_cost = False
+    records: list[dict[str, float | int]] = []
     for msg in messages:
         if not isinstance(msg, AIMessage):
             continue
@@ -308,9 +311,17 @@ def _summarize_llm_usage(messages: list[Any]) -> tuple[int, int, float]:
             total_cost += cost_value
             had_cost = True
 
+        records.append(
+            {
+                "input_tokens": input_tokens if input_tokens is not None else 0,
+                "output_tokens": output_tokens if output_tokens is not None else 0,
+                "cost_usd": cost_value if cost_value is not None else 0.0,
+            }
+        )
+
     if not had_cost:
         total_cost = 0.0
-    return total_input, total_output, total_cost
+    return total_input, total_output, total_cost, records
 
 
 def _collect_tool_call_records(messages: list[Any]) -> list[tuple[str, Any]]:
@@ -327,6 +338,56 @@ def _collect_tool_call_records(messages: list[Any]) -> list[tuple[str, Any]]:
             else:
                 records.append((str(call), None))
     return records
+
+
+def _plot_llm_usage(
+    records: list[dict[str, float | int]],
+    db_path: Path | str,
+    *,
+    plot_name: str = "test_backwards_slicing_agent_costs.png",
+) -> None:
+    if not records:
+        return
+    df = pd.DataFrame(records)
+    if df.empty:
+        return
+
+    df["input_tokens"] = df["input_tokens"].fillna(0).astype(int)
+    df["output_tokens"] = df["output_tokens"].fillna(0).astype(int)
+    df["cost_usd"] = df["cost_usd"].fillna(0.0).astype(float)
+
+    df.insert(0, "query_index", range(1, len(df) + 1))
+    df["cumulative_cost_usd"] = df["cost_usd"].cumsum()
+
+    fig, ax_tokens = plt.subplots(dpi=200)
+    line_in, = ax_tokens.plot(df["query_index"], df["input_tokens"], marker="o", label="Input tokens")
+    line_out, = ax_tokens.plot(df["query_index"], df["output_tokens"], marker="o", label="Output tokens")
+    ax_tokens.set_xlabel("Query # (corrected order)")
+    ax_tokens.set_ylabel("Tokens")
+
+    ax_cost = ax_tokens.twinx()
+    line_cost, = ax_cost.plot(
+        df["query_index"],
+        df["cumulative_cost_usd"],
+        marker="o",
+        color="green",
+        label="Cumulative cost (USD)",
+    )
+    ax_cost.set_ylabel("Cumulative cost (USD)")
+
+    handles = [line_in, line_out, line_cost]
+    labels = [h.get_label() for h in handles]
+    ax_tokens.legend(handles, labels, loc="best")
+
+    plt.title("Tokens and cumulative cost per query (corrected order)")
+    plt.tight_layout()
+
+    db_path_obj = Path(db_path).resolve()
+    plot_path = db_path_obj.with_name(plot_name)
+    fig.savefig(plot_path, bbox_inches="tight")
+    plt.close(fig)
+
+    print(f"Saved tokens/cost plot to {plot_path}")
 
 
 def get_thread_ids_from_sqlite(full_path: Path | str) -> list[str]:
@@ -468,12 +529,7 @@ def print_checkpoint_messages(
         print()
         for idx, msg in enumerate(messages):
             _print_message(msg, idx)
-    input_tokens, output_tokens, total_cost = _summarize_llm_usage(messages)
-    print()
-    print("LLM usage summary:")
-    print(f"  input tokens : {input_tokens}")
-    print(f"  output tokens: {output_tokens}")
-    print(f"  total cost   : ${total_cost:.6f}")
+
 
     tool_calls = _collect_tool_call_records(messages)
     if tool_calls:
@@ -494,6 +550,16 @@ def print_checkpoint_messages(
             for name, count in counts.most_common():
                 pct = count / total_tool_calls * 100
                 print(f"  {name}: {count} ({pct:.1f}%)")
+
+    input_tokens, output_tokens, total_cost, usage_records = _summarize_llm_usage(messages)
+    print()
+    print("LLM usage summary:")
+    print(f"  input tokens : {input_tokens}")
+    print(f"  output tokens: {output_tokens}")
+    print(f"  total cost   : ${total_cost:.6f}")
+
+    print()
+    _plot_llm_usage(usage_records, db_path)
 
     print("============ CHECKPOINT END ============\n")
 
