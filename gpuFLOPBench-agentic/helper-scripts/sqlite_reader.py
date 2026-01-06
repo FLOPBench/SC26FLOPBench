@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pprint
 import sqlite3
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -312,6 +313,22 @@ def _summarize_llm_usage(messages: list[Any]) -> tuple[int, int, float]:
     return total_input, total_output, total_cost
 
 
+def _collect_tool_call_records(messages: list[Any]) -> list[tuple[str, Any]]:
+    records: list[tuple[str, Any]] = []
+    for msg in messages:
+        if not isinstance(msg, AIMessage):
+            continue
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        for call in tool_calls:
+            if isinstance(call, Mapping):
+                name = call.get("name") or call.get("tool_name") or "<unnamed>"
+                args = call.get("args")
+                records.append((name, args))
+            else:
+                records.append((str(call), None))
+    return records
+
+
 def get_thread_ids_from_sqlite(full_path: Path | str) -> list[str]:
     with _connect(full_path) as conn:
         cursor = conn.cursor()
@@ -457,6 +474,26 @@ def print_checkpoint_messages(
     print(f"  input tokens : {input_tokens}")
     print(f"  output tokens: {output_tokens}")
     print(f"  total cost   : ${total_cost:.6f}")
+
+    tool_calls = _collect_tool_call_records(messages)
+    if tool_calls:
+        print()
+        print("Tool call summary:")
+        for idx, (name, args) in enumerate(tool_calls, 1):
+            header = f"  {idx}. {name}"
+            print(header)
+            if args is not None:
+                args_repr = _stringify_value(args)
+                for line in args_repr.splitlines():
+                    print("    " + line)
+        counts = Counter(name for name, _ in tool_calls)
+        total_tool_calls = sum(counts.values())
+        if counts and total_tool_calls:
+            print()
+            print("Tool call counts:")
+            for name, count in counts.most_common():
+                pct = count / total_tool_calls * 100
+                print(f"  {name}: {count} ({pct:.1f}%)")
 
     print("============ CHECKPOINT END ============\n")
 
