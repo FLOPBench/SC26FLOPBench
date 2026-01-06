@@ -187,6 +187,7 @@ def handle_tool_errors(request, handler):
 def make_backwards_slicing_agent(
     llm,
     checkpointer,
+    backend,
     tools: list,
     middleware: list,
     system_prompt: SystemMessage | str,
@@ -197,13 +198,13 @@ def make_backwards_slicing_agent(
 
     llm_call_limit_middleware = ModelCallLimitMiddleware(
         thread_limit=max_model_calls_limit,
-        run_limit=10,
+        run_limit=max_model_calls_limit,
         exit_behavior="end"
         )
 
     tool_call_limit_middleware = ToolCallLimitMiddleware(
         thread_limit=max_tool_calls_limit, 
-        run_limit=10,
+        run_limit=max_tool_calls_limit,
         exit_behavior="end"
         )
 
@@ -216,6 +217,7 @@ def make_backwards_slicing_agent(
     agent = create_deep_agent(
         model=llm,
         tools=tools,
+        backend=backend,
         middleware=middleware + extra_middlewares,
         checkpointer=checkpointer,
         system_prompt=prompt_content,

@@ -65,6 +65,7 @@
 ## 4) Agent unit tests
 - `unit-tests/test_backwards_slicing_agent.py` is the exemplar. It builds the backwards slicing agent via `agents.backwards_slicing_agent.make_backwards_slicing_agent` with no extra CUDA-specific tools, deletes `test_backwards_slicing_with_llm_checkpoint.sqlite` before creating the checkpointer, and runs a single invocation using the prompt helper plus the `/tmp`-only write policy. The test confirms the agent returns at least one message after being instructed to write and execute a Python script that uses `treesitter_tools.cst_utils` to analyze `gpuFLOPBench/src/lulesh-cuda/lulesh.cu` and `gpuFLOPBench/src/lulesh-omp/lulesh.cc`.
 - Add similar tests whenever a new agent is introduced: load only the tools the agent actually needs, create the required prompts/state, and exercise at least one tool call if the agent is expected to perform work. Keep the SQLite checkpoint driver or another durable saver around, and delete or reset its backing file before each run so the artifact does not keep growing between test runs.
+- You can run the backwards slicing unit test with the following command: `python -m pytest -vv -s ./unit-tests/test_backwards_slicing_agent.py` 
 
 
 ## 5) Project Files Description

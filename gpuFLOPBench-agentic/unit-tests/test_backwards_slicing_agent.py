@@ -14,6 +14,12 @@ from typing import Any
 from langchain.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+HELPER_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "helper-scripts"
+if str(HELPER_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(HELPER_SCRIPTS_DIR))
+
+import sqlite_reader
+
 from agents.backwards_slicing_agent import (
     default_backwards_slicing_system_prompt,
     make_backwards_slicing_agent,
@@ -24,6 +30,10 @@ from langchain.agents.middleware import (
     ShellToolMiddleware,
     HostExecutionPolicy,
 )
+
+from deepagents.middleware.filesystem import FilesystemMiddleware
+from deepagents.backends import FilesystemBackend
+
 
 
 def delete_sqlite_db_if_exists(db_path: Path) -> None:
@@ -37,15 +47,14 @@ INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
 
-        File to examine:
-        - lulesh-cuda/*
+        Target source files to examine:
+        - /lulesh-cuda/*
 
         Target Kernel Name: `fill_sig<<<...>>>`
 
-        As additional context, the full source files are located in the
-        `/codex/gpuFLOPBench/src/lulesh-cuda` directory. The shell tool by default
-        starts you in the `/codex/gpuFLOPBench/src` directory.
+        All the commands you will execute are done from the `/` directory.
 
+        Please do a backwards slice of the `fill_sig` CUDA kernel.
         """
     )
 )
@@ -141,14 +150,17 @@ def test_backwards_slicing_agent_can_run():
         agent = make_backwards_slicing_agent(
             llm=llm,
             checkpointer=checkpointer,
+            backend=FilesystemBackend(root_dir='/codex/gpuFLOPBench/src/', virtual_mode=True),
             tools=_load_code_search_tools(),
             middleware=[
                 ShellToolMiddleware(
-                    workspace_root="/codex/gpuFLOPBench/src",
+                    workspace_root="/codex/gpuFLOPBench/src/",
                     execution_policy=HostExecutionPolicy(),
-                )
+                ),
             ],  # middleware will be extended inside the helper
             system_prompt=SYSTEM_PROMPT,
+            max_model_calls_limit=20,
+            max_tool_calls_limit=20
         )
 
         config = {"thread_id": "1"}
@@ -161,19 +173,10 @@ def test_backwards_slicing_agent_can_run():
     finally:
         conn.close()
 
-    # we still want to print the checkpointing results
-    checkpoints = list(checkpointer.list(checkpoint_query, limit=5))
-    print("=== recent checkpoints ===")
-    for checkpoint in checkpoints:
-        checkpoint_id = checkpoint.checkpoint["id"]
-        ts = checkpoint.checkpoint["ts"]
-        channel_values = checkpoint.checkpoint["channel_values"]
-        print(f"- id={checkpoint_id} ts={ts}")
-        print("  channel_values:", json.dumps(channel_values, indent=2, default=_json_default))
-        if checkpoint.pending_writes:
-            print("  pending writes:")
-            for task_id, channel, value in checkpoint.pending_writes:
-                print(f"    task={task_id} channel={channel} value={_serialize_for_print(value)}")
+
+    # print the checkpointing results
+    sqlite_reader.print_checkpoint_messages(SQLITE_DB_PATH, thread_id="1")
+    
 
     assert isinstance(result, dict)
     assert result.get("messages"), "Agent run should always return at least one message"
