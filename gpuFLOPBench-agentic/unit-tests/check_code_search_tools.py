@@ -367,30 +367,61 @@ def _load_tools(cuda_dir: Path) -> tuple[Any, Any, Any, Any]:
     return (
         file_tree_module.make_cuda_file_tree_tool(backend=backend),
         global_functions_module.make_cuda_global_functions_tool(backend=backend),
-        compile_commands_module.cuda_compile_commands,
-        source_definition_module.extract_kernel_source_definition,
+        compile_commands_module.make_cuda_compile_commands_tool(backend=backend),
+        source_definition_module.make_extract_kernel_source_definition_tool(backend=backend),
     )
 
 
-def _load_main_files_tool() -> Any:
-    module = _load_tool_module("cuda-main-files.py", "code_search_tools.cuda_main_files")
-    return module.cuda_main_files
+_MAIN_FILES_MODULE: Any | None = None
+_INCLUDE_TREE_MODULE: Any | None = None
 
 
-def _load_include_tree_tool() -> Any:
-    module = _load_tool_module(
-        "include-tree-extractor.py",
-        "code_search_tools.include_tree_extractor",
-    )
-    return module.include_tree_extractor
+def _load_main_files_module() -> Any:
+    global _MAIN_FILES_MODULE
+    if _MAIN_FILES_MODULE is None:
+        _MAIN_FILES_MODULE = _load_tool_module("cuda-main-files.py", "code_search_tools.cuda_main_files")
+    return _MAIN_FILES_MODULE
 
 
-def _load_function_definitions_tool() -> Any:
-    module = _load_tool_module(
-        "function-definition-lister.py",
-        "code_search_tools.function_definition_lister",
-    )
-    return module.make_function_definition_lister_tool()
+def _make_main_files_tool(cuda_dir: Path) -> Any:
+    backend = FilesystemBackend(root_dir=str(cuda_dir), virtual_mode=False)
+    module = _load_main_files_module()
+    return module.make_cuda_main_files_tool(backend=backend)
+
+
+def _load_include_tree_module() -> Any:
+    global _INCLUDE_TREE_MODULE
+    if _INCLUDE_TREE_MODULE is None:
+        _INCLUDE_TREE_MODULE = _load_tool_module(
+            "include-tree-extractor.py",
+            "code_search_tools.include_tree_extractor",
+        )
+    return _INCLUDE_TREE_MODULE
+
+
+def _make_include_tree_tool(cuda_dir: Path) -> Any:
+    backend = FilesystemBackend(root_dir=str(cuda_dir), virtual_mode=False)
+    module = _load_include_tree_module()
+    return module.make_include_tree_extractor_tool(backend=backend)
+
+
+_FUNCTION_DEFINITIONS_MODULE: Any | None = None
+
+
+def _load_function_definition_module() -> Any:
+    global _FUNCTION_DEFINITIONS_MODULE
+    if _FUNCTION_DEFINITIONS_MODULE is None:
+        _FUNCTION_DEFINITIONS_MODULE = _load_tool_module(
+            "function-definition-lister.py",
+            "code_search_tools.function_definition_lister",
+        )
+    return _FUNCTION_DEFINITIONS_MODULE
+
+
+def _make_function_definitions_tool(cuda_dir: Path) -> Any:
+    backend = FilesystemBackend(root_dir=str(cuda_dir), virtual_mode=False)
+    module = _load_function_definition_module()
+    return module.make_function_definition_lister_tool(backend=backend)
 
 
 def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_files: set[str]) -> None:
@@ -406,7 +437,8 @@ def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_fil
 
 
 def _assert_function_definition_listings(cuda_name: str) -> None:
-    function_definitions_tool = _load_function_definitions_tool()
+    cuda_dir = _resolve_cuda_directory(cuda_name)
+    function_definitions_tool = _make_function_definitions_tool(cuda_dir)
     expected_function_definitions = _load_expected_function_definitions(cuda_name)
     expected_function_declarations = _load_expected_function_declarations(cuda_name)
     all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
@@ -461,24 +493,24 @@ _assert_function_definition_listings("lulesh-cuda")
 
 
 def test_include_tree_extractor_lulesh():
-    include_tree_tool = _load_include_tree_tool()
-    expected_tree = _load_expected_include_tree("lulesh-cuda", "lulesh.cu")
     cuda_dir = _resolve_cuda_directory("lulesh-cuda")
+    include_tree_tool = _make_include_tree_tool(cuda_dir)
+    expected_tree = _load_expected_include_tree("lulesh-cuda", "lulesh.cu")
     result = include_tree_tool.run({"file_path": str(cuda_dir / "lulesh.cu")})
     assert result == expected_tree
 
 
 def test_lulesh_main_files_tool():
-    main_files_tool = _load_main_files_tool()
     cuda_dir = _resolve_cuda_directory("lulesh-cuda")
+    main_files_tool = _make_main_files_tool(cuda_dir)
     assert main_files_tool.run({"dir_path": str(cuda_dir)}) == _EXPECTED_LULESH_MAIN_FILES
 
 
 def test_include_tree_extractor_main_files():
-    include_tree_tool = _load_include_tree_tool()
     for cuda_name, main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
         expected_trees = _load_expected_include_trees(cuda_name)
         cuda_dir = _resolve_cuda_directory(cuda_name)
+        include_tree_tool = _make_include_tree_tool(cuda_dir)
         for file_name in main_files:
             expected_tree = expected_trees.get(file_name)
             if expected_tree is None:
@@ -490,9 +522,9 @@ def test_include_tree_extractor_main_files():
 
 
 def test_all_cuda_main_files_tool():
-    main_files_tool = _load_main_files_tool()
     for cuda_name, expected_main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
         cuda_dir = _resolve_cuda_directory(cuda_name)
+        main_files_tool = _make_main_files_tool(cuda_dir)
         result = main_files_tool.run({"dir_path": str(cuda_dir)})
         assert result == expected_main_files
 

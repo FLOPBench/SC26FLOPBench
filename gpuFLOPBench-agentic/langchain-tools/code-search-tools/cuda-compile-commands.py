@@ -8,7 +8,11 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from langchain.tools import tool
+from deepagents.backends.protocol import BackendProtocol
+from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
+from langchain_core.tools import StructuredTool
+from langchain.tools.tool_node import ToolRuntime
+from pydantic import Field
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -27,9 +31,9 @@ def _load_utils_module() -> object:
         spec.loader.exec_module(module)
     return module
 
+
 _utils = _load_utils_module()
 _GPU_SRC_DIR = _utils.GPU_SRC_DIR
-_resolve_directory = _utils._resolve_directory
 DirectoryArgs = _utils.DirectoryArgs
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,18 +57,12 @@ def _load_compile_commands() -> list[dict[str, Any]]:
     return data
 
 
-def _path_contains_prefix(parts: tuple[str, ...], prefix: tuple[str, ...]) -> bool:
-    if not prefix:
-        return True
-    for i in range(len(parts) - len(prefix) + 1):
-        if parts[i : i + len(prefix)] == prefix:
-            return True
-    return False
-
-
 def _gather_compile_entries(cuda_dir: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    relative_root = cuda_dir.relative_to(_GPU_SRC_DIR)
+    try:
+        relative_root = cuda_dir.relative_to(_GPU_SRC_DIR)
+    except ValueError as exc:
+        raise ValueError(f"{cuda_dir!r} is not under {_GPU_SRC_DIR}") from exc
     root_parts = relative_root.parts
     for entry in _load_compile_commands():
         file_path = Path(entry.get("file", ""))
@@ -93,17 +91,87 @@ def _gather_compile_entries(cuda_dir: Path) -> list[dict[str, Any]]:
     return entries
 
 
-@tool(
-    "cuda_compile_commands",
-    args_schema=DirectoryArgs,
-    description=(
-        "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the provided CUDA directory. "
-        "Example: cuda_compile_commands(dir_path=\"/lulesh-cuda\")."
-    ),
-)
-def cuda_compile_commands(dir_path: str) -> dict[str, Any]:
+def _path_contains_prefix(parts: tuple[str, ...], prefix: tuple[str, ...]) -> bool:
+    if not prefix:
+        return True
+    for i in range(len(parts) - len(prefix) + 1):
+        if parts[i : i + len(prefix)] == prefix:
+            return True
+    return False
+
+
+def _normalize_virtual_dir_path(dir_path: str) -> str:
+    trimmed = dir_path.rstrip("/")
+    return trimmed or "/"
+
+
+def _resolve_backend_directory(dir_path: str, backend: BackendProtocol) -> Path:
+    normalized = _normalize_virtual_dir_path(dir_path)
+    if getattr(backend, "virtual_mode", False):
+        cwd = getattr(backend, "cwd", None)
+        if cwd is None:
+            raise ValueError("Backend does not expose a root directory")
+        relative = normalized.lstrip("/")
+        candidate = (Path(cwd) / relative).resolve() if relative else cwd.resolve()
+        try:
+            candidate.relative_to(cwd)
+        except ValueError:
+            raise ValueError(f"{dir_path!r} escapes the backend root directory")
+    else:
+        candidate = Path(normalized)
+        if not candidate.is_absolute():
+            base = getattr(backend, "cwd", None) or Path.cwd()
+            candidate = (base / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+    if not candidate.exists() or not candidate.is_dir():
+        raise ValueError(f"{dir_path!r} is not a directory")
+    return candidate
+
+
+def _local_compile_commands(dir_path: str) -> dict[str, Any]:
     cuda_dir = _resolve_directory(dir_path)
     entries = _gather_compile_entries(cuda_dir)
     if not entries:
         raise ValueError(f"No compile commands were found for {dir_path!r}")
     return {"dir_path": str(cuda_dir), "commands": entries}
+
+
+TOOL_DESCRIPTION = (
+    "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the provided CUDA directory. "
+    "Example: cuda_compile_commands(dir_path=\"/lulesh-cuda\")."
+)
+
+
+def make_cuda_compile_commands_tool(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    *,
+    description: str | None = None,
+) -> StructuredTool:
+    tool_description = description or TOOL_DESCRIPTION
+
+    def _run(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> dict[str, Any]:
+        validated = _validate_path(dir_path)
+        resolved_backend = _get_backend(backend, runtime)
+        directory = _resolve_backend_directory(validated, resolved_backend)
+        entries = _gather_compile_entries(directory)
+        if not entries:
+            raise ValueError(f"No compile commands were found for {dir_path!r}")
+        return {"dir_path": str(directory), "commands": entries}
+
+    async def _arun(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> dict[str, Any]:
+        return _run(dir_path, runtime)
+
+    return StructuredTool.from_function(
+        func=_run,
+        coroutine=_arun,
+        name="cuda_compile_commands",
+        description=tool_description,
+        args_schema=DirectoryArgs,
+    )

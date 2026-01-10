@@ -6,16 +6,19 @@ import importlib.util
 
 import pytest
 
+from deepagents.backends import FilesystemBackend
+
 _EXTRACT_TOOL_PATH = (
     Path(__file__).resolve().parents[1]
     / "langchain-tools"
     / "code-search-tools"
     / "extract-kernel-source-definition.py"
 )
+_GPU_SRC_ROOT = Path(__file__).resolve().parents[1] / "gpuFLOPBench" / "src"
 
 
 @functools.lru_cache(maxsize=1)
-def _extract_kernel_source_definition():
+def _extract_kernel_source_definition_tool(cuda_dir: Path):
     spec = importlib.util.spec_from_file_location(
         "code_search_tools.extract_kernel_source_definition",
         _EXTRACT_TOOL_PATH,
@@ -24,7 +27,8 @@ def _extract_kernel_source_definition():
         raise ImportError(f"could not load tool at {_EXTRACT_TOOL_PATH}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.extract_kernel_source_definition.func
+    backend = FilesystemBackend(root_dir=str(cuda_dir), virtual_mode=False)
+    return module.make_extract_kernel_source_definition_tool(backend=backend)
 
 
 EXPECTED_KERNEL_DEFINITIONS: dict[str, dict[str, int]] = {
@@ -57,9 +61,12 @@ EXPECTED_KERNEL_DEFINITIONS: dict[str, dict[str, int]] = {
 
 
 def _assert_kernel_counts(cuda_name: str, kernel_counts: dict[str, int]) -> None:
-    extractor = _extract_kernel_source_definition()
+    cuda_dir = _GPU_SRC_ROOT / cuda_name
+    extractor_tool = _extract_kernel_source_definition_tool(cuda_dir)
     for kernel_name, expected_count in kernel_counts.items():
-        actual_defs = extractor(cuda_name, kernel_name)
+        actual_defs = extractor_tool.run(
+            {"file_path": str(cuda_dir), "kernel_name": kernel_name}
+        )
         actual_count = len(actual_defs)
         if actual_count != expected_count:
             raise AssertionError(

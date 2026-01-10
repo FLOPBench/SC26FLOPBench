@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import util
 from pathlib import Path
 import re
 import sys
 from typing import List, Optional, Set
 
+from deepagents.backends.protocol import BackendProtocol
+from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
+from langchain_core.tools import StructuredTool
+from langchain.tools.tool_node import ToolRuntime
 from pydantic import BaseModel, Field
-
-from langchain.tools import tool
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -29,9 +32,6 @@ def _load_utils_module() -> object:
 
 
 _utils = _load_utils_module()
-_GPU_SRC_DIR = _utils.GPU_SRC_DIR
-_resolve_source_file = _utils._resolve_source_file
-
 
 _COMMENT_PATTERN = re.compile(r"//.*?$|/\*.*?\*/", re.MULTILINE | re.DOTALL)
 _INCLUDE_PATTERN = re.compile(r'#\s*include\s*(?P<target>"[^"]+"|<[^>]+>)', re.MULTILINE)
@@ -73,7 +73,6 @@ def _is_within_root(candidate: Path, root: Path) -> bool:
 
 
 def _resolve_include_target(include_token: str, current_dir: Path, root_dir: Path) -> Optional[Path]:
-    """Resolve include paths relative to the including file, then the benchmark root."""
     if not include_token:
         return None
     inner_path = include_token[1:-1]
@@ -108,7 +107,6 @@ def _build_include_lines(
         line = f"{_INDENT_UNIT * indent_level}#include {include_token}{annotation}"
         lines.append(line)
         if annotation:
-            # Either DNE or loop detected; avoid further recursion.
             continue
         if resolved is None or resolved in ancestry:
             continue
@@ -123,25 +121,100 @@ def _build_include_lines(
     return lines
 
 
-@tool(
-    "include_tree_extractor",
-    args_schema=IncludeTreeArgs,
-    description=(
-        "Walk the #include hierarchy for a specific CUDA/C++ file inside a *-cuda "
-        "benchmark, annotating missing files (DNE) and stopping recursion when loops "
-        "are detected. Pass an absolute disk path or a FilesystemBackend path."
-    ),
-)
-def include_tree_extractor(file_path: str) -> str:
-    target = _resolve_source_file(file_path)
-    if not target.is_file():
-        raise ValueError(f"{file_path!r} is not a file")
-    relative_path = target.relative_to(_GPU_SRC_DIR)
-    if not relative_path.parts:
-        raise ValueError(f"{file_path!r} is not under {_GPU_SRC_DIR}")
+def _normalize_virtual_path(path: str) -> str:
+    trimmed = path.rstrip("/")
+    return trimmed or "/"
 
-    cuda_root = _GPU_SRC_DIR / relative_path.parts[0]
-    relative_target = target.relative_to(cuda_root).as_posix()
-    lines = [relative_target]
-    lines.extend(_build_include_lines(target, cuda_root, {target}, 1))
-    return "\n".join(lines)
+
+def _resolve_backend_source_file(file_path: str, backend: BackendProtocol) -> Path:
+    normalized = _normalize_virtual_path(file_path)
+    candidate = Path(normalized)
+    if getattr(backend, "virtual_mode", False):
+        cwd = getattr(backend, "cwd", None)
+        if cwd is None:
+            raise ValueError("Backend does not expose a root directory")
+        relative = normalized.lstrip("/")
+        if not relative:
+            raise ValueError("Virtual path must reference a file")
+        candidate = (cwd / relative).resolve()
+        try:
+            candidate.relative_to(cwd)
+        except ValueError:
+            raise ValueError(f"{file_path!r} escapes the backend root directory")
+    else:
+        if not candidate.is_absolute():
+            base = getattr(backend, "cwd", None) or Path.cwd()
+            candidate = (base / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+
+    if not candidate.exists() or not candidate.is_file():
+        raise ValueError(f"{file_path!r} is not a file")
+    return candidate
+
+
+def _determine_cuda_root(
+    target: Path,
+    backend_root: Path | None,
+) -> Path:
+    candidate = target.parent
+    for ancestor in (candidate, *candidate.parents):
+        if ancestor.name.endswith("-cuda"):
+            return ancestor
+    if backend_root is not None:
+        try:
+            if backend_root == candidate or backend_root in candidate.parents:
+                return backend_root
+        except Exception:
+            pass
+    return candidate
+
+
+def _relative_target_path(target: Path, cuda_root: Path) -> str:
+    try:
+        return target.relative_to(cuda_root).as_posix()
+    except ValueError as exc:
+        raise ValueError(f"{target} is not under {cuda_root}") from exc
+
+
+TOOL_DESCRIPTION = (
+    "Walk the #include hierarchy for a specific CUDA/C++ file inside a *-cuda benchmark, "
+    "annotating missing files (DNE) and stopping recursion when loops are detected. "
+    "Pass an absolute disk path or a FilesystemBackend path."
+)
+
+
+def make_include_tree_extractor_tool(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    *,
+    description: str | None = None,
+) -> StructuredTool:
+    tool_description = description or TOOL_DESCRIPTION
+
+    def _run(
+        file_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        resolved_backend = _get_backend(backend, runtime)
+        validated = _validate_path(file_path)
+        target = _resolve_backend_source_file(validated, resolved_backend)
+        backend_root = getattr(resolved_backend, "cwd", None)
+        cuda_root = _determine_cuda_root(target, backend_root)
+        relative_target = _relative_target_path(target, cuda_root)
+        lines = [relative_target]
+        lines.extend(_build_include_lines(target, cuda_root, {target}, 1))
+        return "\n".join(lines)
+
+    async def _arun(
+        file_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        return _run(file_path, runtime)
+
+    return StructuredTool.from_function(
+        func=_run,
+        coroutine=_arun,
+        name="include_tree_extractor",
+        description=tool_description,
+        args_schema=IncludeTreeArgs,
+    )

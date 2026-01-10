@@ -75,11 +75,11 @@ def _load_global_functions_tool(backend: FilesystemBackend):
     return module.make_cuda_global_functions_tool(backend=backend)
 
 
-def _load_main_files_tool():
+def _load_main_files_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.cuda_main_files"
     if module_name in sys.modules:
-        return sys.modules[module_name].cuda_main_files
+        return sys.modules[module_name].make_cuda_main_files_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "cuda-main-files.py",
@@ -89,12 +89,14 @@ def _load_main_files_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.cuda_main_files
-def _load_include_tree_tool():
+    return module.make_cuda_main_files_tool(backend=backend)
+
+
+def _load_include_tree_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.include_tree_extractor"
     if module_name in sys.modules:
-        return sys.modules[module_name].include_tree_extractor
+        return sys.modules[module_name].make_include_tree_extractor_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "include-tree-extractor.py",
@@ -104,14 +106,14 @@ def _load_include_tree_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.include_tree_extractor
+    return module.make_include_tree_extractor_tool(backend=backend)
 
 
-def _load_kernel_source_tool():
+def _load_kernel_source_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.extract_kernel_source_definition"
     if module_name in sys.modules:
-        return sys.modules[module_name].extract_kernel_source_definition
+        return sys.modules[module_name].make_extract_kernel_source_definition_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "extract-kernel-source-definition.py",
@@ -121,14 +123,14 @@ def _load_kernel_source_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.extract_kernel_source_definition
+    return module.make_extract_kernel_source_definition_tool(backend=backend)
 
 
-def _load_compile_commands_tool():
+def _load_compile_commands_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.cuda_compile_commands"
     if module_name in sys.modules:
-        return sys.modules[module_name].cuda_compile_commands
+        return sys.modules[module_name].make_cuda_compile_commands_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "cuda-compile-commands.py",
@@ -138,7 +140,7 @@ def _load_compile_commands_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.cuda_compile_commands
+    return module.make_cuda_compile_commands_tool(backend=backend)
 
 
 def _make_backend() -> FilesystemBackend:
@@ -175,7 +177,7 @@ def test_cuda_global_functions_via_filesystem_backend() -> None:
     assert any(entry["path"].endswith(".cu") for entry in root_entries)
 
     global_fn_tool = _load_global_functions_tool(backend)
-    results = global_fn_tool.run({"dir_path": "/lulesh-cuda"})
+    results = global_fn_tool.run({"dir_path": "/"})
     assert results, "cuda_global_functions should return kernel metadata"
     assert all("file" in entry and "kernel" in entry and "line" in entry for entry in results)
     assert any(entry["kernel"] == "fill_sig" for entry in results)
@@ -183,35 +185,37 @@ def test_cuda_global_functions_via_filesystem_backend() -> None:
 
 def test_cuda_main_files_via_filesystem_backend() -> None:
     backend = _make_backend()
-    main_files_tool = _load_main_files_tool()
-    result = main_files_tool.run({"dir_path": "/lulesh-cuda"})
+    main_files_tool = _load_main_files_tool(backend)
+    result = main_files_tool.run({"dir_path": "/"})
     expected_main = "lulesh.cu"
     assert expected_main in result
 
 
 def test_extract_kernel_source_definition_via_filesystem_backend() -> None:
     backend = _make_backend()
-    extractor_tool = _load_kernel_source_tool()
+    extractor_tool = _load_kernel_source_tool(backend)
     # verify both directory and file mode work via the backend
-    dir_results = extractor_tool.run({"file_path": "/lulesh-cuda", "kernel_name": "fill_sig"})
+    dir_results = extractor_tool.run({"file_path": "/", "kernel_name": "fill_sig"})
     assert dir_results, "Extracted kernel data should be available when pointing at the directory"
     assert any(entry["kernel"] == "fill_sig" for entry in dir_results)
-    file_results = extractor_tool.run({"file_path": "/lulesh-cuda/lulesh.cu", "kernel_name": "fill_sig"})
+    file_results = extractor_tool.run({"file_path": "/lulesh.cu", "kernel_name": "fill_sig"})
     assert file_results
     assert file_results[0]["file"] == "lulesh.cu"
     assert "__global__ void fill_sig" in file_results[0]["source"]
 
 
 def test_include_tree_extractor_via_filesystem_backend() -> None:
-    include_tool = _load_include_tree_tool()
-    output = include_tool.run({"file_path": "/lulesh-cuda/lulesh.cu"})
+    backend = _make_backend()
+    include_tool = _load_include_tree_tool(backend)
+    output = include_tool.run({"file_path": "/lulesh.cu"})
     assert output.startswith("lulesh.cu")
     assert '#include "lulesh.h"' in output
 
 
 def test_cuda_compile_commands_via_filesystem_backend() -> None:
-    compile_tool = _load_compile_commands_tool()
-    result = compile_tool.run({"dir_path": "/lulesh-cuda"})
+    backend = _make_backend()
+    compile_tool = _load_compile_commands_tool(backend)
+    result = compile_tool.run({"dir_path": "/"})
     assert result.get("commands"), "Expected compile commands to exist for lulesh-cuda"
     assert any(entry["file"] == "lulesh.cu" for entry in result["commands"])
     assert result["dir_path"].endswith("/lulesh-cuda")

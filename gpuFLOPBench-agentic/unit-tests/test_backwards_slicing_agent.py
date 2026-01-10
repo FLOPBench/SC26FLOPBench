@@ -122,10 +122,10 @@ def _load_code_search_tools(backend: BackendProtocol | None = None) -> list[Any]
     return [
         file_tree_module.make_cuda_file_tree_tool(backend=backend),
         global_functions_module.make_cuda_global_functions_tool(backend=backend),
-        compile_commands_module.cuda_compile_commands,
-        source_definition_module.extract_kernel_source_definition,
-        main_files_module.cuda_main_files,
-        include_tree_module.include_tree_extractor,
+        compile_commands_module.make_cuda_compile_commands_tool(backend=backend),
+        source_definition_module.make_extract_kernel_source_definition_tool(backend=backend),
+        main_files_module.make_cuda_main_files_tool(backend=backend),
+        include_tree_module.make_include_tree_extractor_tool(backend=backend),
         function_definitions_module.make_function_definition_lister_tool(backend=backend),
     ]
 

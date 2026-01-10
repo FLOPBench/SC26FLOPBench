@@ -80,8 +80,23 @@ def _resolve_backend_directory(dir_path: str, backend: BackendProtocol) -> Path:
     normalized = dir_path.rstrip("/")
     if not normalized:
         normalized = "/"
-    base_path: Path | None = None
     cwd = getattr(backend, "cwd", None)
+    virtual_mode = getattr(backend, "virtual_mode", False)
+    if virtual_mode and cwd is not None:
+        root = Path(cwd).resolve()
+        relative = normalized.lstrip("/")
+        if not relative or relative == root.name:
+            candidate = root
+        else:
+            candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            raise ValueError(f"{dir_path!r} escapes the backend root directory")
+        if not candidate.exists() or not candidate.is_dir():
+            raise ValueError(f"{dir_path!r} is not a directory")
+        return candidate
+    base_path: Path | None = None
     if cwd is not None:
         base_path = Path(cwd)
     relative = normalized.lstrip("/")

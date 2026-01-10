@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from importlib import util
 from pathlib import Path
 import sys
 from typing import List
 
-from langchain.tools import tool
+from deepagents.backends.protocol import BackendProtocol
+from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
+from langchain_core.tools import StructuredTool
+from langchain.tools.tool_node import ToolRuntime
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -23,6 +27,7 @@ def _load_utils_module() -> object:
         sys.modules[_UTILS_MODULE_NAME] = module
         spec.loader.exec_module(module)
     return module
+
 
 _utils = _load_utils_module()
 _gather_cuda_files = _utils._gather_cuda_files
@@ -99,17 +104,65 @@ def _gather_main_files(cuda_dir: Path) -> list[str]:
     return files
 
 
-@tool(
-    "cuda_main_files",
-    args_schema=DirectoryArgs,
-    description=(
-        "List source files under the provided directory that define a free-function main(). "
-        "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
-    ),
-)
-def cuda_main_files(dir_path: str) -> List[str]:
+def _resolve_backend_directory(dir_path: str, backend: BackendProtocol) -> Path:
+    normalized = (dir_path if dir_path.startswith("/") else "/" + dir_path).rstrip("/")
+    if not normalized:
+        normalized = "/"
+    candidate = Path(normalized)
+    if getattr(backend, "virtual_mode", False):
+        cwd = getattr(backend, "cwd", None)
+        if cwd is None:
+            raise ValueError("Backend does not expose a drawable directory")
+        relative = normalized.lstrip("/")
+        candidate = (Path(cwd) / relative).resolve()
+    if not candidate.exists() or not candidate.is_dir():
+        raise ValueError(f"{dir_path!r} is not a directory")
+    return candidate
+
+
+def _local_cuda_main_files(dir_path: str) -> List[str]:
     cuda_dir = _resolve_directory(dir_path)
     main_files = _gather_main_files(cuda_dir)
     if not main_files:
         raise ValueError(f"No main() definitions were found under {dir_path!r}")
     return main_files
+
+
+TOOL_DESCRIPTION = (
+    "List source files under the provided directory that define a free-function main(). "
+    "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
+)
+
+
+def make_cuda_main_files_tool(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    *,
+    description: str | None = None,
+) -> StructuredTool:
+    tool_description = description or TOOL_DESCRIPTION
+
+    def _run(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> List[str]:
+        resolved_backend = _get_backend(backend, runtime)
+        validated = _validate_path(dir_path)
+        directory = _resolve_backend_directory(validated, resolved_backend)
+        main_files = _gather_main_files(directory)
+        if not main_files:
+            raise ValueError(f"No main() definitions were found under {dir_path!r}")
+        return main_files
+
+    async def _arun(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> List[str]:
+        return _run(dir_path, runtime)
+
+    return StructuredTool.from_function(
+        func=_run,
+        coroutine=_arun,
+        name="cuda_main_files",
+        description=tool_description,
+        args_schema=DirectoryArgs,
+    )
