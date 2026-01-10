@@ -24,28 +24,28 @@ def _ensure_utils_module() -> None:
     spec.loader.exec_module(module)
 
 
-def _load_function_definition_tool():
+def _load_function_definition_tool(backend: FilesystemBackend | None = None):
     _ensure_utils_module()
     module_name = "code_search_tools.function_definition_lister"
-    if module_name in sys.modules:
-        return sys.modules[module_name].function_definition_lister
-    spec = importlib.util.spec_from_file_location(
-        module_name,
-        _TOOLS_DIR / "function-definition-lister.py",
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError("Could not load the function-definition-lister tool")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module.function_definition_lister
+    module = sys.modules.get(module_name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            _TOOLS_DIR / "function-definition-lister.py",
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError("Could not load the function-definition-lister tool")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    return module.make_function_definition_lister_tool(backend=backend)
 
 
-def _load_file_tree_tool():
+def _load_file_tree_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.cuda_file_tree"
     if module_name in sys.modules:
-        return sys.modules[module_name].cuda_file_tree
+        return sys.modules[module_name].make_cuda_file_tree_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "cuda-file-tree.py",
@@ -55,14 +55,14 @@ def _load_file_tree_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.cuda_file_tree
+    return module.make_cuda_file_tree_tool(backend=backend)
 
 
-def _load_global_functions_tool():
+def _load_global_functions_tool(backend: FilesystemBackend):
     _ensure_utils_module()
     module_name = "code_search_tools.cuda_global_functions"
     if module_name in sys.modules:
-        return sys.modules[module_name].cuda_global_functions
+        return sys.modules[module_name].make_cuda_global_functions_tool(backend=backend)
     spec = importlib.util.spec_from_file_location(
         module_name,
         _TOOLS_DIR / "cuda-global-functions.py",
@@ -72,7 +72,7 @@ def _load_global_functions_tool():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    return module.cuda_global_functions
+    return module.make_cuda_global_functions_tool(backend=backend)
 
 
 def _load_main_files_tool():
@@ -142,7 +142,7 @@ def _load_compile_commands_tool():
 
 
 def _make_backend() -> FilesystemBackend:
-    return FilesystemBackend(root_dir="/codex/gpuFLOPBench/src", virtual_mode=True)
+    return FilesystemBackend(root_dir="/codex/gpuFLOPBench/src/lulesh-cuda/", virtual_mode=True)
 
 
 def test_function_definition_lister_via_filesystem_backend() -> None:
@@ -150,20 +150,20 @@ def test_function_definition_lister_via_filesystem_backend() -> None:
 
     backend = _make_backend()
     root_entries = backend.ls_info("/")
-    assert root_entries, "FilesystemBackend should expose benchmark directories at /"
-    assert any(entry["path"].rstrip("/") == "/lulesh-cuda" for entry in root_entries)
+    assert root_entries, "FilesystemBackend should expose benchmark files at /"
+    assert any(entry["path"].endswith(".cu") for entry in root_entries)
 
-    snippet = backend.read("/lulesh-cuda/lulesh.cu", limit=1000)
+    snippet = backend.read("/lulesh.cu", limit=1000)
     assert "__global__ void fill_sig" in snippet
 
-    tool = _load_function_definition_tool()
-    output = tool.run({"file_path": "/lulesh-cuda/lulesh.cu"})
+    tool = _load_function_definition_tool(backend)
+    output = tool.run({"file_path": "/lulesh.cu"})
     assert output, "Function definition lister should return the parsed entries"
     assert "__global__ void fill_sig(" in output
     assert "(defnt)" in output
 
-    tree_tool = _load_file_tree_tool()
-    tree_output = tree_tool.run({"dir_path": "/lulesh-cuda"})
+    tree_tool = _load_file_tree_tool(backend)
+    tree_output = tree_tool.run({"dir_path": "/"})
     assert tree_output.startswith("lulesh-cuda/")
     assert "lulesh.cu" in tree_output
 
@@ -172,9 +172,9 @@ def test_cuda_global_functions_via_filesystem_backend() -> None:
     backend = _make_backend()
     root_entries = backend.ls_info("/")
     assert root_entries
-    assert any(entry["path"].rstrip("/") == "/lulesh-cuda" for entry in root_entries)
+    assert any(entry["path"].endswith(".cu") for entry in root_entries)
 
-    global_fn_tool = _load_global_functions_tool()
+    global_fn_tool = _load_global_functions_tool(backend)
     results = global_fn_tool.run({"dir_path": "/lulesh-cuda"})
     assert results, "cuda_global_functions should return kernel metadata"
     assert all("file" in entry and "kernel" in entry and "line" in entry for entry in results)

@@ -1,33 +1,14 @@
 from __future__ import annotations
 
-from importlib import util
-from pathlib import Path
-import sys
+from collections.abc import Callable
+from pathlib import PurePosixPath
 from typing import List
 
+from deepagents.backends.protocol import BackendProtocol
+from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
+from langchain_core.tools import StructuredTool
+from langchain.tools.tool_node import ToolRuntime
 from pydantic import BaseModel, Field
-from langchain.tools import tool
-
-_UTILS_MODULE_NAME = "code_search_tools.utils"
-
-
-def _load_utils_module() -> object:
-    module = sys.modules.get(_UTILS_MODULE_NAME)
-    if module is None:
-        spec = util.spec_from_file_location(
-            _UTILS_MODULE_NAME,
-            Path(__file__).resolve().with_name("utils.py"),
-        )
-        if spec is None or spec.loader is None:
-            raise ImportError("Could not load shared utils module")
-        module = util.module_from_spec(spec)
-        sys.modules[_UTILS_MODULE_NAME] = module
-        spec.loader.exec_module(module)
-    return module
-
-
-_utils = _load_utils_module()
-_GPU_SRC_DIR = _utils.GPU_SRC_DIR
 
 
 class CudaTreeArgs(BaseModel):
@@ -42,53 +23,122 @@ class CudaTreeArgs(BaseModel):
     )
 
 
-def _tree_lines(root: Path, indent: str = "") -> List[str]:
-    """Return a sorted list of tree lines for the provided directory."""
+TOOL_DESCRIPTION = (
+    "Generate an indented file tree for the provided directory. "
+    "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
+)
+
+
+def _normalize_virtual_dir_path(dir_path: str) -> str:
+    normalized = dir_path.rstrip("/")
+    if not normalized:
+        return "/"
+    return normalized
+
+
+def _entry_display_name(entry_path: str) -> str:
+    stripped = entry_path.rstrip("/")
+    if not stripped:
+        return "/"
+    return PurePosixPath(stripped).name
+
+
+def _sorted_entries(entries: list[dict[str, object]]) -> list[dict[str, object]]:
+    def sort_key(entry: dict[str, object]) -> tuple[bool, str]:
+        path = entry.get("path", "")
+        name = _entry_display_name(path)
+        is_dir = entry.get("is_dir", path.endswith("/"))
+        return (not is_dir, name.lower())
+
+    return sorted(entries, key=sort_key)
+
+
+def _tree_lines_from_backend(
+    backend: BackendProtocol,
+    dir_path: str,
+    indent: str = "",
+) -> List[str]:
     lines: List[str] = []
-    entries = sorted(root.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
-    for entry in entries:
-        suffix = "/" if entry.is_dir() else ""
-        lines.append(f"{indent}{entry.name}{suffix}")
-        if entry.is_dir():
-            lines.extend(_tree_lines(entry, indent + "  "))
+    entries = backend.ls_info(dir_path)
+    for entry in _sorted_entries(entries):
+        entry_path = entry.get("path")
+        if not entry_path:
+            continue
+        is_dir = entry.get("is_dir", entry_path.endswith("/"))
+        suffix = "/" if is_dir else ""
+        lines.append(f"{indent}{_entry_display_name(entry_path)}{suffix}")
+        if is_dir:
+            child_path = _normalize_virtual_dir_path(entry_path)
+            lines.extend(_tree_lines_from_backend(backend, child_path, indent + "  "))
     return lines
 
 
-def _resolve_directory(dir_path: str) -> Path:
-    candidate = Path(dir_path)
-    search_paths: List[Path] = []
-    if candidate.is_absolute():
-        search_paths.append(candidate)
-        try:
-            virtual_rel = candidate.relative_to("/")
-        except ValueError:
-            pass
-        else:
-            search_paths.append(_GPU_SRC_DIR / virtual_rel)
-    else:
-        search_paths.append(_GPU_SRC_DIR / candidate)
-
-    for path in search_paths:
-        if not path.exists() or not path.is_dir():
+async def _tree_lines_from_backend_async(
+    backend: BackendProtocol,
+    dir_path: str,
+    indent: str = "",
+) -> List[str]:
+    lines: List[str] = []
+    entries = await backend.als_info(dir_path)
+    for entry in _sorted_entries(entries):
+        entry_path = entry.get("path")
+        if not entry_path:
             continue
-        try:
-            resolved = path.resolve()
-            resolved.relative_to(_GPU_SRC_DIR)
-        except ValueError:
-            continue
-        return resolved
-    raise ValueError(f"{dir_path!r} does not point to a directory under {_GPU_SRC_DIR}")
+        is_dir = entry.get("is_dir", entry_path.endswith("/"))
+        suffix = "/" if is_dir else ""
+        lines.append(f"{indent}{_entry_display_name(entry_path)}{suffix}")
+        if is_dir:
+            child_path = _normalize_virtual_dir_path(entry_path)
+            lines.extend(await _tree_lines_from_backend_async(backend, child_path, indent + "  "))
+    return lines
 
 
-@tool(
-    "cuda_file_tree",
-    args_schema=CudaTreeArgs,
-    description=(
-        "Generate an indented file tree for the provided directory. "
-        "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
-    ),
-)
-def cuda_file_tree(dir_path: str) -> str:
-    cuda_dir = _resolve_directory(dir_path)
-    lines = [f"{cuda_dir.name}/"] + _tree_lines(cuda_dir, indent="  ")
+def _build_backend_tree(backend: BackendProtocol, dir_path: str) -> str:
+    normalized_root = _normalize_virtual_dir_path(dir_path)
+    backend_root_name = getattr(getattr(backend, "cwd", None), "name", "") or "/"
+    root_name = PurePosixPath(normalized_root).name or backend_root_name
+    lines = [f"{root_name}/"] + _tree_lines_from_backend(backend, normalized_root, indent="  ")
     return "\n".join(lines)
+
+
+async def _build_backend_tree_async(backend: BackendProtocol, dir_path: str) -> str:
+    normalized_root = _normalize_virtual_dir_path(dir_path)
+    backend_root_name = getattr(getattr(backend, "cwd", None), "name", "") or "/"
+    root_name = PurePosixPath(normalized_root).name or backend_root_name
+    child_lines = await _tree_lines_from_backend_async(backend, normalized_root, indent="  ")
+    lines = [f"{root_name}/"] + child_lines
+    return "\n".join(lines)
+
+
+def make_cuda_file_tree_tool(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    *,
+    description: str | None = None,
+) -> StructuredTool:
+    """Build a cuda_file_tree tool that runs against the provided backend."""
+
+    tool_description = description or TOOL_DESCRIPTION
+
+    def _run(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        resolved_backend = _get_backend(backend, runtime)
+        validated = _validate_path(dir_path)
+        return _build_backend_tree(resolved_backend, validated)
+
+    async def _arun(
+        dir_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        resolved_backend = _get_backend(backend, runtime)
+        validated = _validate_path(dir_path)
+        return await _build_backend_tree_async(resolved_backend, validated)
+
+    return StructuredTool.from_function(
+        func=_run,
+        coroutine=_arun,
+        name="cuda_file_tree",
+        description=tool_description,
+        args_schema=CudaTreeArgs,
+    )

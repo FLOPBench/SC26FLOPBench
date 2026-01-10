@@ -33,6 +33,7 @@ from langchain.agents.middleware import (
 
 from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.backends import FilesystemBackend
+from deepagents.backends.protocol import BackendProtocol
 
 
 
@@ -100,7 +101,7 @@ def _load_tool_module(filename: str, module_name: str) -> Any:
     return module
 
 
-def _load_code_search_tools() -> list[Any]:
+def _load_code_search_tools(backend: BackendProtocol | None = None) -> list[Any]:
     file_tree_module = _load_tool_module("cuda-file-tree.py", "code_search_tools.cuda_file_tree")
     global_functions_module = _load_tool_module(
         "cuda-global-functions.py", "code_search_tools.cuda_global_functions"
@@ -119,13 +120,13 @@ def _load_code_search_tools() -> list[Any]:
         "function-definition-lister.py", "code_search_tools.function_definition_lister"
     )
     return [
-        file_tree_module.cuda_file_tree,
-        global_functions_module.cuda_global_functions,
+        file_tree_module.make_cuda_file_tree_tool(backend=backend),
+        global_functions_module.make_cuda_global_functions_tool(backend=backend),
         compile_commands_module.cuda_compile_commands,
         source_definition_module.extract_kernel_source_definition,
         main_files_module.cuda_main_files,
         include_tree_module.include_tree_extractor,
-        function_definitions_module.function_definition_lister,
+        function_definitions_module.make_function_definition_lister_tool(backend=backend),
     ]
 
 
@@ -147,11 +148,14 @@ def test_backwards_slicing_agent_can_run():
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
         llm = build_openrouter_llm(openrouter_settings)
 
+        backend_obj = FilesystemBackend(
+            root_dir='/codex/gpuFLOPBench/src/lulesh-cuda/', virtual_mode=True
+        )
         agent = make_backwards_slicing_agent(
             llm=llm,
             checkpointer=checkpointer,
-            backend=FilesystemBackend(root_dir='/codex/gpuFLOPBench/src/lulesh-cuda/', virtual_mode=True),
-            tools=_load_code_search_tools(),
+            backend=backend_obj,
+            tools=_load_code_search_tools(backend=backend_obj),
             middleware=[
                 ShellToolMiddleware(
                     workspace_root="/codex/gpuFLOPBench/src/lulesh-cuda/",

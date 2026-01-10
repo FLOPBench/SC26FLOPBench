@@ -1,41 +1,21 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from importlib import util
 from pathlib import Path
-import sys
 from typing import Sequence
 
+from deepagents.backends.protocol import BackendProtocol
+from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
+from langchain_core.tools import StructuredTool
+from langchain.tools.tool_node import ToolRuntime
 from pydantic import BaseModel, Field
-
-from langchain.tools import tool
 
 from tree_sitter import Language, Parser
 import tree_sitter_cuda
 
 CUDA_LANGUAGE = Language(tree_sitter_cuda.language())
 PARSER = Parser(CUDA_LANGUAGE)
-
-_UTILS_MODULE_NAME = "code_search_tools.utils"
-
-
-def _load_utils_module() -> object:
-    module = sys.modules.get(_UTILS_MODULE_NAME)
-    if module is None:
-        spec = util.spec_from_file_location(
-            _UTILS_MODULE_NAME,
-            Path(__file__).resolve().with_name("utils.py"),
-        )
-        if spec is None or spec.loader is None:
-            raise ImportError("Could not load shared utils module")
-        module = util.module_from_spec(spec)
-        sys.modules[_UTILS_MODULE_NAME] = module
-        spec.loader.exec_module(module)
-    return module
-
-
-_utils = _load_utils_module()
-_GPU_SRC_DIR = _utils.GPU_SRC_DIR
 
 
 class FunctionDefinitionListerArgs(BaseModel):
@@ -295,49 +275,101 @@ def _collect_entries_for_file(source_file: Path) -> list[FunctionEntry]:
         text = source_file.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
-    try:
-        relative_path = str(source_file.relative_to(_GPU_SRC_DIR))
-    except ValueError:
-        relative_path = source_file.name
+    relative_path = source_file.name
     return _extract_function_entries(text, relative_path)
 
 
 def _resolve_source_file(file_path: str) -> Path:
-    candidate = Path(file_path)
-    search_paths: list[Path] = []
-    if candidate.is_absolute():
-        search_paths.append(candidate)
-        try:
-            virtual_relative = candidate.relative_to("/")
-        except ValueError:
-            pass
-        else:
-            search_paths.append(_GPU_SRC_DIR / virtual_relative)
-    else:
-        search_paths.append(_GPU_SRC_DIR / candidate)
-
-    for path in search_paths:
-        if not path.exists() or not path.is_file():
-            continue
-        try:
-            resolved = path.resolve()
-            resolved.relative_to(_GPU_SRC_DIR)
-        except ValueError:
-            continue
-        return resolved
-    raise ValueError(f"{file_path!r} does not point to a file under {_GPU_SRC_DIR}")
-
-
-@tool(
-    "function_definition_lister",
-    args_schema=FunctionDefinitionListerArgs,
-    description=(
-        "Return every function declaration or definition found in the provided CUDA/C++/header file. "
-        "Pass either an actual disk path or the virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
-    ),
+    path = Path(file_path)
+    try:
+        resolved = path.resolve()
+    except OSError as exc:
+        raise ValueError(f"{file_path!r} is not a valid path") from exc
+    if not resolved.exists() or not resolved.is_file():
+        raise ValueError(f"{file_path!r} is not a file")
+    return resolved
+TOOL_DESCRIPTION = (
+    "Return every function declaration or definition found in the provided CUDA/C++/header file. "
+    "Pass either an actual disk path or the virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
 )
-def function_definition_lister(file_path: str) -> str:
-    source_file = _resolve_source_file(file_path)
-    entries = _collect_entries_for_file(source_file)
+
+
+def _formatted_entries(entries: list[FunctionEntry]) -> str:
     entries.sort(key=lambda entry: (entry.relative_file, entry.line, entry.name))
     return "\n".join(_format_function_line(entry) for entry in entries)
+
+
+def _entries_from_source_file(source_file: Path) -> str:
+    entries = _collect_entries_for_file(source_file)
+    return _formatted_entries(entries)
+
+
+def _local_function_definition_lister(file_path: str) -> str:
+    source_file = _resolve_source_file(file_path)
+    return _entries_from_source_file(source_file)
+
+
+def _backend_candidate_paths(dir_path: str, backend: BackendProtocol) -> list[str]:
+    candidates: list[str] = [dir_path]
+    backend_cwd = getattr(backend, "cwd", None)
+    if backend_cwd is not None:
+        cwd_path = Path(backend_cwd)
+        normalized = dir_path.lstrip("/")
+        if normalized:
+            candidates.append(str(cwd_path / normalized))
+            root_name = cwd_path.name
+            prefix = f"{root_name}/"
+            if normalized.startswith(prefix):
+                remainder = normalized[len(prefix) :]
+                candidates.append(str(cwd_path / remainder))
+    return candidates
+
+
+def _resolve_backend_file_path(dir_path: str, backend: BackendProtocol) -> Path:
+    for candidate in _backend_candidate_paths(dir_path, backend):
+        try:
+            return _resolve_source_file(candidate)
+        except ValueError:
+            continue
+    raise ValueError(f"{dir_path!r} could not be resolved via the backend")
+
+
+def _backend_function_definition_lister(dir_path: str, backend: BackendProtocol) -> str:
+    source_file = _resolve_backend_file_path(dir_path, backend)
+    return _entries_from_source_file(source_file)
+
+
+def make_function_definition_lister_tool(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol] | None = None,
+    *,
+    description: str | None = None,
+) -> StructuredTool:
+    tool_description = description or TOOL_DESCRIPTION
+
+    def _run(
+        file_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        validated = _validate_path(file_path)
+        if backend is None:
+            return _local_function_definition_lister(validated)
+        resolved_backend = _get_backend(backend, runtime)
+        return _backend_function_definition_lister(validated, resolved_backend)
+
+    async def _arun(
+        file_path: str,
+        runtime: ToolRuntime[None, FilesystemState] | None = None,
+    ) -> str:
+        validated = _validate_path(file_path)
+        if backend is None:
+            return _local_function_definition_lister(validated)
+        resolved_backend = _get_backend(backend, runtime)
+        return _backend_function_definition_lister(validated, resolved_backend)
+
+    return StructuredTool.from_function(
+        func=_run,
+        coroutine=_arun,
+        name="function_definition_lister",
+        description=tool_description,
+        args_schema=FunctionDefinitionListerArgs,
+    )
