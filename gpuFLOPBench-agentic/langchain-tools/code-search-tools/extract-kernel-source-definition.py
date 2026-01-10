@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from typing import List, Optional, Tuple
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from langchain.tools import tool
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
@@ -26,17 +26,25 @@ def _load_utils_module() -> object:
     return module
 
 _utils = _load_utils_module()
-CudaSubdirArgs = _utils.CudaSubdirArgs
-_resolve_cuda_dir = _utils._resolve_cuda_dir
+_GPU_SRC_DIR = _utils.GPU_SRC_DIR
 _gather_cuda_files = _utils._gather_cuda_files
 _iterate_cuda_kernel_definitions = _utils._iterate_cuda_kernel_definitions
 _skip_whitespace = _utils._skip_whitespace
 _skip_string = _utils._skip_string
+_resolve_directory = _utils._resolve_directory
+_resolve_source_file = _utils._resolve_source_file
 
 
-class KernelSourceArgs(CudaSubdirArgs):
+class KernelSourceArgs(BaseModel):
     """Arguments for fetching the source code of a specific CUDA kernel."""
 
+    file_path: str = Field(
+        ...,
+        description=(
+            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu` or `/lulesh-cuda`) "
+            "that identifies a file or directory under gpuFLOPBench/src."
+        ),
+    )
     kernel_name: str = Field(
         ...,
         description="Name of the __global__ CUDA kernel to extract.",
@@ -168,14 +176,25 @@ def _find_kernel_source_definitions(
     "extract_kernel_source_definition",
     args_schema=KernelSourceArgs,
     description=(
-        "Return the source code for a specific __global__ kernel within a *-cuda benchmark. "
-        "Example: extract_kernel_source_definition(cuda_name=\"lulesh-cuda\", kernel_name=\"yourKernel\")."
+        "Return the source code for a specific __global__ kernel within the provided file or directory. "
+        "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
     ),
 )
-def extract_kernel_source_definition(cuda_name: str, kernel_name: str) -> List[dict[str, str | int]]:
-    cuda_dir = _resolve_cuda_dir(cuda_name)
+def extract_kernel_source_definition(file_path: str, kernel_name: str) -> List[dict[str, str | int]]:
     results: List[dict[str, str | int]] = []
-    for source_file in _gather_cuda_files(cuda_dir):
+    try:
+        search_files = [_resolve_source_file(file_path)]
+    except ValueError as source_error:
+        try:
+            directory = _resolve_directory(file_path)
+        except ValueError:
+            raise ValueError(
+                f"{file_path!r} is not a file or directory under {_GPU_SRC_DIR}"
+            ) from source_error
+        else:
+            search_files = list(_gather_cuda_files(directory))
+
+    for source_file in search_files:
         try:
             text = source_file.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -183,12 +202,15 @@ def extract_kernel_source_definition(cuda_name: str, kernel_name: str) -> List[d
         matches = _find_kernel_source_definitions(text, kernel_name)
         if not matches:
             continue
+        relative_path = source_file.relative_to(_GPU_SRC_DIR)
+        cuda_name = relative_path.parts[0]
+        relative_file = str(relative_path.relative_to(cuda_name))
         for start_idx, qualified, kernel, line, brace_end in matches:
             source = text[start_idx : brace_end + 1]
             results.append(
                 {
                     "cuda_name": cuda_name,
-                    "file": str(source_file.relative_to(cuda_dir)),
+                    "file": relative_file,
                     "kernel": kernel,
                     "qualified": qualified,
                     "line": line,
@@ -196,5 +218,6 @@ def extract_kernel_source_definition(cuda_name: str, kernel_name: str) -> List[d
                 }
             )
     if not results:
-        raise ValueError(f"Kernel {kernel_name!r} was not found under {cuda_name!r}")
+        raise ValueError(f"Kernel {kernel_name!r} was not found under {file_path!r}")
+    results.sort(key=lambda entry: (entry["file"], entry["line"] if isinstance(entry["line"], int) else 0, entry["kernel"]))
     return results

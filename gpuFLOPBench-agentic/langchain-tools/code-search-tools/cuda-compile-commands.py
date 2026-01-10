@@ -28,8 +28,9 @@ def _load_utils_module() -> object:
     return module
 
 _utils = _load_utils_module()
-CudaSubdirArgs = _utils.CudaSubdirArgs
-_resolve_cuda_dir = _utils._resolve_cuda_dir
+_GPU_SRC_DIR = _utils.GPU_SRC_DIR
+_resolve_directory = _utils._resolve_directory
+DirectoryArgs = _utils.DirectoryArgs
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPILE_COMMANDS_PATH = (
@@ -52,11 +53,25 @@ def _load_compile_commands() -> list[dict[str, Any]]:
     return data
 
 
-def _gather_compile_entries(cuda_name: str) -> list[dict[str, Any]]:
+def _path_contains_prefix(parts: tuple[str, ...], prefix: tuple[str, ...]) -> bool:
+    if not prefix:
+        return True
+    for i in range(len(parts) - len(prefix) + 1):
+        if parts[i : i + len(prefix)] == prefix:
+            return True
+    return False
+
+
+def _gather_compile_entries(cuda_dir: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
+    relative_root = cuda_dir.relative_to(_GPU_SRC_DIR)
+    root_parts = relative_root.parts
     for entry in _load_compile_commands():
         file_path = Path(entry.get("file", ""))
-        if cuda_name not in file_path.parts:
+        if not file_path.is_absolute():
+            directory = Path(entry.get("directory", ""))
+            file_path = (directory / file_path).resolve()
+        if not _path_contains_prefix(file_path.parts, root_parts):
             continue
         command = entry.get("command")
         if not command:
@@ -80,15 +95,15 @@ def _gather_compile_entries(cuda_name: str) -> list[dict[str, Any]]:
 
 @tool(
     "cuda_compile_commands",
-    args_schema=CudaSubdirArgs,
+    args_schema=DirectoryArgs,
     description=(
-        "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the requested *-cuda benchmark. "
-        "Example: cuda_compile_commands(cuda_name=\"lulesh-cuda\")."
+        "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the provided CUDA directory. "
+        "Example: cuda_compile_commands(dir_path=\"/lulesh-cuda\")."
     ),
 )
-def cuda_compile_commands(cuda_name: str) -> dict[str, Any]:
-    _resolve_cuda_dir(cuda_name)
-    entries = _gather_compile_entries(cuda_name)
+def cuda_compile_commands(dir_path: str) -> dict[str, Any]:
+    cuda_dir = _resolve_directory(dir_path)
+    entries = _gather_compile_entries(cuda_dir)
     if not entries:
-        raise ValueError(f"No compile commands were found for {cuda_name!r}")
-    return {"cuda_name": cuda_name, "commands": entries}
+        raise ValueError(f"No compile commands were found for {dir_path!r}")
+    return {"dir_path": str(cuda_dir), "commands": entries}

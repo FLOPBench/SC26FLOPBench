@@ -24,7 +24,7 @@ class BackwardsSlicingState(TypedDict):
             ...,
             description=(
                 "The CUDA kernel the agent should stop slicing at; includes the "
-                "launch syntax (e.g., `fill_sig<<<...>>>`)."
+                "launch syntax (e.g., `kernel_name<<<...>>>`)."
             ),
         ),
     ]
@@ -38,21 +38,20 @@ class BackwardsSlicingState(TypedDict):
     script_path: Annotated[
         str,
         Field(
-            default="/tmp/backwards_slice.py",
-            description="Location of the Python script the agent must write/execute.",
+            default="/tmp/slice.cpp",
+            description="Location of the output C++ backwards slice file the agent must write/execute.",
         ),
     ]
     main_file: Annotated[
         str,
         Field(
-            default="lulesh-cuda/lulesh.cu",
             description="Relative path (from workspace root) of the `main()` entry point we are analyzing.",
         ),
     ]
     kernel_def_file: Annotated[
         str,
         Field(
-            default="lulesh-cuda/lulesh.cu",
+            default="/tmp/extracted_kernel.cu",
             description="Relative path to the file containing the definition of `target_kernel_name`.",
         ),
     ]

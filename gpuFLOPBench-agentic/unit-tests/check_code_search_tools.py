@@ -41,6 +41,7 @@ from typing import Any
 
 _SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
 _TOOL_DIR = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
+_GPU_SRC_ROOT = Path(__file__).resolve().parents[1] / "gpuFLOPBench" / "src"
 
 
 @functools.lru_cache(maxsize=None)
@@ -119,6 +120,31 @@ def _load_expected_function_entries(cuda_name: str, attribute: str) -> dict[str,
             raise AssertionError(f"{metadata_path} {attribute} must map strings to strings")
         normalized[key] = value
     return normalized
+
+
+def _resolve_cuda_source_file(cuda_name: str, file_name: str) -> Path:
+    cuda_root = (_GPU_SRC_ROOT / cuda_name).resolve()
+    if not cuda_root.exists() or not cuda_root.is_dir():
+        raise AssertionError(f"{cuda_root} is not a valid CUDA benchmark directory")
+    target_path = (cuda_root / file_name).resolve()
+    try:
+        target_path.relative_to(cuda_root)
+    except ValueError:
+        raise AssertionError(f"{file_name!r} escapes {cuda_root}")
+    if not target_path.exists() or not target_path.is_file():
+        raise AssertionError(f"{target_path} does not exist")
+    return target_path
+
+
+def _resolve_cuda_directory(cuda_name: str) -> Path:
+    cuda_root = (_GPU_SRC_ROOT / cuda_name).resolve()
+    if not cuda_root.exists() or not cuda_root.is_dir():
+        raise AssertionError(f"{cuda_root} is not a valid CUDA benchmark directory")
+    try:
+        cuda_root.relative_to(_GPU_SRC_ROOT)
+    except ValueError:
+        raise AssertionError(f"{cuda_root} escapes {_GPU_SRC_ROOT}")
+    return cuda_root
 
 
 def _load_expected_function_definitions(cuda_name: str) -> dict[str, str]:
@@ -386,9 +412,8 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
     total_actual_declarations = 0
     total_expected_declarations = 0
     for file_name in all_files:
-        function_list = function_definitions_tool.run(
-            {"cuda_name": cuda_name, "file_name": file_name}
-        )
+        file_path = _resolve_cuda_source_file(cuda_name, file_name)
+        function_list = function_definitions_tool.run({"file_path": str(file_path)})
         actual_def = _function_lines_by_kind(function_list, "defnt")
         expected_def = expected_function_definitions.get(file_name, "")
         assert actual_def == expected_def
@@ -410,9 +435,10 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
 
 def test_lulesh_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "lulesh-cuda"})
+    cuda_dir = _resolve_cuda_directory("lulesh-cuda")
+    assert file_list_tree_tool.run({"dir_path": str(cuda_dir)}) == _EXPECTED_LULESH_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(cuda_dir)}) == _EXPECTED_LULESH_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(cuda_dir)})
     _assert_compile_entries(
         compile_result,
         "lulesh-cuda",
@@ -423,7 +449,7 @@ def test_lulesh_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "lulesh-cuda", "kernel_name": kernel}
+            {"file_path": str(cuda_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -434,41 +460,46 @@ _assert_function_definition_listings("lulesh-cuda")
 def test_include_tree_extractor_lulesh():
     include_tree_tool = _load_include_tree_tool()
     expected_tree = _load_expected_include_tree("lulesh-cuda", "lulesh.cu")
-    result = include_tree_tool.run({"cuda_name": "lulesh-cuda", "file_name": "lulesh.cu"})
+    cuda_dir = _resolve_cuda_directory("lulesh-cuda")
+    result = include_tree_tool.run({"file_path": str(cuda_dir / "lulesh.cu")})
     assert result == expected_tree
 
 
 def test_lulesh_main_files_tool():
     main_files_tool = _load_main_files_tool()
-    assert main_files_tool.run({"cuda_name": "lulesh-cuda"}) == _EXPECTED_LULESH_MAIN_FILES
+    cuda_dir = _resolve_cuda_directory("lulesh-cuda")
+    assert main_files_tool.run({"dir_path": str(cuda_dir)}) == _EXPECTED_LULESH_MAIN_FILES
 
 
 def test_include_tree_extractor_main_files():
     include_tree_tool = _load_include_tree_tool()
     for cuda_name, main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
         expected_trees = _load_expected_include_trees(cuda_name)
+        cuda_dir = _resolve_cuda_directory(cuda_name)
         for file_name in main_files:
             expected_tree = expected_trees.get(file_name)
             if expected_tree is None:
                 raise AssertionError(
                     f"{cuda_name}-tree_and_kernel_names.py must list {file_name!r} in EXPECTED_INCLUDE_TREES"
                 )
-            result = include_tree_tool.run({"cuda_name": cuda_name, "file_name": file_name})
+            result = include_tree_tool.run({"file_path": str(cuda_dir / file_name)})
             assert result == expected_tree
 
 
 def test_all_cuda_main_files_tool():
     main_files_tool = _load_main_files_tool()
     for cuda_name, expected_main_files in _EXPECTED_MAIN_FILES_BY_CUDA.items():
-        result = main_files_tool.run({"cuda_name": cuda_name})
+        cuda_dir = _resolve_cuda_directory(cuda_name)
+        result = main_files_tool.run({"dir_path": str(cuda_dir)})
         assert result == expected_main_files
 
 
 def test_tsne_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "tsne-cuda"}) == _EXPECTED_TSNE_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "tsne-cuda"})
+    tsne_dir = _resolve_cuda_directory("tsne-cuda")
+    assert file_list_tree_tool.run({"dir_path": str(tsne_dir)}) == _EXPECTED_TSNE_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(tsne_dir)}) == _EXPECTED_TSNE_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(tsne_dir)})
     _assert_compile_entries(
         compile_result,
         "tsne-cuda",
@@ -495,7 +526,7 @@ def test_tsne_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "tsne-cuda", "kernel_name": kernel}
+            {"file_path": str(tsne_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -507,10 +538,11 @@ def test_tsne_function_definition_listings():
 
 def test_all_pairs_distance_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "all-pairs-distance-cuda"}) == _EXPECTED_ALL_PAIRS_KERNELS
+    alldir = _resolve_cuda_directory("all-pairs-distance-cuda")
+    assert file_list_tree_tool.run({"dir_path": str(alldir)}) == _EXPECTED_ALL_PAIRS_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(alldir)}) == _EXPECTED_ALL_PAIRS_KERNELS
     _assert_compile_entries(
-        compile_commands_extractor_tool.run({"cuda_name": "all-pairs-distance-cuda"}),
+        compile_commands_extractor_tool.run({"dir_path": str(alldir)}),
         "all-pairs-distance-cuda",
         {"main.cu"},
     )
@@ -519,7 +551,7 @@ def test_all_pairs_distance_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "all-pairs-distance-cuda", "kernel_name": kernel}
+            {"file_path": str(alldir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -545,10 +577,11 @@ def test_additional_cuda_function_definition_listings():
 
 def test_addBiasResidualLayerNorm_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}) == _EXPECTED_ADD_BIAS_KERNELS
+    add_bias_dir = _resolve_cuda_directory("addBiasResidualLayerNorm-cuda")
+    assert file_list_tree_tool.run({"dir_path": str(add_bias_dir)}) == _EXPECTED_ADD_BIAS_TREE
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(add_bias_dir)}) == _EXPECTED_ADD_BIAS_KERNELS
     _assert_compile_entries(
-        compile_commands_extractor_tool.run({"cuda_name": "addBiasResidualLayerNorm-cuda"}),
+        compile_commands_extractor_tool.run({"dir_path": str(add_bias_dir)}),
         "addBiasResidualLayerNorm-cuda",
         {"main.cu"},
     )
@@ -557,7 +590,7 @@ def test_addBiasResidualLayerNorm_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "addBiasResidualLayerNorm-cuda", "kernel_name": kernel}
+            {"file_path": str(add_bias_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -565,10 +598,11 @@ def test_addBiasResidualLayerNorm_cuda_tools():
 
 def test_multimaterial_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "multimaterial-cuda"}) == _EXPECTED_MULTIMATERIAL_KERNELS
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("multimaterial-cuda"))}) == _EXPECTED_MULTIMATERIAL_TREE
+    multimaterial_dir = _resolve_cuda_directory("multimaterial-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(multimaterial_dir)}) == _EXPECTED_MULTIMATERIAL_KERNELS
     _assert_compile_entries(
-        compile_commands_extractor_tool.run({"cuda_name": "multimaterial-cuda"}),
+        compile_commands_extractor_tool.run({"dir_path": str(multimaterial_dir)}),
         "multimaterial-cuda",
         {"compact.cu", "full_matrix.cu", "multimat.cu"},
     )
@@ -577,7 +611,7 @@ def test_multimaterial_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "multimaterial-cuda", "kernel_name": kernel}
+            {"file_path": str(multimaterial_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -585,10 +619,11 @@ def test_multimaterial_cuda_tools():
 
 def test_atomic_reduction_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "atomicReduction-cuda"}) == _EXPECTED_ATOMIC_REDUCTION_KERNELS
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("atomicReduction-cuda"))}) == _EXPECTED_ATOMIC_REDUCTION_TREE
+    atomic_dir = _resolve_cuda_directory("atomicReduction-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(atomic_dir)}) == _EXPECTED_ATOMIC_REDUCTION_KERNELS
     _assert_compile_entries(
-        compile_commands_extractor_tool.run({"cuda_name": "atomicReduction-cuda"}),
+        compile_commands_extractor_tool.run({"dir_path": str(atomic_dir)}),
         "atomicReduction-cuda",
         {"reduction.cu"},
     )
@@ -597,7 +632,7 @@ def test_atomic_reduction_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "atomicReduction-cuda", "kernel_name": kernel}
+            {"file_path": str(atomic_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -605,9 +640,10 @@ def test_atomic_reduction_cuda_tools():
 
 def test_gmm_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "gmm-cuda"}) == _EXPECTED_GMM_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "gmm-cuda"}) == _EXPECTED_GMM_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "gmm-cuda"})
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("gmm-cuda"))}) == _EXPECTED_GMM_TREE
+    gmm_dir = _resolve_cuda_directory("gmm-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(gmm_dir)}) == _EXPECTED_GMM_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(gmm_dir)})
     _assert_compile_entries(
         compile_result,
         "gmm-cuda",
@@ -618,7 +654,7 @@ def test_gmm_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "gmm-cuda", "kernel_name": kernel}
+            {"file_path": str(gmm_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -626,9 +662,10 @@ def test_gmm_cuda_tools():
 
 def test_particlefilter_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "particlefilter-cuda"}) == _EXPECTED_PARTICLEFILTER_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "particlefilter-cuda"}) == _EXPECTED_PARTICLEFILTER_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "particlefilter-cuda"})
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("particlefilter-cuda"))}) == _EXPECTED_PARTICLEFILTER_TREE
+    particle_dir = _resolve_cuda_directory("particlefilter-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(particle_dir)}) == _EXPECTED_PARTICLEFILTER_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(particle_dir)})
     _assert_compile_entries(
         compile_result,
         "particlefilter-cuda",
@@ -639,7 +676,7 @@ def test_particlefilter_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "particlefilter-cuda", "kernel_name": kernel}
+            {"file_path": str(particle_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -647,9 +684,10 @@ def test_particlefilter_cuda_tools():
 
 def test_ert_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "ert-cuda"}) == _EXPECTED_ERT_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "ert-cuda"}) == _EXPECTED_ERT_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "ert-cuda"})
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("ert-cuda"))}) == _EXPECTED_ERT_TREE
+    ert_dir = _resolve_cuda_directory("ert-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(ert_dir)}) == _EXPECTED_ERT_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(ert_dir)})
     _assert_compile_entries(
         compile_result,
         "ert-cuda",
@@ -660,7 +698,7 @@ def test_ert_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "ert-cuda", "kernel_name": kernel}
+            {"file_path": str(ert_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -668,9 +706,10 @@ def test_ert_cuda_tools():
 
 def test_bmf_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "bmf-cuda"}) == _EXPECTED_BMF_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "bmf-cuda"}) == _EXPECTED_BMF_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "bmf-cuda"})
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("bmf-cuda"))}) == _EXPECTED_BMF_TREE
+    bmf_dir = _resolve_cuda_directory("bmf-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(bmf_dir)}) == _EXPECTED_BMF_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(bmf_dir)})
     _assert_compile_entries(
         compile_result,
         "bmf-cuda",
@@ -681,7 +720,7 @@ def test_bmf_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "bmf-cuda", "kernel_name": kernel}
+            {"file_path": str(bmf_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)
@@ -689,9 +728,10 @@ def test_bmf_cuda_tools():
 
 def test_minife_cuda_tools():
     file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools()
-    assert file_list_tree_tool.run({"cuda_name": "miniFE-cuda"}) == _EXPECTED_MINIFE_TREE
-    assert cuda_kernel_functions_identifier_tool.run({"cuda_name": "miniFE-cuda"}) == _EXPECTED_MINIFE_KERNELS
-    compile_result = compile_commands_extractor_tool.run({"cuda_name": "miniFE-cuda"})
+    assert file_list_tree_tool.run({"dir_path": str(_resolve_cuda_directory("miniFE-cuda"))}) == _EXPECTED_MINIFE_TREE
+    minife_dir = _resolve_cuda_directory("miniFE-cuda")
+    assert cuda_kernel_functions_identifier_tool.run({"dir_path": str(minife_dir)}) == _EXPECTED_MINIFE_KERNELS
+    compile_result = compile_commands_extractor_tool.run({"dir_path": str(minife_dir)})
     _assert_compile_entries(
         compile_result,
         "miniFE-cuda",
@@ -710,7 +750,7 @@ def test_minife_cuda_tools():
     assert set(kernel_solutions_map) == expected_kernels
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
-            {"cuda_name": "miniFE-cuda", "kernel_name": kernel}
+            {"file_path": str(minife_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)

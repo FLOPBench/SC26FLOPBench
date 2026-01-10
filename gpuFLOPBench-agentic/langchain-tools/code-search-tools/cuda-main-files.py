@@ -25,13 +25,13 @@ def _load_utils_module() -> object:
     return module
 
 _utils = _load_utils_module()
-CudaSubdirArgs = _utils.CudaSubdirArgs
-_resolve_cuda_dir = _utils._resolve_cuda_dir
 _gather_cuda_files = _utils._gather_cuda_files
 _skip_whitespace = _utils._skip_whitespace
 _skip_string = _utils._skip_string
 _find_matching_paren = _utils._find_matching_paren
 _find_first_special_char = _utils._find_first_special_char
+_resolve_directory = _utils._resolve_directory
+DirectoryArgs = _utils.DirectoryArgs
 
 
 def _contains_main_definition(text: str) -> bool:
@@ -101,15 +101,15 @@ def _gather_main_files(cuda_dir: Path) -> list[str]:
 
 @tool(
     "cuda_main_files",
-    args_schema=CudaSubdirArgs,
+    args_schema=DirectoryArgs,
     description=(
-        "List source files under the requested *-cuda directory that define a free-function main(). "
-        "Example: cuda_main_files(cuda_name=\"lulesh-cuda\")."
+        "List source files under the provided directory that define a free-function main(). "
+        "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
     ),
 )
-def cuda_main_files(cuda_name: str) -> List[str]:
-    cuda_dir = _resolve_cuda_dir(cuda_name)
+def cuda_main_files(dir_path: str) -> List[str]:
+    cuda_dir = _resolve_directory(dir_path)
     main_files = _gather_main_files(cuda_dir)
     if not main_files:
-        raise ValueError(f"No main() definitions were found under {cuda_name!r}")
+        raise ValueError(f"No main() definitions were found under {dir_path!r}")
     return main_files

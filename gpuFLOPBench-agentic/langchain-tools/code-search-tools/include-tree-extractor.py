@@ -6,7 +6,7 @@ import re
 import sys
 from typing import List, Optional, Set
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from langchain.tools import tool
 
@@ -29,8 +29,8 @@ def _load_utils_module() -> object:
 
 
 _utils = _load_utils_module()
-CudaSubdirArgs = _utils.CudaSubdirArgs
-_resolve_cuda_dir = _utils._resolve_cuda_dir
+_GPU_SRC_DIR = _utils.GPU_SRC_DIR
+_resolve_source_file = _utils._resolve_source_file
 
 
 _COMMENT_PATTERN = re.compile(r"//.*?$|/\*.*?\*/", re.MULTILINE | re.DOTALL)
@@ -38,12 +38,15 @@ _INCLUDE_PATTERN = re.compile(r'#\s*include\s*(?P<target>"[^"]+"|<[^>]+>)', re.M
 _INDENT_UNIT = "  "
 
 
-class IncludeTreeArgs(CudaSubdirArgs):
+class IncludeTreeArgs(BaseModel):
     """Arguments for walking the include tree of a specific source file."""
 
-    file_name: str = Field(
+    file_path: str = Field(
         ...,
-        description="Relative path (from the benchmark root) of the CUDA/C++ file to analyze.",
+        description=(
+            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`) "
+            "to the CUDA/C++ file to analyze."
+        ),
         min_length=1,
     )
 
@@ -126,20 +129,19 @@ def _build_include_lines(
     description=(
         "Walk the #include hierarchy for a specific CUDA/C++ file inside a *-cuda "
         "benchmark, annotating missing files (DNE) and stopping recursion when loops "
-        "are detected. Example: include_tree_extractor(cuda_name=\"lulesh-cuda\", file_name=\"src/main.cu\")."
+        "are detected. Pass an absolute disk path or a FilesystemBackend path."
     ),
 )
-def include_tree_extractor(cuda_name: str, file_name: str) -> str:
-    cuda_dir = _resolve_cuda_dir(cuda_name)
-    target = (cuda_dir / file_name).resolve()
-    if not _is_within_root(target, cuda_dir):
-        raise ValueError(f"{file_name!r} escapes the benchmark root")
-    if not target.exists():
-        raise ValueError(f"{file_name!r} does not exist under {cuda_dir}")
+def include_tree_extractor(file_path: str) -> str:
+    target = _resolve_source_file(file_path)
     if not target.is_file():
-        raise ValueError(f"{file_name!r} is not a file")
+        raise ValueError(f"{file_path!r} is not a file")
+    relative_path = target.relative_to(_GPU_SRC_DIR)
+    if not relative_path.parts:
+        raise ValueError(f"{file_path!r} is not under {_GPU_SRC_DIR}")
 
-    relative_target = target.relative_to(cuda_dir).as_posix()
+    cuda_root = _GPU_SRC_DIR / relative_path.parts[0]
+    relative_target = target.relative_to(cuda_root).as_posix()
     lines = [relative_target]
-    lines.extend(_build_include_lines(target, cuda_dir, {target}, 1))
+    lines.extend(_build_include_lines(target, cuda_root, {target}, 1))
     return "\n".join(lines)

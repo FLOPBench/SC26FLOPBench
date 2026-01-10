@@ -25,6 +25,18 @@ class CudaSubdirArgs(BaseModel):
     )
 
 
+class DirectoryArgs(BaseModel):
+    """Shared arguments for tools rooted at a particular GPU source directory."""
+
+    dir_path: str = Field(
+        ...,
+        description=(
+            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda`) "
+            "to a directory that lives under gpuFLOPBench/src."
+        ),
+    )
+
+
 def _resolve_cuda_dir(cuda_name: str) -> Path:
     """Guardrail the requested path so it stays within gpuFLOPBench/src."""
     candidate = (GPU_SRC_DIR / cuda_name).resolve()
@@ -46,6 +58,58 @@ def _gather_cuda_files(root: Path) -> Iterable[Path]:
     for path in root.rglob("*"):
         if path.is_file() and path.suffix.lower() in CUDA_SOURCE_EXTENSIONS:
             yield path
+
+
+def _resolve_directory(dir_path: str) -> Path:
+    candidate = Path(dir_path)
+    search_paths: list[Path] = []
+    if candidate.is_absolute():
+        search_paths.append(candidate)
+        try:
+            virtual_rel = candidate.relative_to("/")
+        except ValueError:
+            pass
+        else:
+            search_paths.append(GPU_SRC_DIR / virtual_rel)
+    else:
+        search_paths.append(GPU_SRC_DIR / candidate)
+
+    for path in search_paths:
+        if not path.exists() or not path.is_dir():
+            continue
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(GPU_SRC_DIR)
+        except ValueError:
+            continue
+        return resolved
+    raise ValueError(f"{dir_path!r} does not point to a directory under {GPU_SRC_DIR}")
+
+
+def _resolve_source_file(file_path: str) -> Path:
+    candidate = Path(file_path)
+    search_paths: list[Path] = []
+    if candidate.is_absolute():
+        search_paths.append(candidate)
+        try:
+            virtual_relative = candidate.relative_to("/")
+        except ValueError:
+            pass
+        else:
+            search_paths.append(GPU_SRC_DIR / virtual_relative)
+    else:
+        search_paths.append(GPU_SRC_DIR / candidate)
+
+    for path in search_paths:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(GPU_SRC_DIR)
+        except ValueError:
+            continue
+        return resolved
+    raise ValueError(f"{file_path!r} does not point to a file under {GPU_SRC_DIR}")
 
 
 def _skip_whitespace(text: str, idx: int) -> int:

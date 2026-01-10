@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from typing import Sequence
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from langchain.tools import tool
 
@@ -35,17 +35,18 @@ def _load_utils_module() -> object:
 
 
 _utils = _load_utils_module()
-CudaSubdirArgs = _utils.CudaSubdirArgs
-_resolve_cuda_dir = _utils._resolve_cuda_dir
-_gather_cuda_files = _utils._gather_cuda_files
+_GPU_SRC_DIR = _utils.GPU_SRC_DIR
 
 
-class FunctionDefinitionListerArgs(CudaSubdirArgs):
-    """Arguments for listing declarations/definitions inside a specific benchmark source file."""
+class FunctionDefinitionListerArgs(BaseModel):
+    """Arguments for listing declarations/definitions inside a specific source file."""
 
-    file_name: str | None = Field(
-        None,
-        description="Relative path of the CUDA/C++ file (within the benchmark) to inspect.",
+    file_path: str = Field(
+        ...,
+        description=(
+            "Absolute path to the CUDA/C++ file on disk, or the virtual path that "
+            "the FilesystemBackend exposes (e.g., `/lulesh-cuda/lulesh.cu`)."
+        ),
     )
 
 _SCOPED_NODE_NAME_TYPES: dict[str, tuple[str, ...]] = {
@@ -289,50 +290,54 @@ def _extract_function_entries(text: str, relative_file: str) -> list[FunctionEnt
     return entries
 
 
-def _resolve_source_file(cuda_dir: Path, file_name: str) -> Path:
-    requested_path = Path(file_name)
-    if requested_path.is_absolute():
-        raise ValueError("file_name must be relative to the benchmark directory")
-    candidate = cuda_dir / requested_path
-    if not candidate.exists():
-        raise ValueError(f"{file_name!r} does not exist under {cuda_dir}")
-    if not candidate.is_file():
-        raise ValueError(f"{file_name!r} is not a file")
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(cuda_dir)
-    except ValueError:
-        raise ValueError("file_name escapes the benchmark directory")
-    return resolved
-
-
-def _collect_entries_for_file(source_file: Path, cuda_dir: Path) -> list[FunctionEntry]:
+def _collect_entries_for_file(source_file: Path) -> list[FunctionEntry]:
     try:
         text = source_file.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
-    relative_path = str(source_file.relative_to(cuda_dir))
+    try:
+        relative_path = str(source_file.relative_to(_GPU_SRC_DIR))
+    except ValueError:
+        relative_path = source_file.name
     return _extract_function_entries(text, relative_path)
+
+
+def _resolve_source_file(file_path: str) -> Path:
+    candidate = Path(file_path)
+    search_paths: list[Path] = []
+    if candidate.is_absolute():
+        search_paths.append(candidate)
+        try:
+            virtual_relative = candidate.relative_to("/")
+        except ValueError:
+            pass
+        else:
+            search_paths.append(_GPU_SRC_DIR / virtual_relative)
+    else:
+        search_paths.append(_GPU_SRC_DIR / candidate)
+
+    for path in search_paths:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(_GPU_SRC_DIR)
+        except ValueError:
+            continue
+        return resolved
+    raise ValueError(f"{file_path!r} does not point to a file under {_GPU_SRC_DIR}")
 
 
 @tool(
     "function_definition_lister",
     args_schema=FunctionDefinitionListerArgs,
     description=(
-        "Return an alphabetically ordered list of every function declaration and definition "
-        "found in a benchmark's CUDA/C++/header sources. Provide an optional file_name "
-        "(relative to the benchmark directory) to inspect a single file; omit it to scan every "
-        "supported source file together. Example: function_definition_lister(cuda_name=\"lulesh-cuda\", file_name=\"src/lulesh.cu\")."
+        "Return every function declaration or definition found in the provided CUDA/C++/header file. "
+        "Pass either an actual disk path or the virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
     ),
 )
-def function_definition_lister(cuda_name: str, file_name: str | None = None) -> str:
-    cuda_dir = _resolve_cuda_dir(cuda_name)
-    entries: list[FunctionEntry] = []
-    if file_name:
-        target_file = _resolve_source_file(cuda_dir, file_name)
-        entries.extend(_collect_entries_for_file(target_file, cuda_dir))
-    else:
-        for source_file in sorted(_gather_cuda_files(cuda_dir)):
-            entries.extend(_collect_entries_for_file(source_file, cuda_dir))
+def function_definition_lister(file_path: str) -> str:
+    source_file = _resolve_source_file(file_path)
+    entries = _collect_entries_for_file(source_file)
     entries.sort(key=lambda entry: (entry.relative_file, entry.line, entry.name))
     return "\n".join(_format_function_line(entry) for entry in entries)
