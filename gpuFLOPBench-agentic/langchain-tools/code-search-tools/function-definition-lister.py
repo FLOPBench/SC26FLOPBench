@@ -4,7 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import util
 from pathlib import Path
-import re
 import sys
 from typing import Any, Sequence, Literal
 
@@ -161,12 +160,8 @@ def _extract_function_signature(declarator) -> str | None:
     return text
 
 
-_POINTER_STAR_PATTERN = re.compile(r"(?<=[\w>\)])\s+\*")
-
-
 def _normalize_pointer_spacing(text: str) -> str:
-    stripped = text.strip()
-    return _POINTER_STAR_PATTERN.sub("*", stripped)
+    return text.strip()
 
 
 def _extract_declarator_prefix(declarator, function_declarator) -> str:

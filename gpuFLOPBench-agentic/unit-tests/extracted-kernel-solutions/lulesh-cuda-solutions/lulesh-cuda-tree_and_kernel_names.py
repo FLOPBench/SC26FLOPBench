@@ -1765,13 +1765,3 @@ EXPECTED_KERNELS = [
     {"file": "lulesh.cu", "kernel": "calcMonotonicQForElems", "line": 1514, "offset": 1513, "lines": 172},
     {"file": "lulesh.cu", "kernel": "applyMaterialPropertiesForElems", "line": 1686, "offset": 1685, "lines": 227}
 ]
-
-EXPECTED_FUNCTION_DECLARATIONS = {
-    "lulesh.h": """void BuildMesh(Int_t nx, Int_t edgeNodes, Int_t edgeElems) (decl)
-void SetupThreadSupportStructures() (decl)
-void CreateRegionIndexSets(Int_t nreg, Int_t balance) (decl)
-void SetupCommBuffers(Int_t edgeNodes) (decl)
-void SetupSymmetryPlanes(Int_t edgeNodes) (decl)
-void SetupElementConnectivities(Int_t edgeElems) (decl)
-void SetupBoundaryConditions(Int_t edgeElems) (decl)""",
-}

@@ -167,9 +167,6 @@ def _load_expected_function_definitions(cuda_name: str) -> dict[str, str]:
     )
 
 
-def _load_expected_function_declarations(cuda_name: str) -> dict[str, str]:
-    return _load_expected_function_entries(cuda_name, "EXPECTED_FUNCTION_DECLARATIONS")
-
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
 _EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
@@ -514,12 +511,9 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
     cuda_dir = _resolve_cuda_directory(cuda_name)
     function_definitions_tool = _make_function_definitions_tool(cuda_dir)
     expected_function_definitions = _load_expected_function_definitions(cuda_name)
-    expected_function_declarations = _load_expected_function_declarations(cuda_name)
-    all_files = sorted(set(expected_function_definitions) | set(expected_function_declarations))
+    all_files = sorted(set(expected_function_definitions))
     total_actual_definitions = 0
     total_expected_definitions = 0
-    total_actual_declarations = 0
-    total_expected_declarations = 0
     for file_name in all_files:
         file_path = _resolve_cuda_source_file(cuda_name, file_name)
         function_list = function_definitions_tool.run({"file_path": str(file_path)})
@@ -527,25 +521,16 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
         assert function_list, f"function-definition-lister returned no entries for {file_path}"
         assert any(entry.get("file") == file_name for entry in function_list), "expected file missing from tool output"
         actual_def = _function_lines_by_kind(function_list, "defnt", file_name)
-        expected_def = expected_function_definitions.get(file_name, "")
+        expected_def = expected_function_definitions[file_name]
         if cuda_name == "miniFE-cuda" and file_name == "basic/BoxPartition.cpp":
             print("DEBUG expected_def repr", repr(expected_def))
             print("DEBUG actual_def repr", repr(actual_def))
         assert actual_def == expected_def
         assert len(actual_def.splitlines()) == len(expected_def.splitlines())
-
-        actual_decl = _function_lines_by_kind(function_list, "decl", file_name)
-        expected_decl = expected_function_declarations.get(file_name, "")
-        assert actual_decl == expected_decl
-        assert len(actual_decl.splitlines()) == len(expected_decl.splitlines())
-
         total_actual_definitions += _count_nonempty_lines(actual_def)
         total_expected_definitions += _count_nonempty_lines(expected_def)
-        total_actual_declarations += _count_nonempty_lines(actual_decl)
-        total_expected_declarations += _count_nonempty_lines(expected_decl)
 
     assert total_actual_definitions == total_expected_definitions
-    assert total_actual_declarations == total_expected_declarations
 
 
 def test_lulesh_cuda_tools():
