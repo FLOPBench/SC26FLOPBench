@@ -1,7 +1,5 @@
 EXPECTED_TREE = (
-    "lulesh-cuda/\n"
-    "  tmp/\n"
-    "    slice.hpp\n"
+    "/\n"
     "  lulesh-init.cu\n"
     "  lulesh-util.cu\n"
     "  lulesh-viz.cu\n"

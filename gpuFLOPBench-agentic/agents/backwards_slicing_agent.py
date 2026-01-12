@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from textwrap import dedent
 
 from deepagents import create_deep_agent
@@ -15,6 +16,10 @@ from langchain.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.runtime import Runtime
 from pydantic import Field
 from typing import Annotated, Any, Callable, List, TypedDict
+
+from langchain.tools.tool_node import ToolCallRequest
+from langchain.messages import ToolMessage
+from langgraph.types import Command
 
 
 class BackwardsSlicingState(TypedDict):
@@ -119,8 +124,15 @@ def default_backwards_slicing_system_prompt() -> SystemMessage:
         6) Write the extracted code to `/tmp/slice.cpp` and `/tmp/slice.h`.
 
         There are various code search and analysis tools at your disposal to help you with this task.
-        Use them as needed to explore the codebase, extract function definitions,
-        and understand the relationships between different parts of the code.
+        You should use these tools BEFORE going and exploring the files manually using `ls` `glob` or `read_file`.
+        The available tools are:
+        - cuda_compile_commands: Returns the compilation commands used to build the source, and returns the compiler, arguments, and output path for each source so callers verify which source files are used to build the final executable.
+        - cuda_file_tree: Builds a sorted, indented tree for a given directory so callers can survey the filesystem layout before inspecting files.
+        - cuda_global_functions: Scans CUDA/C++/header sources for __global__ kernel definitions and reports each kernel name plus the file/line coordinates that define it, helping downstream logic locate kernels quickly.
+        - cuda_main_files: Searches through the benchmark tree for free-function main() definitions so integration tests know which files serve as entry points for each CUDA project.
+        - extract_kernel_source_definition: Replays the full __global__ declaration/definition for a named kernel (complete with templates and qualifiers) by pointing at the owning directory or source file, allowing comparisons against canonical snapshots stored in unit-tests/extracted-kernel-solutions.
+        - function_definition_lister: Uses Tree-sitter to enumerate every declaration or definition in a single CUDA/C++/header file, emitting lines that include template signatures, CUDA qualifiers (__global__, __device__, etc.), return types, and (decl)/(defnt) annotations so agents can see the precise function metadata.
+        - include_tree_extractor: Builds the #include dependency tree for one translation unit, annotating missing headers with (DNE) and stopping recursion when an include path would loop back to an ancestor, which helps agents trace header relationships without re-entering already-visited nodes.
         """
     )
     return SystemMessage(content=template)
@@ -144,20 +156,6 @@ class LoggingMiddleware(AgentMiddleware):
 
         last_message = state["messages"][-1]
         print(f"Model returned: {last_message.content}")
-        if isinstance(last_message, ToolMessage):
-            tool_call = _find_tool_call_by_id(state["messages"], last_message.tool_call_id)
-            if tool_call:
-                print(
-                    "Tool call executed:",
-                    json.dumps(tool_call, indent=2, default=str),
-                )
-            else:
-                print(f"Tool call executed: <could not locate metadata for {last_message.tool_call_id}>")
-
-            print(f"Tool return status: {last_message.status}")
-            print(f"Tool return value: {last_message.content}")
-            if last_message.artifact is not None:
-                print("Tool artifact:", json.dumps(last_message.artifact, default=str))
         return None
 
 
@@ -173,16 +171,37 @@ def _find_tool_call_by_id(messages: list[Any], tool_call_id: str | None) -> dict
 
 
 @wrap_tool_call
-def handle_tool_errors(request, handler):
+def handle_tool_errors(
+    request: ToolCallRequest,
+    handler: Callable[[ToolCallRequest], ToolMessage | Command],
+):
     """Handle tool execution errors with custom messages."""
+    print(f"\tExecuting tool: {request.tool_call['name']}")
+    print(f"\tArguments: {request.tool_call['args']}")
     try:
         return handler(request)
     except Exception as e:
-        print('Tool calling error occured!', str(e))
+        tool_call = getattr(request, "tool_call", {}) or {}
+        tool_id = tool_call.get("id", "<unknown>")
+        tool_name = tool_call.get("name", "<unknown>")
+        tool_arguments = tool_call.get("arguments")
+        print("Tool calling error occurred!", str(e))
+        print("  Tool call info:")
+        print(f"    id: {tool_id}")
+        print(f"    name: {tool_name}")
+        if tool_arguments is not None:
+            try:
+                print("    arguments:", json.dumps(tool_arguments, indent=2, default=str))
+            except Exception:  # pragma: no cover - best-effort logging
+                print("    arguments (repr):", repr(tool_arguments))
+        else:
+            print("    arguments: <none>")
+        print("  Traceback:")
+        traceback.print_exc()
         # Return a custom error message to the model
         return ToolMessage(
             content=f"Tool error: Please check your input and try again. ({str(e)})",
-            tool_call_id=request.tool_call["id"]
+            tool_call_id=tool_id,
         )
 
 

@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "miniFE-cuda/\n"
+    "/\n"
     "  basic/\n"
     "    gold_files/\n"
     "      1x1x2_A.mtx.1.0\n"

@@ -63,7 +63,9 @@ INITIAL_PROMPT = HumanMessage(
         Target Kernel Name: `fill_sig<<<...>>>`
         Please do a backwards slice of the `fill_sig` CUDA kernel.
 
-        The root directory `/` contains all the code source files.
+        The root directory `/` contains all the source code files.
+        The compilation commands are for another filesystem, but the source files are the same.
+        DO NOT use the filesystem paths from the compilation commands; use only the source file names, as they exist under `/`, and refer to the `lulesh-cuda` directory.
         """
     )
 )

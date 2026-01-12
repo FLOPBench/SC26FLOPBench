@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "bmf-cuda/\n"
+    "/\n"
     "  src/\n"
     "    helper/\n"
     "      args_parser.h\n"

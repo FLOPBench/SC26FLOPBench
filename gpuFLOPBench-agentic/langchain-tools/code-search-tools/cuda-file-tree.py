@@ -77,20 +77,32 @@ async def _tree_lines_from_backend_async(
     return lines
 
 
+def _root_display_name(backend: BackendProtocol, normalized_root: str) -> str:
+    backend_cwd = getattr(backend, "cwd", None)
+    backend_root = str(backend_cwd) if backend_cwd is not None else ""
+    backend_root = backend_root.rstrip("/")
+    if not backend_root:
+        backend_root = "/"
+    if normalized_root in {"/", backend_root}:
+        return "/"
+    name = PurePosixPath(normalized_root).name
+    return name or "/"
+
+
 def _build_backend_tree(backend: BackendProtocol, dir_path: str) -> str:
     normalized_root = _normalize_virtual_dir_path(dir_path)
-    backend_root_name = getattr(getattr(backend, "cwd", None), "name", "") or "/"
-    root_name = PurePosixPath(normalized_root).name or backend_root_name
-    lines = [f"{root_name}/"] + _tree_lines_from_backend(backend, normalized_root, indent="  ")
+    root_name = _root_display_name(backend, normalized_root)
+    root_line = "/" if root_name == "/" else f"{root_name}/"
+    lines = [root_line] + _tree_lines_from_backend(backend, normalized_root, indent="  ")
     return "\n".join(lines)
 
 
 async def _build_backend_tree_async(backend: BackendProtocol, dir_path: str) -> str:
     normalized_root = _normalize_virtual_dir_path(dir_path)
-    backend_root_name = getattr(getattr(backend, "cwd", None), "name", "") or "/"
-    root_name = PurePosixPath(normalized_root).name or backend_root_name
+    root_name = _root_display_name(backend, normalized_root)
+    root_line = "/" if root_name == "/" else f"{root_name}/"
     child_lines = await _tree_lines_from_backend_async(backend, normalized_root, indent="  ")
-    lines = [f"{root_name}/"] + child_lines
+    lines = [root_line] + child_lines
     return "\n".join(lines)
 
 

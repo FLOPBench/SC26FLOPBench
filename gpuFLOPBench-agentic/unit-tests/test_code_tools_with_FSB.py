@@ -194,7 +194,7 @@ def test_function_definition_lister_via_filesystem_backend() -> None:
 
     tree_tool = _load_file_tree_tool(backend)
     tree_output = tree_tool.run({"dir_path": "/"})
-    assert tree_output.startswith("lulesh-cuda/")
+    assert tree_output.startswith("/")
     assert "lulesh.cu" in tree_output
 
 

@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "particlefilter-cuda/\n"
+    "/\n"
     "  kernel_find_index.h\n"
     "  kernel_likelihood.h\n"
     "  kernel_normalize_weights.h\n"

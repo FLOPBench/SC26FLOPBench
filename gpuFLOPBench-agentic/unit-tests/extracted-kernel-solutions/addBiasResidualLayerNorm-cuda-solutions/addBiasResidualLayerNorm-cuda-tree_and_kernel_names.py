@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "addBiasResidualLayerNorm-cuda/\n"
+    "/\n"
     "  kernels.h\n"
     "  main.cu\n"
     "  Makefile"

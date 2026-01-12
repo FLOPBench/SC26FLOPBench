@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "gmm-cuda/\n"
+    "/\n"
     "  cluster.cu\n"
     "  data.tar.gz\n"
     "  gaussian.h\n"

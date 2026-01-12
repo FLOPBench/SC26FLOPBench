@@ -1,4 +1,4 @@
-EXPECTED_TREE = "all-pairs-distance-cuda/\n  main.cu\n  Makefile"
+EXPECTED_TREE = "/\n  main.cu\n  Makefile"
 
 EXPECTED_MAIN_FILES = ["main.cu"]
 
@@ -30,4 +30,3 @@ int main(int argc, char **argv) (defnt)""",
 }
 
 EXPECTED_FUNCTION_DECLARATIONS = {}
-

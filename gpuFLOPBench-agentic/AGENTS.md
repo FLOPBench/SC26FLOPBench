@@ -5,6 +5,7 @@
 - Treat `langchain-tools/code-search-tools` as the single source of truth for CUDA tooling and `unit-tests/` as the verification batch for those tools plus some ancillary checks; anybody touching either area should update this file as part of new work.
 - Whenever you describe a tool or a test, mention both the intent (what it is supposed to do) and the concrete module/path so readers can immediately find the implementation.
 - The repository layout is deliberate: `gpuFLOPBench/` holds the `*-cuda` benchmarks under `src/`, `langchain-tools/` exposes LangChain agents (including `code-search-tools`) and shared helpers, `langchain-tools/treesitter-tools/` houses the `cst_utils.py` helpers that agents import via short shell-launched Python scripts for CUDA/OpenMP parsing, `unit-tests/` houses the regression suite plus the extracted-kernel-solution data, and higher-level helpers like `agents/` and `helper-scripts/` sit alongside `run_tests.sh` for project-wide operations.
+- Agents generally mount the sandbox via a `FilesystemBackend` rooted at one of the CUDA benchmark directories (e.g., `/codex/gpuFLOPBench/src/lulesh-cuda/`) and run it with `virtual_mode=True`. Within that view the benchmark tree entirely lives at `/`, so any tool output, prompt example, or metadata string should refer to `/`-rooted paths instead of exposing the host directory name.
 
 ## 1.1) Agent guidance
 - Agents live in `agents/` and should be documented whenever new tooling or workflows depend on them.

@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "tsne-cuda/\n"
+    "/\n"
     "  data/\n"
     "    cifar10_faissed/\n"
     "      distances\n"

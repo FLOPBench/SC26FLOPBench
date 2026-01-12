@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "ert-cuda/\n"
+    "/\n"
     "  Copyright\n"
     "  kernel.h\n"
     "  License\n"

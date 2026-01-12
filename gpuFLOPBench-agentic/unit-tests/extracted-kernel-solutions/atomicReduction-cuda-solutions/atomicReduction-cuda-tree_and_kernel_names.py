@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "atomicReduction-cuda/\n"
+    "/\n"
     "  kernels.h\n"
     "  Makefile\n"
     "  reduction.cu"

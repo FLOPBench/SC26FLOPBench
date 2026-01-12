@@ -1,5 +1,5 @@
 EXPECTED_TREE = (
-    "multimaterial-cuda/\n"
+    "/\n"
     "  compact.cu\n"
     "  full_matrix.cu\n"
     "  Makefile\n"
