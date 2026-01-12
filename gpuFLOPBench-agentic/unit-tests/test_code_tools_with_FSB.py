@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import runpy
 import sys
 from pathlib import Path
 from typing import Any
@@ -189,14 +188,24 @@ def _assert_function_entry_ranges(entries: list[dict[str, Any]]) -> None:
             assert isinstance(line_count, int) and line_count >= 1
 
 
-def _load_expected_function_list_json() -> str:
-    namespace = runpy.run_path(_SOLUTIONS_DIR / "lulesh-cuda-tree_and_kernel_names.py")
-    return namespace["EXPECTED_FUNCTION_LIST_JSON"]
+def _load_expected_function_list_json() -> list[dict[str, Any]]:
+    path = _SOLUTIONS_DIR / "function_definitions.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AssertionError(f"could not read {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise AssertionError(f"invalid JSON in {path}") from exc
 
 
 def _load_expected_templated_function_definitions_json() -> str:
-    namespace = runpy.run_path(_SOLUTIONS_DIR / "lulesh-cuda-tree_and_kernel_names.py")
-    return namespace["EXPECTED_TEMPLATED_FUNCTION_DEFINITIONS_JSON"]
+    path = _SOLUTIONS_DIR / "templated_function_definitions.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AssertionError(f"could not read {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise AssertionError(f"invalid JSON in {path}") from exc
 
 
 def _assert_function_snippets(entries: list[dict[str, Any]], backend: FilesystemBackend) -> None:
@@ -265,12 +274,11 @@ def test_function_definition_lister_via_filesystem_backend() -> None:
     file_paths = ("/lulesh.cu", "/lulesh.h")
     actual_entries: list[dict[str, Any]] = []
     for file_path in file_paths:
-        result = tool.run({"file_path": file_path})
+        result = tool.run({"file_path": file_path, "defs_or_decls": "defs"})
         assert result, f"Function definition lister returned no entries for {file_path}"
         actual_entries.extend(result)
-    expected_json = _load_expected_function_list_json().strip()
-    actual_json = json.dumps(actual_entries, sort_keys=True, indent=4)
-    assert actual_json == expected_json
+    expected_entries = _load_expected_function_list_json()
+    assert actual_entries == expected_entries
     _assert_function_entry_ranges(actual_entries)
     _assert_function_snippets(actual_entries, backend)
 
@@ -294,9 +302,8 @@ def test_function_definition_lister_templated_defs_via_filesystem_backend() -> N
     assert all(
         fn.get("kind") == "defnt" for file_entry in templated_results for fn in file_entry.get("functions", [])
     )
-    expected_json = _load_expected_templated_function_definitions_json().strip()
-    actual_json = json.dumps(templated_results, sort_keys=True, indent=4)
-    assert actual_json == expected_json
+    expected_entries = _load_expected_templated_function_definitions_json()
+    assert templated_results == expected_entries
 
 
 def test_cuda_global_functions_via_filesystem_backend() -> None:

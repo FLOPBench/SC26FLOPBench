@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import importlib.util
+import json
 import re
 import runpy
 import sys
@@ -109,30 +110,6 @@ def _load_expected_include_tree(cuda_name: str, file_name: str) -> str:
     return tree
 
 
-def _load_expected_function_entries(
-    cuda_name: str,
-    attribute: str,
-    *,
-    required: bool = True,
-) -> dict[str, str]:
-    module = _load_solution_metadata_module(cuda_name)
-    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
-    metadata_path = solution_dir / f"{cuda_name}-tree_and_kernel_names.py"
-    entries = getattr(module, attribute, None)
-    if entries is None:
-        if required:
-            raise AssertionError(f"{metadata_path} must define {attribute}")
-        return {}
-    if not isinstance(entries, dict):
-        raise AssertionError(f"{metadata_path} must define {attribute} as a dict[str, str]")
-    normalized: dict[str, str] = {}
-    for key, value in entries.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            raise AssertionError(f"{metadata_path} {attribute} must map strings to strings")
-        normalized[key] = value
-    return normalized
-
-
 def _resolve_cuda_source_file(cuda_name: str, file_name: str) -> Path:
     cuda_root = (_GPU_SRC_ROOT / cuda_name).resolve()
     if not cuda_root.exists() or not cuda_root.is_dir():
@@ -158,15 +135,25 @@ def _resolve_cuda_directory(cuda_name: str) -> Path:
     return cuda_root
 
 
-def _load_expected_function_definitions(cuda_name: str) -> dict[str, str]:
-    required = cuda_name != "lulesh-cuda"
-    return _load_expected_function_entries(
-        cuda_name,
-        "EXPECTED_FUNCTION_DEFINITIONS",
-        required=required,
-    )
-
-
+def _load_expected_function_definitions_json(cuda_name: str) -> list[dict[str, Any]]:
+    solution_dir = _SOLUTION_ROOT / f"{cuda_name}-solutions"
+    path = solution_dir / "function_definitions.json"
+    try:
+        contents = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise AssertionError(f"{path} could not be read") from exc
+    try:
+        data = json.loads(contents)
+    except json.JSONDecodeError as exc:
+        raise AssertionError(f"{path} contains invalid JSON") from exc
+    if not isinstance(data, list):
+        raise AssertionError(f"{path} must contain a JSON array of function entries")
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise AssertionError(f"{path} entries must be objects")
+        if "file" not in entry or "functions" not in entry:
+            raise AssertionError(f"{path} entries must include 'file' and 'functions'")
+    return data
 
 _EXPECTED_LULESH_TREE, _EXPECTED_LULESH_KERNELS = _load_expected_tree_and_kernel_names("lulesh-cuda")
 _EXPECTED_LULESH_MAIN_FILES = _load_expected_main_files("lulesh-cuda")
@@ -302,49 +289,6 @@ def _assert_source_lists_equal(expected_sources: list[str], extracted_sources: l
         extracted_counter[canon] = extracted_counter.get(canon, 0) + 1
 
     assert expected_counter == extracted_counter
-
-
-def _format_function_entry_line(function: dict[str, Any]) -> str:
-    parts: list[str] = []
-    templates = function.get("templates") or []
-    if templates:
-        parts.append(" ".join(templates))
-    qualifiers = function.get("qualifiers") or []
-    if qualifiers:
-        parts.append(" ".join(qualifiers))
-    if function.get("return_type"):
-        parts.append(function["return_type"])
-    signature = function.get("signature") or function.get("name") or ""
-    if signature:
-        parts.append(signature)
-    kind = function.get("kind")
-    if kind:
-        parts.append(f"({kind})")
-    return " ".join(part for part in parts if part)
-
-
-def _function_lines_by_kind(
-    function_list: list[dict[str, Any]],
-    kind: str,
-    file_name: str | None = None,
-) -> str:
-    lines: list[str] = []
-    for entry in function_list:
-        if file_name is not None and entry.get("file") != file_name:
-            continue
-        for fn in entry.get("functions", []):
-            if fn.get("kind") != kind:
-                continue
-            offset = fn.get("offset")
-            line_count = fn.get("lines")
-            assert isinstance(offset, int) and offset >= 1
-            assert isinstance(line_count, int) and line_count >= 1
-            lines.append(_format_function_entry_line(fn))
-    return "\n".join(lines)
-
-
-def _count_nonempty_lines(text: str) -> int:
-    return sum(1 for line in text.splitlines() if line.strip())
 
 
 def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
@@ -510,27 +454,20 @@ def _assert_kernel_list_matches(expected: list[dict[str, Any]], actual: list[dic
 def _assert_function_definition_listings(cuda_name: str) -> None:
     cuda_dir = _resolve_cuda_directory(cuda_name)
     function_definitions_tool = _make_function_definitions_tool(cuda_dir)
-    expected_function_definitions = _load_expected_function_definitions(cuda_name)
-    all_files = sorted(set(expected_function_definitions))
-    total_actual_definitions = 0
-    total_expected_definitions = 0
-    for file_name in all_files:
+    expected_entries = _load_expected_function_definitions_json(cuda_name)
+    actual_entries: list[dict[str, Any]] = []
+    for entry in expected_entries:
+        file_name = entry.get("file")
+        if not isinstance(file_name, str):
+            raise AssertionError("function definition entry is missing 'file'")
         file_path = _resolve_cuda_source_file(cuda_name, file_name)
-        function_list = function_definitions_tool.run({"file_path": str(file_path)})
+        function_list = function_definitions_tool.run({"file_path": str(file_path), "defs_or_decls": "defs"})
         assert isinstance(function_list, list)
-        assert function_list, f"function-definition-lister returned no entries for {file_path}"
-        assert any(entry.get("file") == file_name for entry in function_list), "expected file missing from tool output"
-        actual_def = _function_lines_by_kind(function_list, "defnt", file_name)
-        expected_def = expected_function_definitions[file_name]
-        if cuda_name == "miniFE-cuda" and file_name == "basic/BoxPartition.cpp":
-            print("DEBUG expected_def repr", repr(expected_def))
-            print("DEBUG actual_def repr", repr(actual_def))
-        assert actual_def == expected_def
-        assert len(actual_def.splitlines()) == len(expected_def.splitlines())
-        total_actual_definitions += _count_nonempty_lines(actual_def)
-        total_expected_definitions += _count_nonempty_lines(expected_def)
+        matching = [item for item in function_list if item.get("file") == file_name]
+        assert matching, f"function-definition-lister returned no entry for {file_name}"
+        actual_entries.append(matching[0])
 
-    assert total_actual_definitions == total_expected_definitions
+    assert actual_entries == expected_entries
 
 
 def test_lulesh_cuda_tools():

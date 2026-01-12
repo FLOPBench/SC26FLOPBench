@@ -39,7 +39,7 @@
  4. `extract_kernel_source_definition`, comparing extracted sources against the scripts in the same solution directory (each `<cuda-name>---<kernel>.py` must define a `solution` list of canonicalized kernel bodies).
  5. `cuda_main_files`, matching the helper’s `EXPECTED_MAIN_FILES` list.
 - The solution directories (`unit-tests/extracted-kernel-solutions/<cuda-name>-solutions/`) must contain one metadata module plus one kernel solution per extracted kernel; metadata modules serve as the glue between tool expectations and the extracted solution snippets.
-- When `function_definition_lister` needs verification, the metadata helpers should expose per-file `EXPECTED_FUNCTION_DEFINITIONS` and `EXPECTED_FUNCTION_DECLARATIONS` dictionaries so the unit tests can assert that each file returns the right `(defnt)`/`(decl)` lines instead of relying on a single aggregated string.
+- When `function_definition_lister` needs verification, the metadata helpers should include `function_definitions.json` (and, when templated definitions are part of the regression, `templated_function_definitions.json`) inside the benchmark’s `<cuda-name>-solutions` directory. Each JSON file should mirror the raw tool output (definitions filtered with `defs_or_decls == "defs"`, and likewise for templated results), so the tests can compare entire objects instead of formatting strings manually.
 - When adding a new benchmark/test case:
   1. Create the `<cuda-name>-tree_and_kernel_names.py` metadata (string tree, list of kernel dictionaries, main file list).
  2. Add `<cuda-name>---<kernel>.py` files that expose their `solution` list so `_normalize_kernel_source` can compare against the extractor output.

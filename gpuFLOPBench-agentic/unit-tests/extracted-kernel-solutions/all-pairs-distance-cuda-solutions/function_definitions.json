@@ -1,0 +1,63 @@
+[
+    {
+        "file": "main.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 13,
+                "name": "CPU",
+                "offset": 20,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "CPU(int * data, int * distance)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 26,
+                "name": "k1",
+                "offset": 37,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "k1 (const char *data, int *distance)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 62,
+                "name": "k2",
+                "offset": 66,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "k2 (const char *data, int *distance)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 33,
+                "name": "k3",
+                "offset": 131,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "k3 (const char *data, int *distance)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 164,
+                "name": "main",
+                "offset": 165,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char **argv)",
+                "templates": []
+            }
+        ]
+    }
+]

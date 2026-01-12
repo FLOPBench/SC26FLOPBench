@@ -1,0 +1,510 @@
+[
+    {
+        "file": "kernels.h",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 7,
+                "name": "typeToFloat",
+                "offset": 17,
+                "qualifiers": [
+                    "inline",
+                    "__host__",
+                    "__device__"
+                ],
+                "return_type": "float",
+                "signature": "typeToFloat(__nv_bfloat16 a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "typeToFloat",
+                "offset": 25,
+                "qualifiers": [
+                    "inline",
+                    "__host__",
+                    "__device__"
+                ],
+                "return_type": "float",
+                "signature": "typeToFloat(half a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 7,
+                "name": "floatToType",
+                "offset": 30,
+                "qualifiers": [
+                    "inline",
+                    "__host__",
+                    "__device__"
+                ],
+                "return_type": "half",
+                "signature": "floatToType(float a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "floatToType",
+                "offset": 38,
+                "qualifiers": [
+                    "inline",
+                    "__host__",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat16",
+                "signature": "floatToType(float a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "floatToType2",
+                "offset": 48,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half2",
+                "signature": "floatToType2(float a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "floatToType2",
+                "offset": 53,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "floatToType2(float a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "float2ToType2",
+                "offset": 58,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "float2ToType2(float2 a)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "float2ToType2",
+                "offset": 65,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half2",
+                "signature": "float2ToType2(float2 a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "float2ToType2",
+                "offset": 70,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "float2ToType2(float2 a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "type2ToFloat2",
+                "offset": 75,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "float2",
+                "signature": "type2ToFloat2(T a)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "type2ToFloat2",
+                "offset": 80,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "float2",
+                "signature": "type2ToFloat2(half2 a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "type2ToFloat2",
+                "offset": 85,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "float2",
+                "signature": "type2ToFloat2(__nv_bfloat162 a)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 98,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "add(T a, T b)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 103,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half",
+                "signature": "add(half a, half b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 108,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half2",
+                "signature": "add(half2 a, half2 b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 113,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat16",
+                "signature": "add(__nv_bfloat16 a, __nv_bfloat16 b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 118,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "add(__nv_bfloat162 a, __nv_bfloat162 b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 123,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "add(T a, T b, T c)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 128,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "add(__nv_bfloat162 a, __nv_bfloat162 b, __nv_bfloat162 c)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "add",
+                "offset": 133,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat16",
+                "signature": "add(__nv_bfloat16 a, __nv_bfloat16 b, __nv_bfloat16 c)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "sub",
+                "offset": 139,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "sub(T a, T b)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "sub",
+                "offset": 144,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half2",
+                "signature": "sub(half2 a, half2 b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "sub",
+                "offset": 149,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "sub(__nv_bfloat162 a, __nv_bfloat162 b)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "fma",
+                "offset": 155,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "fma(T a, T b, T c, T d)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "fma",
+                "offset": 160,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "half2",
+                "signature": "fma(half2 a, half2 b, half2 c, half2 d)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "fma",
+                "offset": 165,
+                "qualifiers": [
+                    "inline",
+                    "__device__"
+                ],
+                "return_type": "__nv_bfloat162",
+                "signature": "fma(__nv_bfloat162 a, __nv_bfloat162 b, __nv_bfloat162 c, __nv_bfloat162 d)",
+                "templates": [
+                    "template <>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "warpReduceSum",
+                "offset": 171,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "warpReduceSum(T val)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 19,
+                "name": "blockReduceSum",
+                "offset": 181,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "blockReduceSum(T val)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 72,
+                "name": "addBiasResidualPostLayerNormV2",
+                "offset": 201,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "addBiasResidualPostLayerNormV2( T* out, const T* __restrict__ input, const T* __restrict__ bias, const T* __restrict__ gamma, const T* __restrict__ beta, const float layernorm_eps, const int n)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 51,
+                "name": "addBiasResidualPostLayerNorm",
+                "offset": 274,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "addBiasResidualPostLayerNorm( T* out, const T* __restrict__ input, const T* __restrict__ bias, const T* __restrict__ gamma, const T* __restrict__ beta, const float layernorm_eps, const int n)",
+                "templates": [
+                    "template <typename T, int N>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 62,
+                "name": "generalAddBiasResidualPostLayerNorm",
+                "offset": 326,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "generalAddBiasResidualPostLayerNorm( T* out, const T* __restrict__ input, const T* __restrict__ bias, const T* __restrict__ gamma, const T* __restrict__ beta, const float layernorm_eps, const int n)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            }
+        ]
+    },
+    {
+        "file": "main.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 33,
+                "name": "invokeAddBiasResidualLayerNorm",
+                "offset": 26,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "invokeAddBiasResidualLayerNorm( T* out, const T* input, const T* bias, const T* gamma, const T* beta, const float layernorm_eps, int m, int n)",
+                "templates": [
+                    "template <typename T, int V>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 88,
+                "name": "layer",
+                "offset": 60,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "layer(int repeat)",
+                "templates": [
+                    "template <typename T, int V>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 19,
+                "name": "main",
+                "offset": 149,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char* argv[])",
+                "templates": []
+            }
+        ]
+    }
+]
