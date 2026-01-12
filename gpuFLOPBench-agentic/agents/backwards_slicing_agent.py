@@ -28,13 +28,6 @@ class BackwardsSlicingState(TypedDict):
             ),
         ),
     ]
-    workspace_root: Annotated[
-        str,
-        Field(
-            default="/codex/gpuFLOPBench/src",
-            description="Absolute path to the benchmark root where source files live.",
-        ),
-    ]
     script_path: Annotated[
         str,
         Field(
@@ -115,6 +108,19 @@ def default_backwards_slicing_system_prompt() -> SystemMessage:
         the `main` and the target CUDA kernel that influences it's inputs.
         8) If you're unsure whether to drop some code, it's better to keep it so that
         we get a program that compiles and runs later.
+
+        General Backslicing Steps:
+        1) Read the compilation commands to see what files are used to build the project.
+        2) Identify the `main()` function in the main source file.
+        3) Identify where the target CUDA kernel is invoked from `main()` or other functions.
+        4) Trace the code from `main()` to find where the target CUDA kernel is invoked.
+        5) Extract all relevant code, including function definitions, data structures, 
+           and variable declarations that influence the kernel invocation.
+        6) Write the extracted code to `/tmp/slice.cpp` and `/tmp/slice.h`.
+
+        There are various code search and analysis tools at your disposal to help you with this task.
+        Use them as needed to explore the codebase, extract function definitions,
+        and understand the relationships between different parts of the code.
         """
     )
     return SystemMessage(content=template)

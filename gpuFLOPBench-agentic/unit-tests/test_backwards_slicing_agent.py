@@ -48,14 +48,10 @@ INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
 
-        All your commands will execute in the directory 
-        of the target source code we are trying to examine.
-
         Target Kernel Name: `fill_sig<<<...>>>`
-
-        All the commands you will execute are done from the `/` directory.
-
         Please do a backwards slice of the `fill_sig` CUDA kernel.
+
+        The root directory `/` contains all the code source files.
         """
     )
 )
@@ -164,8 +160,10 @@ def test_backwards_slicing_agent_can_run():
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
         llm = build_openrouter_llm(openrouter_settings)
 
+        backend_dir = "/codex/gpuFLOPBench/src/lulesh-cuda/"
+
         backend_obj = FilesystemBackend(
-            root_dir='/codex/gpuFLOPBench/src/lulesh-cuda/', virtual_mode=True
+            root_dir=backend_dir, virtual_mode=True
         )
         agent = make_backwards_slicing_agent(
             llm=llm,
@@ -174,13 +172,13 @@ def test_backwards_slicing_agent_can_run():
             tools=_load_code_search_tools(backend=backend_obj),
             middleware=[
                 ShellToolMiddleware(
-                    workspace_root="/codex/gpuFLOPBench/src/lulesh-cuda/",
+                    workspace_root=backend_dir,
                     execution_policy=HostExecutionPolicy(),
                 ),
             ],  # middleware will be extended inside the helper
             system_prompt=SYSTEM_PROMPT,
-            max_model_calls_limit=30,
-            max_tool_calls_limit=30
+            max_model_calls_limit=15,
+            max_tool_calls_limit=15
         )
 
         config = {"thread_id": "1"}
