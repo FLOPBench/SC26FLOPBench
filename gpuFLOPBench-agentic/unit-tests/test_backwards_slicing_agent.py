@@ -69,6 +69,9 @@ INITIAL_PROMPT = HumanMessage(
 
         Any tool calls that use file paths dir_path should use paths relative to `/`.
         You should definitely make a call to the function_definition_lister tool before performing any file reads, to get a list of functions and their locations.
+
+        You should always first call `ls` in the root directory `/` to see the available files and directories.
+
         There does NOT exist a tool called "task", we have "write_todos" instead; do NOT attempt to call a "task" tool.
         """
     )
@@ -197,8 +200,8 @@ def test_backwards_slicing_agent_can_run():
                 ),
             ],  # middleware will be extended inside the helper
             system_prompt=SYSTEM_PROMPT,
-            max_model_calls_limit=15,
-            max_tool_calls_limit=15
+            max_model_calls_limit=30,
+            max_tool_calls_limit=30
         )
 
         config = {"thread_id": "1"}
