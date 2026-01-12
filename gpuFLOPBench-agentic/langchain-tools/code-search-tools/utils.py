@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Tuple
+from typing import Iterable, Iterator, Optional, Sequence, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -285,3 +285,132 @@ def _iterate_cuda_kernel_definitions(text: str) -> Iterator[Tuple[int, str, str,
             line_number = text.count("\n", 0, match_pos) + 1
             yield match_pos, qualified, kernel, line_number, brace_start
         pos = match_pos + len(GLOBAL_KEYWORD)
+
+
+_QUALIFIER_LINE_PATTERN = re.compile(
+    r"\b(?:static|inline|template|__global__|__device__|__host__|__shared__)\b"
+)
+
+
+def _line_contains_qualifier(line: str) -> bool:
+    return bool(_QUALIFIER_LINE_PATTERN.search(line))
+
+
+def _qualifier_block_start_line(lines: Sequence[str], start_line_idx: int) -> int:
+    idx = start_line_idx
+    qualifier_start = start_line_idx
+    while idx > 0:
+        previous_line = lines[idx - 1].strip()
+        if not previous_line:
+            idx -= 1
+            continue
+        if _line_contains_qualifier(previous_line):
+            qualifier_start = idx - 1
+            idx -= 1
+            continue
+        break
+    return qualifier_start
+
+
+def _find_matching_angle(text: str, idx: int) -> Optional[int]:
+    if idx >= len(text) or text[idx] != "<":
+        return None
+    depth = 0
+    i = idx
+    length = len(text)
+    while i < length:
+        ch = text[i]
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth -= 1
+            if depth == 0:
+                return i
+        elif ch in {"\"", "'"}:
+            i = _skip_string(text, i)
+            if i is None:
+                return None
+            continue
+        elif ch == "/" and i + 1 < length:
+            if text[i + 1] == "/":
+                newline = text.find("\n", i + 2)
+                i = newline if newline != -1 else length
+                continue
+            if text[i + 1] == "*":
+                end = text.find("*/", i + 2)
+                if end == -1:
+                    return None
+                i = end + 2
+                continue
+        i += 1
+    return None
+
+
+def _include_template_prefix(text: str, start_idx: int) -> int:
+    cursor = start_idx
+    search_end = start_idx
+    while True:
+        template_pos = text.rfind("template", 0, search_end)
+        if template_pos == -1:
+            return cursor
+        after_keyword = template_pos + len("template")
+        after_keyword = _skip_whitespace(text, after_keyword)
+        if after_keyword < len(text) and text[after_keyword] == "<":
+            angle_end = _find_matching_angle(text, after_keyword)
+            if angle_end is None:
+                return cursor
+            gap = text[angle_end + 1 : search_end]
+            if gap.strip() == "":
+                cursor = template_pos
+                search_end = template_pos
+                continue
+        search_end = template_pos
+    return cursor
+
+
+def _find_matching_brace(text: str, idx: int) -> Optional[int]:
+    if idx >= len(text) or text[idx] != "{":
+        return None
+    depth = 0
+    i = idx
+    length = len(text)
+    preprocessor_stack: list[int] = []
+    while i < length:
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        elif ch in {"\"", "'"}:
+            i = _skip_string(text, i)
+            if i is None:
+                return None
+            continue
+        elif ch == "/" and i + 1 < length:
+            if text[i + 1] == "/":
+                newline = text.find("\n", i + 2)
+                i = newline if newline != -1 else length
+                continue
+            if text[i + 1] == "*":
+                end = text.find("*/", i + 2)
+                if end == -1:
+                    return None
+                i = end + 2
+                continue
+        elif ch == "#":
+            newline = text.find("\n", i + 1)
+            newline = newline if newline != -1 else length
+            directive = text[i + 1 : newline].strip()
+            keyword = directive.split(None, 1)[0] if directive else ""
+            if keyword in {"if", "ifdef", "ifndef"}:
+                preprocessor_stack.append(depth)
+            elif keyword in {"else", "elif"} and preprocessor_stack:
+                depth = preprocessor_stack[-1]
+            elif keyword == "endif" and preprocessor_stack:
+                preprocessor_stack.pop()
+            i = newline
+            continue
+        i += 1
+    return None

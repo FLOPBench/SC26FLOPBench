@@ -34,12 +34,14 @@ def _load_utils_module() -> object:
 _utils = _load_utils_module()
 _gather_cuda_files = _utils._gather_cuda_files
 _iterate_cuda_kernel_definitions = _utils._iterate_cuda_kernel_definitions
+_find_matching_brace = _utils._find_matching_brace
+_qualifier_block_start_line = _utils._qualifier_block_start_line
 
 
 
-def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]]:
-    for _, qualified, kernel, line, _ in _iterate_cuda_kernel_definitions(text):
-        yield qualified, kernel, line
+def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int, int]]:
+    for _, qualified, kernel, line, brace_start in _iterate_cuda_kernel_definitions(text):
+        yield qualified, kernel, line, brace_start
 
 
 def _collect_global_entries(directory: Path) -> List[dict[str, str | int]]:
@@ -49,12 +51,25 @@ def _collect_global_entries(directory: Path) -> List[dict[str, str | int]]:
             text = source_file.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        for _, kernel, line in _extract_cuda_global_definitions(text):
+        lines = text.splitlines()
+        for _, kernel, line, brace_start in _extract_cuda_global_definitions(text):
+            brace_end = _find_matching_brace(text, brace_start)
+            if brace_end is None:
+                continue
+            if lines:
+                line_idx = min(max(0, line - 1), len(lines) - 1)
+            else:
+                line_idx = 0
+            offset_idx = _qualifier_block_start_line(lines, line_idx)
+            end_line_idx = text.count("\n", 0, brace_end)
+            line_count = max(1, end_line_idx - offset_idx + 1)
             results.append(
                 {
                     "file": str(source_file.relative_to(directory)),
                     "kernel": kernel,
                     "line": line,
+                    "offset": offset_idx + 1,
+                    "lines": line_count,
                 }
             )
     results.sort(key=lambda entry: (entry["file"], entry["line"], entry["kernel"]))

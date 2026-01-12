@@ -37,18 +37,21 @@ _skip_whitespace = _utils._skip_whitespace
 _skip_string = _utils._skip_string
 _find_matching_paren = _utils._find_matching_paren
 _find_first_special_char = _utils._find_first_special_char
+_find_matching_brace = _utils._find_matching_brace
+_qualifier_block_start_line = _utils._qualifier_block_start_line
 
 
-def _contains_main_definition(text: str) -> bool:
-    """Return True if the provided text contains a free-function main definition."""
+def _find_main_definition_range(text: str, lines: list[str]) -> tuple[int, int] | None:
+    """Return the (offset_line, line_count) for the first free-function main definition."""
     idx = 0
     length = len(text)
+    normalized_lines = lines if lines else [""]
     while idx < length:
         ch = text[idx]
         if ch in {"\"", "'"}:
             new_idx = _skip_string(text, idx)
             if new_idx is None:
-                return False
+                return None
             idx = new_idx
             continue
         if ch == "/" and idx + 1 < length:
@@ -83,24 +86,42 @@ def _contains_main_definition(text: str) -> bool:
                 idx += 1
                 continue
             marker = _find_first_special_char(text, close_paren + 1)
-            if marker is not None and marker < len(text) and text[marker] == "{":
-                return True
-            idx = close_paren + 1
-            continue
+            if marker is None or marker >= len(text) or text[marker] != "{":
+                idx = close_paren + 1
+                continue
+            brace_end = _find_matching_brace(text, marker)
+            if brace_end is None:
+                return None
+            line_number = text.count("\n", 0, idx) + 1
+            line_idx = min(max(0, line_number - 1), len(normalized_lines) - 1)
+            offset_idx = _qualifier_block_start_line(normalized_lines, line_idx)
+            end_line_idx = text.count("\n", 0, brace_end)
+            line_count = max(1, end_line_idx - offset_idx + 1)
+            return offset_idx + 1, line_count
         idx += 1
-    return False
+    return None
 
 
-def _gather_main_files(cuda_dir: Path) -> list[str]:
-    files: list[str] = []
+def _gather_main_files(cuda_dir: Path) -> list[dict[str, str | int]]:
+    files: list[dict[str, str | int]] = []
     for source_file in _gather_cuda_files(cuda_dir):
         try:
             text = source_file.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if _contains_main_definition(text):
-            files.append(str(source_file.relative_to(cuda_dir)))
-    files.sort()
+        lines = text.splitlines()
+        main_range = _find_main_definition_range(text, lines)
+        if main_range is None:
+            continue
+        offset, count = main_range
+        files.append(
+            {
+                "file": str(source_file.relative_to(cuda_dir)),
+                "offset": offset,
+                "lines": count,
+            }
+        )
+    files.sort(key=lambda entry: entry["file"])
     return files
 
 
@@ -132,7 +153,7 @@ def make_cuda_main_files_tool(
     def _run(
         dir_path: str,
         runtime: ToolRuntime[None, FilesystemState] | None = None,
-    ) -> List[str]:
+    ) -> List[dict[str, str | int]]:
         resolved_backend = _get_backend(backend, runtime)
         validated = _validate_path(dir_path)
         directory = _resolve_backend_directory(validated, resolved_backend)
@@ -144,7 +165,7 @@ def make_cuda_main_files_tool(
     async def _arun(
         dir_path: str,
         runtime: ToolRuntime[None, FilesystemState] | None = None,
-    ) -> List[str]:
+    ) -> List[dict[str, str | int]]:
         return _run(dir_path, runtime)
 
     return StructuredTool.from_function(

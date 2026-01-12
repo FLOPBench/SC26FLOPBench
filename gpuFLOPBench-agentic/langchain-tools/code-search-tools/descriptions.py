@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -30,12 +32,31 @@ class FunctionDefinitionListerArgs(BaseModel):
             "Path to the CUDA/C++/OpenMP source file within the accessible directory tree (the entry point is `/`)."
         ),
     )
+    qualifiers_filter: list[str] | None = Field(
+        None,
+        description=(
+            "Only return functions whose qualifiers include every keyword in this list (e.g., `static`, `__global__`, `inline`)."
+        ),
+    )
+    template_only: bool = Field(
+        False,
+        description=(
+            "When true, only include functions that declare or inherit a template parameter list."
+        ),
+    )
+    defs_or_decls: Literal["defs", "decls"] | None = Field(
+        None,
+        description=(
+            "Control whether to return only definitions (`defs`), only declarations (`decls`), or both (leave blank)."
+        ),
+    )
 
 
 FUNCTION_DEFINITION_LISTER_DESCRIPTION = (
-    "Return every function declaration or definition found in the provided source file. "
-    "Refer to the file using the path that exists under the accessible root (`/`)."
-    " Use this tool when you need a detailed listing of the functions a particular source file contains."
+    "Return structured metadata for every function declaration or definition in the requested source file, "
+    "including name, qualifiers, signature, `kind` ((decl)/(defnt)), the canonical `line` number, and the `offset`/`lines` span that captures the full source block. "
+    "Refer to the file using the path that exists under the accessible root (`/`). "
+    "Use the optional filters (`qualifiers_filter`, `template_only`, `defs_or_decls`) when you need to narrow the result to specific qualifiers, templated functions, or only definitions/declarations."
 )
 
 
@@ -51,16 +72,16 @@ class DirectoryArgs(BaseModel):
 
 
 CUDA_GLOBAL_FUNCTIONS_DESCRIPTION = (
-    "List __global__ CUDA kernel definitions (name, file, line) inside the provided directory. "
+    "List __global__ CUDA kernel definitions (name, file, line, offset, lines) inside the provided directory so callers know exactly where each entry point lives. "
     "Refer to the directory path reachable under the accessible root (`/`)."
     " Use this tool when you want to inventory the CUDA kernel entry points defined in that directory."
 )
 
 
 CUDA_MAIN_FILES_DESCRIPTION = (
-    "List source files under the provided directory that define a free-function main(). "
-    "Refer to directories reachable under the accessible root (`/`)."
-    " Use this tool when you need to know which files act as program entry points."
+    "List source files under the provided directory that define a free-function main(), returning entries with the file name plus the `offset`/`lines` span of the `main()` definition. "
+    "Refer to directories reachable under the accessible root (`/`). "
+    "Use this tool when you need to know which files act as program entry points and where those entry points start."
 )
 
 

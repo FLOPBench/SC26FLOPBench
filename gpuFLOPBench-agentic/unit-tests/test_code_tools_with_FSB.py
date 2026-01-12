@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import runpy
 import sys
 from pathlib import Path
+from typing import Any
 
 from deepagents.backends.filesystem import FilesystemBackend
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _TOOLS_DIR = REPO_ROOT / "langchain-tools" / "code-search-tools"
+_SOLUTIONS_DIR = (
+    REPO_ROOT
+    / "unit-tests"
+    / "extracted-kernel-solutions"
+    / "lulesh-cuda-solutions"
+)
+_LULESH_ROOT = REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-cuda"
 
 
 def _ensure_utils_module() -> None:
@@ -170,6 +180,75 @@ def _load_compile_commands_tool(backend: FilesystemBackend):
 def _make_backend() -> FilesystemBackend:
     return FilesystemBackend(root_dir="/codex/gpuFLOPBench/src/lulesh-cuda/", virtual_mode=True)
 
+def _assert_function_entry_ranges(entries: list[dict[str, Any]]) -> None:
+    for file_entry in entries:
+        for fn in file_entry.get("functions", []):
+            offset = fn.get("offset")
+            line_count = fn.get("lines")
+            assert isinstance(offset, int) and offset >= 1
+            assert isinstance(line_count, int) and line_count >= 1
+
+
+def _load_expected_function_list_json() -> str:
+    namespace = runpy.run_path(_SOLUTIONS_DIR / "lulesh-cuda-tree_and_kernel_names.py")
+    return namespace["EXPECTED_FUNCTION_LIST_JSON"]
+
+
+def _load_expected_templated_function_definitions_json() -> str:
+    namespace = runpy.run_path(_SOLUTIONS_DIR / "lulesh-cuda-tree_and_kernel_names.py")
+    return namespace["EXPECTED_TEMPLATED_FUNCTION_DEFINITIONS_JSON"]
+
+
+def _assert_function_snippets(entries: list[dict[str, Any]], backend: FilesystemBackend) -> None:
+    root = _LULESH_ROOT
+    text_cache: dict[Path, list[str]] = {}
+    for file_entry in entries:
+        file_name = file_entry["file"]
+        path = root / file_name
+        if path not in text_cache:
+            try:
+                text_cache[path] = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except OSError:
+                raise AssertionError(f"could not read {path}")
+        lines = text_cache[path]
+        for fn in file_entry.get("functions", []):
+            offset = fn.get("offset", 1) - 1
+            line_count = fn.get("lines", 1)
+            assert offset >= 0 and line_count >= 1
+            snippet_lines, snippet = _collect_snippet(lines, offset, line_count)
+            function_name = fn.get("name")
+            if function_name:
+                simple_name = function_name.split("::")[-1]
+                assert simple_name in snippet
+            qualifiers = fn.get("qualifiers") or []
+            for qualifier in qualifiers:
+                assert qualifier in snippet
+            signature = fn.get("signature")
+            if signature:
+                normalized_signature = "".join(signature.split())
+                normalized_snippet = "".join(snippet.split())
+                assert normalized_signature in normalized_snippet
+            if fn.get("kind") == "defnt":
+                assert _balanced_braces(snippet)
+
+
+def _collect_snippet(lines: list[str], offset: int, line_count: int) -> tuple[list[str], str]:
+    end_idx = min(offset + line_count, len(lines))
+    snippet_lines = lines[offset:end_idx]
+    return snippet_lines, "\n".join(snippet_lines)
+
+
+def _balanced_braces(snippet: str) -> bool:
+    stack: list[str] = []
+    for ch in snippet:
+        if ch == "{":
+            stack.append(ch)
+        elif ch == "}":
+            if not stack:
+                return False
+            stack.pop()
+    return not stack
+
 
 def test_function_definition_lister_via_filesystem_backend() -> None:
     """Ensure the function-definition-lister works when the agent is sandboxed to "/"."""
@@ -183,19 +262,41 @@ def test_function_definition_lister_via_filesystem_backend() -> None:
     assert "__global__ void fill_sig" in snippet
 
     tool = _load_function_definition_tool(backend)
-    output = tool.run({"file_path": "/lulesh.cu"})
-    assert output, "Function definition lister should return the parsed entries"
-    assert "__global__ void fill_sig(" in output
-    assert "__device__ static inline void CalcElemShapeFunctionDerivatives(" in output
-    assert "__device__ static inline void CalcElemNodeNormals(" in output
-    assert "__device__ static inline void SumElemStressesToNodeForces(" in output
-    assert "template <typename T> T *Allocate(size_t size)" in output
-    assert "(defnt)" in output
+    file_paths = ("/lulesh.cu", "/lulesh.h")
+    actual_entries: list[dict[str, Any]] = []
+    for file_path in file_paths:
+        result = tool.run({"file_path": file_path})
+        assert result, f"Function definition lister returned no entries for {file_path}"
+        actual_entries.extend(result)
+    expected_json = _load_expected_function_list_json().strip()
+    actual_json = json.dumps(actual_entries, sort_keys=True, indent=4)
+    assert actual_json == expected_json
+    _assert_function_entry_ranges(actual_entries)
+    _assert_function_snippets(actual_entries, backend)
 
     tree_tool = _load_file_tree_tool(backend)
     tree_output = tree_tool.run({"dir_path": "/"})
     assert tree_output.startswith("/")
     assert "lulesh.cu" in tree_output
+
+
+def test_function_definition_lister_templated_defs_via_filesystem_backend() -> None:
+    backend = _make_backend()
+    tool = _load_function_definition_tool(backend)
+    templated_results = tool.run(
+        {
+            "file_path": "/lulesh.cu",
+            "template_only": True,
+            "defs_or_decls": "defs",
+        }
+    )
+    assert templated_results, "Expect templated function definitions to be reported"
+    assert all(
+        fn.get("kind") == "defnt" for file_entry in templated_results for fn in file_entry.get("functions", [])
+    )
+    expected_json = _load_expected_templated_function_definitions_json().strip()
+    actual_json = json.dumps(templated_results, sort_keys=True, indent=4)
+    assert actual_json == expected_json
 
 
 def test_cuda_global_functions_via_filesystem_backend() -> None:
@@ -209,6 +310,8 @@ def test_cuda_global_functions_via_filesystem_backend() -> None:
     assert results, "cuda_global_functions should return kernel metadata"
     assert all("file" in entry and "kernel" in entry and "line" in entry for entry in results)
     assert any(entry["kernel"] == "fill_sig" for entry in results)
+    assert all(isinstance(entry.get("offset"), int) and entry["offset"] >= 1 for entry in results)
+    assert all(isinstance(entry.get("lines"), int) and entry["lines"] >= 1 for entry in results)
 
 
 def test_cuda_main_files_via_filesystem_backend() -> None:
@@ -216,7 +319,10 @@ def test_cuda_main_files_via_filesystem_backend() -> None:
     main_files_tool = _load_main_files_tool(backend)
     result = main_files_tool.run({"dir_path": "/"})
     expected_main = "lulesh.cu"
-    assert expected_main in result
+    file_names = {entry["file"] for entry in result}
+    assert expected_main in file_names
+    assert all(isinstance(entry.get("offset"), int) and entry["offset"] >= 1 for entry in result)
+    assert all(isinstance(entry.get("lines"), int) and entry["lines"] >= 1 for entry in result)
 
 
 def test_extract_kernel_source_definition_via_filesystem_backend() -> None:
