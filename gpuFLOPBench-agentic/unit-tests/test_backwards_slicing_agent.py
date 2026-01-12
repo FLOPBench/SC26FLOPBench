@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -41,6 +42,17 @@ def delete_sqlite_db_if_exists(db_path: Path) -> None:
     """Delete the SQLite database file if it exists."""
     if db_path.exists():
         db_path.unlink()
+
+
+def delete_tmp_dir(backend_dir: str | Path) -> None:
+    """Remove the backend tmp directory so each run starts clean."""
+    tmp_path = Path(backend_dir) / "tmp"
+    if not tmp_path.exists():
+        return
+    if tmp_path.is_dir():
+        shutil.rmtree(tmp_path)
+    else:
+        tmp_path.unlink()
 
 
 SYSTEM_PROMPT = default_backwards_slicing_system_prompt()
@@ -161,6 +173,8 @@ def test_backwards_slicing_agent_can_run():
         llm = build_openrouter_llm(openrouter_settings)
 
         backend_dir = "/codex/gpuFLOPBench/src/lulesh-cuda/"
+
+        delete_tmp_dir(backend_dir)
 
         backend_obj = FilesystemBackend(
             root_dir=backend_dir, virtual_mode=True
