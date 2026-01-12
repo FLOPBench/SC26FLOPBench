@@ -335,14 +335,30 @@ def _load_kernel_solutions(cuda_name: str) -> dict[str, list[str]]:
     return solutions
 
 
+def _ensure_descriptions_module() -> None:
+    module_name = "code_search_tools.descriptions"
+    if module_name in sys.modules:
+        return
+    desc_path = _TOOL_DIR / "descriptions.py"
+    spec = importlib.util.spec_from_file_location(module_name, desc_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load module at {desc_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(desc_path.parent)]
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+
 @functools.lru_cache(maxsize=None)
 def _load_tool_module(filename: str, module_name: str) -> Any:
     """Load a LangChain tool module that was moved into the code-search-tools directory."""
     tool_path = _TOOL_DIR / filename
+    _ensure_descriptions_module()
     spec = importlib.util.spec_from_file_location(module_name, tool_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load module at {tool_path}")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(tool_path.parent)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
     return module
@@ -451,6 +467,9 @@ def _assert_function_definition_listings(cuda_name: str) -> None:
         function_list = function_definitions_tool.run({"file_path": str(file_path)})
         actual_def = _function_lines_by_kind(function_list, "defnt")
         expected_def = expected_function_definitions.get(file_name, "")
+        if cuda_name == "miniFE-cuda" and file_name == "basic/BoxPartition.cpp":
+            print("DEBUG expected_def repr", repr(expected_def))
+            print("DEBUG actual_def repr", repr(actual_def))
         assert actual_def == expected_def
         assert len(actual_def.splitlines()) == len(expected_def.splitlines())
 
