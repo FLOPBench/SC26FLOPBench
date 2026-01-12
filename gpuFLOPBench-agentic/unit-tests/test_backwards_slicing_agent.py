@@ -66,6 +66,10 @@ INITIAL_PROMPT = HumanMessage(
         The root directory `/` contains all the source code files.
         The compilation commands are for another filesystem, but the source files are the same.
         DO NOT use the filesystem paths from the compilation commands; use only the source file names, as they exist under `/`, and refer to the `lulesh-cuda` directory.
+
+        Any tool calls that use file paths dir_path should use paths relative to `/`.
+        You should definitely make a call to the function_definition_lister tool before performing any file reads, to get a list of functions and their locations.
+        There does NOT exist a tool called "task", we have "write_todos" instead; do NOT attempt to call a "task" tool.
         """
     )
 )
@@ -199,9 +203,9 @@ def test_backwards_slicing_agent_can_run():
 
         config = {"thread_id": "1"}
         result = agent.invoke({"messages": [INITIAL_PROMPT]}, config=config)
-        print("=== agent result messages ===")
-        for idx, msg in enumerate(result.get("messages") or []):
-            print(f"message[{idx}]:", _message_to_str(msg))
+        #print("=== agent result messages ===")
+        #for idx, msg in enumerate(result.get("messages") or []):
+        #    print(f"message[{idx}]:", _message_to_str(msg))
     except Exception as exc:  # pragma: no cover - allow output to show when failures happen
         print("backwards slicing agent invocation raised:", exc)
     finally:

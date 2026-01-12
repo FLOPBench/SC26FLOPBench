@@ -179,7 +179,7 @@ def handle_tool_errors(
     print(f"\tExecuting tool: {request.tool_call['name']}")
     print(f"\tArguments: {request.tool_call['args']}")
     try:
-        return handler(request)
+        result = handler(request)
     except Exception as e:
         tool_call = getattr(request, "tool_call", {}) or {}
         tool_id = tool_call.get("id", "<unknown>")
@@ -203,6 +203,9 @@ def handle_tool_errors(
             content=f"Tool error: Please check your input and try again. ({str(e)})",
             tool_call_id=tool_id,
         )
+    else:
+        print(f"\tTool {request.tool_call['name']} executed successfully.")
+        return result
 
 
 # we're not going to use the Langchain MultiServerMCPClient
