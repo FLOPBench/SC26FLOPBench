@@ -11,7 +11,8 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import BaseModel, Field
+
+from .descriptions import INCLUDE_TREE_DESCRIPTION, IncludeTreeArgs
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -36,19 +37,6 @@ _utils = _load_utils_module()
 _COMMENT_PATTERN = re.compile(r"//.*?$|/\*.*?\*/", re.MULTILINE | re.DOTALL)
 _INCLUDE_PATTERN = re.compile(r'#\s*include\s*(?P<target>"[^"]+"|<[^>]+>)', re.MULTILINE)
 _INDENT_UNIT = "  "
-
-
-class IncludeTreeArgs(BaseModel):
-    """Arguments for walking the include tree of a specific source file."""
-
-    file_path: str = Field(
-        ...,
-        description=(
-            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`) "
-            "to the CUDA/C++ file to analyze."
-        ),
-        min_length=1,
-    )
 
 
 def _strip_comments(contents: str) -> str:
@@ -177,19 +165,12 @@ def _relative_target_path(target: Path, cuda_root: Path) -> str:
         raise ValueError(f"{target} is not under {cuda_root}") from exc
 
 
-TOOL_DESCRIPTION = (
-    "Walk the #include hierarchy for a specific CUDA/C++ file inside a *-cuda benchmark, "
-    "annotating missing files (DNE) and stopping recursion when loops are detected. "
-    "Pass an absolute disk path or a FilesystemBackend path."
-)
-
-
 def make_include_tree_extractor_tool(
     backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
     *,
     description: str | None = None,
 ) -> StructuredTool:
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or INCLUDE_TREE_DESCRIPTION
 
     def _run(
         file_path: str,

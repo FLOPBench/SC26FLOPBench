@@ -10,7 +10,8 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import BaseModel, Field
+
+from .descriptions import EXTRACT_KERNEL_SOURCE_DESCRIPTION, KernelSourceArgs
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -35,22 +36,6 @@ _iterate_cuda_kernel_definitions = _utils._iterate_cuda_kernel_definitions
 _skip_whitespace = _utils._skip_whitespace
 _skip_string = _utils._skip_string
 
-
-class KernelSourceArgs(BaseModel):
-    """Arguments for fetching the source code of a specific CUDA kernel."""
-
-    file_path: str = Field(
-        ...,
-        description=(
-            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu` or `/lulesh-cuda`) "
-            "that identifies the file or directory to analyze."
-        ),
-    )
-    kernel_name: str = Field(
-        ...,
-        description="Name of the __global__ CUDA kernel to extract.",
-        min_length=1,
-    )
 
 
 def _find_matching_angle(text: str, idx: int) -> Optional[int]:
@@ -271,18 +256,12 @@ def _extract_entries_from_files(
     return results
 
 
-TOOL_DESCRIPTION = (
-    "Return the source code for a specific __global__ kernel within the provided file or directory. "
-    "Pass an absolute disk path or FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
-)
-
-
 def make_extract_kernel_source_definition_tool(
     backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
     *,
     description: str | None = None,
 ) -> StructuredTool:
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or EXTRACT_KERNEL_SOURCE_DESCRIPTION
 
     def _run(
         file_path: str,

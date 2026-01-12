@@ -10,7 +10,8 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import BaseModel, Field
+
+from .descriptions import CUDA_GLOBAL_FUNCTIONS_DESCRIPTION, DirectoryArgs
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -34,22 +35,6 @@ _utils = _load_utils_module()
 _gather_cuda_files = _utils._gather_cuda_files
 _iterate_cuda_kernel_definitions = _utils._iterate_cuda_kernel_definitions
 
-
-class DirectoryArgs(BaseModel):
-    """Arguments for listing `__global__` CUDA functions in a directory."""
-
-    dir_path: str = Field(
-        ...,
-        description=(
-            "Absolute directory path or virtual FilesystemBackend path "
-            "(e.g., `/lulesh-cuda`) where the CUDA source files live."
-        ),
-    )
-    
-TOOL_DESCRIPTION = (
-    "List __global__ CUDA kernel definitions (name, file, line) inside the provided directory. "
-    "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
-)
 
 
 def _extract_cuda_global_definitions(text: str) -> Iterator[Tuple[str, str, int]]:
@@ -125,7 +110,7 @@ def make_cuda_global_functions_tool(
 ) -> StructuredTool:
     """Build a cuda_global_functions tool that runs against the provided backend."""
 
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or CUDA_GLOBAL_FUNCTIONS_DESCRIPTION
 
     def _run(
         dir_path: str,

@@ -12,7 +12,8 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import Field
+
+from .descriptions import CUDA_COMPILE_COMMANDS_DESCRIPTION, DirectoryArgs
 
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
@@ -34,7 +35,6 @@ def _load_utils_module() -> object:
 
 _utils = _load_utils_module()
 _GPU_SRC_DIR = _utils.GPU_SRC_DIR
-DirectoryArgs = _utils.DirectoryArgs
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPILE_COMMANDS_PATH = (
@@ -129,26 +129,13 @@ def _resolve_backend_directory(dir_path: str, backend: BackendProtocol) -> Path:
     return candidate
 
 
-def _local_compile_commands(dir_path: str) -> dict[str, Any]:
-    cuda_dir = _resolve_directory(dir_path)
-    entries = _gather_compile_entries(cuda_dir)
-    if not entries:
-        raise ValueError(f"No compile commands were found for {dir_path!r}")
-    return {"dir_path": str(cuda_dir), "commands": entries}
-
-
-TOOL_DESCRIPTION = (
-    "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the provided CUDA directory. "
-    "Example: cuda_compile_commands(dir_path=\"/lulesh-cuda\")."
-)
-
 
 def make_cuda_compile_commands_tool(
     backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
     *,
     description: str | None = None,
 ) -> StructuredTool:
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or CUDA_COMPILE_COMMANDS_DESCRIPTION
 
     def _run(
         dir_path: str,

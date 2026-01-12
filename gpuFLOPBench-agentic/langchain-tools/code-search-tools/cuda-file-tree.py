@@ -8,25 +8,9 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import BaseModel, Field
 
+from .descriptions import CudaTreeArgs, CUDA_FILE_TREE_DESCRIPTION
 
-class CudaTreeArgs(BaseModel):
-    """Arguments for generating a file tree from a specific directory."""
-
-    dir_path: str = Field(
-        ...,
-        description=(
-            "Absolute directory path or virtual FilesystemBackend path (e.g., `/lulesh-cuda`) "
-            "to render a CUDA file tree for."
-        ),
-    )
-
-
-TOOL_DESCRIPTION = (
-    "Generate an indented file tree for the provided directory. "
-    "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
-)
 
 
 def _normalize_virtual_dir_path(dir_path: str) -> str:
@@ -117,7 +101,7 @@ def make_cuda_file_tree_tool(
 ) -> StructuredTool:
     """Build a cuda_file_tree tool that runs against the provided backend."""
 
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or CUDA_FILE_TREE_DESCRIPTION
 
     def _run(
         dir_path: str,

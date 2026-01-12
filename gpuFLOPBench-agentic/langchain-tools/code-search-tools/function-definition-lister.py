@@ -9,7 +9,11 @@ from deepagents.backends.protocol import BackendProtocol
 from deepagents.middleware.filesystem import FilesystemState, _get_backend, _validate_path
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
-from pydantic import BaseModel, Field
+
+from .descriptions import (
+    FunctionDefinitionListerArgs,
+    FUNCTION_DEFINITION_LISTER_DESCRIPTION,
+)
 
 from tree_sitter import Language, Parser
 import tree_sitter_cuda
@@ -18,16 +22,6 @@ CUDA_LANGUAGE = Language(tree_sitter_cuda.language())
 PARSER = Parser(CUDA_LANGUAGE)
 
 
-class FunctionDefinitionListerArgs(BaseModel):
-    """Arguments for listing declarations/definitions inside a specific source file."""
-
-    file_path: str = Field(
-        ...,
-        description=(
-            "Absolute path to the CUDA/C++ file on disk, or the virtual path that "
-            "the FilesystemBackend exposes (e.g., `/lulesh-cuda/lulesh.cu`)."
-        ),
-    )
 
 _SCOPED_NODE_NAME_TYPES: dict[str, tuple[str, ...]] = {
     "class_specifier": ("type_identifier", "identifier"),
@@ -50,7 +44,14 @@ _TEMPLATE_PARAMETER_NODE_TYPES: tuple[str, ...] = (
     "template_type_parameter_list",
 )
 
-_QUALIFIER_KEYWORDS: tuple[str, ...] = ("__global__", "__device__", "__host__", "inline", "__shared__")
+_QUALIFIER_KEYWORDS: tuple[str, ...] = (
+    "__global__",
+    "__device__",
+    "__host__",
+    "inline",
+    "__shared__",
+    "static",
+)
 
 @dataclass(frozen=True)
 class FunctionEntry:
@@ -288,10 +289,6 @@ def _resolve_source_file(file_path: str) -> Path:
     if not resolved.exists() or not resolved.is_file():
         raise ValueError(f"{file_path!r} is not a file")
     return resolved
-TOOL_DESCRIPTION = (
-    "Return every function declaration or definition found in the provided CUDA/C++/header file. "
-    "Pass either an actual disk path or the virtual FilesystemBackend path (e.g., `/lulesh-cuda/lulesh.cu`)."
-)
 
 
 def _formatted_entries(entries: list[FunctionEntry]) -> str:
@@ -344,7 +341,7 @@ def make_function_definition_lister_tool(
     *,
     description: str | None = None,
 ) -> StructuredTool:
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or FUNCTION_DEFINITION_LISTER_DESCRIPTION
 
     def _run(
         file_path: str,

@@ -90,12 +90,28 @@ def _json_default(obj: Any) -> str:
 _TOOL_DIR = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
 
 
+def _ensure_descriptions_module() -> None:
+    module_name = "code_search_tools.descriptions"
+    if module_name in sys.modules:
+        return
+    desc_path = _TOOL_DIR / "descriptions.py"
+    spec = importlib.util.spec_from_file_location(module_name, desc_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load module {module_name} from {desc_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(desc_path.parent)]
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+
 def _load_tool_module(filename: str, module_name: str) -> Any:
     tool_path = _TOOL_DIR / filename
+    _ensure_descriptions_module()
     spec = importlib.util.spec_from_file_location(module_name, tool_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"could not load module {module_name} from {tool_path}")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(tool_path.parent)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)  # type: ignore[attr-defined]
     return module

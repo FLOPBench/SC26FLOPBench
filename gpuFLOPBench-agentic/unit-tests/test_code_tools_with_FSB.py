@@ -22,6 +22,23 @@ def _ensure_utils_module() -> None:
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
+    _ensure_descriptions_module()
+
+
+def _ensure_descriptions_module() -> None:
+    module_name = "code_search_tools.descriptions"
+    if module_name in sys.modules:
+        return
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        _TOOLS_DIR / "descriptions.py",
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Could not load the code search descriptions module")
+    module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
 
 
 def _load_function_definition_tool(backend: FilesystemBackend | None = None):
@@ -36,6 +53,7 @@ def _load_function_definition_tool(backend: FilesystemBackend | None = None):
         if spec is None or spec.loader is None:
             raise ImportError("Could not load the function-definition-lister tool")
         module = importlib.util.module_from_spec(spec)
+        spec.submodule_search_locations = [str(_TOOLS_DIR)]
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
     return module.make_function_definition_lister_tool(backend=backend)
@@ -53,6 +71,7 @@ def _load_file_tree_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the cuda-file-tree tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_cuda_file_tree_tool(backend=backend)
@@ -70,6 +89,7 @@ def _load_global_functions_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the cuda-global-functions tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_cuda_global_functions_tool(backend=backend)
@@ -87,6 +107,7 @@ def _load_main_files_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the cuda-main-files tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_cuda_main_files_tool(backend=backend)
@@ -104,6 +125,7 @@ def _load_include_tree_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the include-tree-extractor tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_include_tree_extractor_tool(backend=backend)
@@ -121,6 +143,7 @@ def _load_kernel_source_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the extract-kernel-source-definition tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_extract_kernel_source_definition_tool(backend=backend)
@@ -138,6 +161,7 @@ def _load_compile_commands_tool(backend: FilesystemBackend):
     if spec is None or spec.loader is None:
         raise ImportError("Could not load the cuda-compile-commands tool")
     module = importlib.util.module_from_spec(spec)
+    spec.submodule_search_locations = [str(_TOOLS_DIR)]
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module.make_cuda_compile_commands_tool(backend=backend)
@@ -162,6 +186,10 @@ def test_function_definition_lister_via_filesystem_backend() -> None:
     output = tool.run({"file_path": "/lulesh.cu"})
     assert output, "Function definition lister should return the parsed entries"
     assert "__global__ void fill_sig(" in output
+    assert "__device__ static inline void CalcElemShapeFunctionDerivatives(" in output
+    assert "__device__ static inline void CalcElemNodeNormals(" in output
+    assert "__device__ static inline void SumElemStressesToNodeForces(" in output
+    assert "template <typename T> T *Allocate(size_t size)" in output
     assert "(defnt)" in output
 
     tree_tool = _load_file_tree_tool(backend)

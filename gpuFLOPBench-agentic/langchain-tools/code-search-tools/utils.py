@@ -25,18 +25,6 @@ class CudaSubdirArgs(BaseModel):
     )
 
 
-class DirectoryArgs(BaseModel):
-    """Shared arguments for tools rooted at a particular GPU source directory."""
-
-    dir_path: str = Field(
-        ...,
-        description=(
-            "Absolute disk path or virtual FilesystemBackend path (e.g., `/lulesh-cuda`) "
-            "to a directory that lives under gpuFLOPBench/src."
-        ),
-    )
-
-
 def _resolve_cuda_dir(cuda_name: str) -> Path:
     """Guardrail the requested path so it stays within gpuFLOPBench/src."""
     candidate = (GPU_SRC_DIR / cuda_name).resolve()

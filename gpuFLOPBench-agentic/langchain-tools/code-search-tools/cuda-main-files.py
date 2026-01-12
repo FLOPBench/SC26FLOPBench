@@ -11,6 +11,8 @@ from deepagents.middleware.filesystem import FilesystemState, _get_backend, _val
 from langchain_core.tools import StructuredTool
 from langchain.tools.tool_node import ToolRuntime
 
+from .descriptions import CUDA_MAIN_FILES_DESCRIPTION, DirectoryArgs
+
 _UTILS_MODULE_NAME = "code_search_tools.utils"
 
 
@@ -35,8 +37,6 @@ _skip_whitespace = _utils._skip_whitespace
 _skip_string = _utils._skip_string
 _find_matching_paren = _utils._find_matching_paren
 _find_first_special_char = _utils._find_first_special_char
-_resolve_directory = _utils._resolve_directory
-DirectoryArgs = _utils.DirectoryArgs
 
 
 def _contains_main_definition(text: str) -> bool:
@@ -120,18 +120,6 @@ def _resolve_backend_directory(dir_path: str, backend: BackendProtocol) -> Path:
     return candidate
 
 
-def _local_cuda_main_files(dir_path: str) -> List[str]:
-    cuda_dir = _resolve_directory(dir_path)
-    main_files = _gather_main_files(cuda_dir)
-    if not main_files:
-        raise ValueError(f"No main() definitions were found under {dir_path!r}")
-    return main_files
-
-
-TOOL_DESCRIPTION = (
-    "List source files under the provided directory that define a free-function main(). "
-    "Pass an absolute disk path or a FilesystemBackend path (e.g., `/lulesh-cuda`)."
-)
 
 
 def make_cuda_main_files_tool(
@@ -139,7 +127,7 @@ def make_cuda_main_files_tool(
     *,
     description: str | None = None,
 ) -> StructuredTool:
-    tool_description = description or TOOL_DESCRIPTION
+    tool_description = description or CUDA_MAIN_FILES_DESCRIPTION
 
     def _run(
         dir_path: str,
