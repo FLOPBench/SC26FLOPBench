@@ -105,7 +105,7 @@ def default_backwards_slicing_system_prompt() -> SystemMessage:
         iteration that makes the first kernel invocation. 
         5) Your output should be a `/tmp/slice.cpp` file which contains all the 
         relevant code up to the first kernel's invocation (including the invocation
-        and kernel source definition). The `/tmp/slice.h` should contain a sliced
+        and kernel source definition). The `/tmp/slice.hpp` should contain a sliced
         version of any of the headers in the project source, leaving out any unused
         code.
         6) Cleanup code to free memory should be kept so the code correctly executes.
@@ -115,24 +115,38 @@ def default_backwards_slicing_system_prompt() -> SystemMessage:
         we get a program that compiles and runs later.
 
         General Backslicing Steps:
-        1) Read the compilation commands to see what files are used to build the project.
-        2) Identify the `main()` function in the main source file.
-        3) Identify where the target CUDA kernel is invoked from `main()` or other functions.
-        4) Trace the code from `main()` to find where the target CUDA kernel is invoked.
-        5) Extract all relevant code, including function definitions, data structures, 
-           and variable declarations that influence the kernel invocation.
-        6) Write the extracted code to `/tmp/slice.cpp` and `/tmp/slice.h`.
+        1) Call cuda_compile_commands(dir_path) for the benchmark directory to inspect the preprocessor arguments and sources that participate in the build.
+        2) Use cuda_main_files(dir_path) to discover each free-function `main()` entry point and its offset so you know which translation unit to trace from.
+        3) Run cuda_global_functions(dir_path) to list every __global__ kernel definition under that directory and identify the file/line where the requested kernel resides.
+        4) Use the `write_todos` tool to plan out your slicing steps before executing them. 
+        5) Trace the call path from `main()` toward the kernel by combining function_definition_lister(file_path, qualifiers_filter=['__global__','__device__'], defs_or_decls='defnt') results with include_tree_extractor(file_path) outputs, capturing the functions, includes, and qualifiers that influence the invocation.
+        6) Invoke extract_kernel_source_definition(file_path, kernel_name) to pull the canonical kernel definition plus any dependent device functions before composing your slice.
+        7) Write the extracted code to `/tmp/slice.cpp` and `/tmp/slice.hpp`.
+        8) Perform sanity checks to ensure the slice contains the `main()` function, the target kernel is defined and invoked, and all relevant function definitions and declarations are present.
 
         There are various code search and analysis tools at your disposal to help you with this task.
         You should use these tools BEFORE going and exploring the files manually using `ls` `glob` or `read_file`.
         The available tools are:
-        - cuda_compile_commands: Returns the compilation commands used to build the source, and returns the compiler, arguments, and output path for each source so callers verify which source files are used to build the final executable.
-        - cuda_file_tree: Builds a sorted, indented tree for a given directory so callers can survey the filesystem layout before inspecting files.
-        - cuda_global_functions: Scans CUDA/C++/header sources for __global__ kernel definitions and reports each kernel name plus the file/line coordinates that define it, helping downstream logic locate kernels quickly.
-        - cuda_main_files: Searches through the benchmark tree for free-function main() definitions so integration tests know which files serve as entry points for each CUDA project.
-        - extract_kernel_source_definition: Replays the full __global__ declaration/definition for a named kernel (complete with templates and qualifiers) by pointing at the owning directory or source file, allowing comparisons against canonical snapshots stored in unit-tests/extracted-kernel-solutions.
-        - function_definition_lister: Uses Tree-sitter to enumerate every declaration or definition in a single CUDA/C++/header file, emitting lines that include template signatures, CUDA qualifiers (__global__, __device__, etc.), return types, and (decl)/(defnt) annotations so agents can see the precise function metadata.
-        - include_tree_extractor: Builds the #include dependency tree for one translation unit, annotating missing headers with (DNE) and stopping recursion when an include path would loop back to an ancestor, which helps agents trace header relationships without re-entering already-visited nodes.
+        - cuda_compile_commands(dir_path): Returns the compile commands for the requested directory; each entry lists the compiler, preprocessor arguments, output, and raw command so the agent understands how that portion of the project is built.
+        - cuda_file_tree(dir_path): Builds a sorted, indented tree for any directory argument, giving a quick overview of the layout before the agent dives into specific files.
+        - cuda_global_functions(dir_path): Lists every __global__ CUDA kernel defined under the directory argument, including file, line, offset, and span, so the agent can quickly locate entry points.
+        - cuda_main_files(dir_path): Reports the offset and length of every free-function main() found under the directory argument, ensuring the agent knows which translation units hold entry points.
+        - extract_kernel_source_definition(file_path, kernel_name): Returns the complete declaration and definition (with templates/qualifiers) for the specified kernel name, searching either the provided file or all CUDA sources under the given path.
+        - function_definition_lister(file_path, qualifiers_filter, template_only, defs_or_decls): Parses the single source file argument and lists declarations/definitions with structured metadata (name, qualifiers, templates, signature, offsets), allowing optional filtering by qualifiers, templated functions only, or defs vs. decls.
+        - include_tree_extractor(file_path): Walks the #include graph starting from the provided source file, annotating missing targets or loops so the agent can trace header dependencies without repeatedly opening the same units.
+
+        Instructions for `/tmp/slice.cpp` and `/tmp/slice.hpp`:
+        - The `/tmp/slice.cpp` file should contain all the relevant code up to and including the first invocation of the target CUDA kernel, as well as the kernel's definition itself.
+        - The `/tmp/slice.hpp` file should contain any necessary header code that supports the sliced `slice.cpp`, excluding any unused declarations or definitions.
+        - Ensure that both files are syntactically correct and maintain the original code's comments and structure as much as possible.
+        - Do not include any code beyond what is necessary for the execution leading up to and including the target kernel invocation
+        - The slice.cpp SHOULD include the `main()` function and all relevant code paths leading to the kernel call.
+        - The `main()` function should take in the same argv/argc parameters as the original code.
+        - The resulting files should be ready for compilation and execution, although you are NOT allowed to compile or run them yourself.
+        - Sanity Checks:
+            1) Ensure that the `/tmp/slice.cpp` file contains a `main()` function.
+            2) Verify that the target CUDA kernel is defined AND invoked in `/tmp/slice.cpp`.
+            3) Use the function_definition_lister tool on `/tmp/slice.cpp` and `/tmp/slice.hpp` to confirm that all function definitions leading up to the kernel invocation are present and that ALL function declarations have a matching function definition.
         """
     )
     return SystemMessage(content=template)

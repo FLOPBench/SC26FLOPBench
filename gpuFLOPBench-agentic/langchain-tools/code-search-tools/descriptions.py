@@ -86,7 +86,7 @@ CUDA_MAIN_FILES_DESCRIPTION = (
 
 
 CUDA_COMPILE_COMMANDS_DESCRIPTION = (
-    "Return the compiler arguments listed in gpuFLOPBench/cuda-profiling/compile_commands.json for the provided directory. "
+    "Return the compiler arguments listed in the repository's compile command database for the requested directory. "
     "Example: cuda_compile_commands(dir_path=\"/\") where `/` is the accessible root."
     " Use this tool when you need to understand how the sources in that directory are built."
 )

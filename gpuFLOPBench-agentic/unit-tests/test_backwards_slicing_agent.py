@@ -60,12 +60,12 @@ INITIAL_PROMPT = HumanMessage(
     content=dedent(
         """\
 
-        Target Kernel Name: `fill_sig<<<...>>>`
-        Please do a backwards slice of the `fill_sig` CUDA kernel.
+        Target Kernel Name: `seed_clusters_kernel<<<...>>>`
+        Please do a backwards slice of the `seed_clusters_kernel` CUDA kernel.
 
         The root directory `/` contains all the source code files.
         The compilation commands are for another filesystem, but the source files are the same.
-        DO NOT use the filesystem paths from the compilation commands; use only the source file names, as they exist under `/`, and refer to the `lulesh-cuda` directory.
+        DO NOT use the filesystem paths from the compilation commands; use only the source file names, as they exist under `/`, and refer to the `gmm-cuda` directory.
 
         Any tool calls that use file paths dir_path should use paths relative to `/`.
         You should definitely make a call to the function_definition_lister tool before performing any file reads, to get a list of functions and their locations.
@@ -181,7 +181,7 @@ def test_backwards_slicing_agent_can_run():
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
         llm = build_openrouter_llm(openrouter_settings)
 
-        backend_dir = "/codex/gpuFLOPBench/src/lulesh-cuda/"
+        backend_dir = "/codex/gpuFLOPBench/src/gmm-cuda/"
 
         delete_tmp_dir(backend_dir)
 
