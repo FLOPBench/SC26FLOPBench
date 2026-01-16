@@ -44,26 +44,126 @@ Results will be saved to `cuda-profiling/gpuData.csv`.
 
 ## Docker Usage
 
+⚠️ **Storage Requirements**: The Docker container requires approximately 15 GB for the base image, expanding to 40 GB when built, and up to 50 GB when building codes and gathering profiling data. Ensure sufficient disk space before proceeding.
+
 ### Build Container
 
 ```bash
 docker build -t gpuflopbench-updated .
 ```
 
-### Run with GPU
+This takes approximately 5-15 minutes depending on your system.
+
+### Platform-Specific Setup Instructions
+
+#### Linux with NVIDIA GPU
+
+For systems with NVIDIA GPUs and nvidia-docker runtime:
 
 ```bash
-docker run --gpus all \
+# Build the container
+docker build --progress=plain -t gpuflopbench-updated .
+
+# Run with GPU access (ensure Docker Desktop has 'Enable Host Networking' enabled)
+docker run -ti --network=host --gpus all \
+    --name gpuflopbench-updated-container \
+    --runtime=nvidia \
+    -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    -e NVIDIA_VISIBLE_DEVICES=all \
     --cap-add=SYS_ADMIN \
     --cap-add=SYS_PTRACE \
     -v $(pwd):/workspace \
-    gpuflopbench-updated bash
+    gpuflopbench-updated
+
+# Access the container shell
+docker exec -it gpuflopbench-updated-container /bin/bash
 ```
 
-Inside container:
+**Capabilities explained**:
+- `--gpus all`: Provides GPU access
+- `--cap-add=SYS_ADMIN`: Required for ncu GPU profiling
+- `--cap-add=SYS_PTRACE`: Required for process tracing
+- `--network=host`: Enables host networking (useful for Jupyter notebooks)
+
+#### macOS (Apple Silicon M1/M2/M3/M4) - No NVIDIA GPU
+
+For macOS systems without NVIDIA GPU (useful for dataset analysis and LLM querying):
+
 ```bash
+# Build for x86_64 architecture (takes ~10 minutes on Apple Silicon)
+docker build --platform=linux/amd64 --progress=plain -t gpuflopbench-updated .
+
+# Run container (ensure Docker Desktop has 'Enable Host Networking' enabled)
+docker run -ti --network=host \
+    --name gpuflopbench-updated-container \
+    --platform=linux/amd64 \
+    -v $(pwd):/workspace \
+    gpuflopbench-updated
+
+# Access the container shell
+docker exec -it gpuflopbench-updated-container /bin/bash
+```
+
+**Note**: Without GPU, you can still access the codebase, run unit tests (excluding GPU-dependent tests), and work with pre-collected profiling data.
+
+#### Windows with NVIDIA GPU
+
+For Windows systems with Docker Desktop and NVIDIA GPU:
+
+**Prerequisites**: Enable GPU performance counters in NVIDIA Control Panel:
+1. Open **NVIDIA Control Panel**
+2. Navigate to **Desktop** tab → Enable **Developer Settings**
+3. Navigate to **Select a Task...** → **Developer** → **Manage GPU Performance Counters**
+4. Select **Allow access to the GPU performance counters to all users**
+5. Restart Docker Desktop
+
+**Run container**:
+```powershell
+# Build the container
+docker build --progress=plain -t gpuflopbench-updated .
+
+# Run with GPU access
+docker run -ti --network=host --gpus all `
+    --name gpuflopbench-updated-container `
+    --cap-add=SYS_ADMIN `
+    --cap-add=SYS_PTRACE `
+    -v ${PWD}:/workspace `
+    gpuflopbench-updated
+
+# Access the container shell
+docker exec -it gpuflopbench-updated-container /bin/bash
+```
+
+### Container Management
+
+Start and stop the container as needed:
+```bash
+# Start container
+docker start gpuflopbench-updated-container
+
+# Stop container
+docker stop gpuflopbench-updated-container
+
+# Remove container (preserves image)
+docker rm gpuflopbench-updated-container
+```
+
+File changes in the container persist unless you delete the container.
+
+### Inside the Container
+
+Once inside the container shell:
+
+```bash
+# Activate conda environment (should auto-activate)
+conda activate gpuflopbench-updated
+
+# Build HeCBench benchmarks
 ./runBuild.sh
-python3 cuda-profiling/gatherData.py
+
+# Profile benchmarks (requires GPU)
+cd cuda-profiling
+python gatherData.py
 ```
 
 ## Documentation
