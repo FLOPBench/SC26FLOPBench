@@ -130,7 +130,7 @@ build/
 
 - **NVIDIA GPU**: For executing benchmarks
 - **Nsight Compute (ncu)**: NVIDIA's profiling tool
-- **Python 3.8+**: With packages: pandas, numpy, pyyaml, tqdm
+- **Python 3.11+**: With packages: pandas, numpy, pyyaml, tqdm (installed via Miniconda in Docker)
 - **Built benchmarks**: Run `./runBuild.sh` first
 
 ### Profiling Script: `cuda-profiling/gatherData.py`
@@ -303,9 +303,9 @@ python3 cuda-profiling/gatherData.py
 ### Container Contents
 
 - **Base**: `nvidia/cuda:12.2.0-devel-ubuntu22.04`
-- **Compilers**: clang-15, clang++-15
+- **Compilers**: clang-20, clang++-20 (LLVM 20)
 - **Tools**: cmake, git, cuobjdump, ncu, objdump
-- **Python**: Python 3 with pandas, numpy, pyyaml, tqdm
+- **Python**: Python 3.11 via Miniconda with pandas, numpy, pyyaml, tqdm
 
 ## Output Locations
 
@@ -379,8 +379,10 @@ export PATH=$CUDA_HOME/bin:$PATH
 
 **Clang not found**:
 ```bash
-# Install LLVM
-sudo apt-get install clang-15 llvm-15
+# Install LLVM 20
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+./llvm.sh 20 all
 ```
 
 ### Profiling Issues

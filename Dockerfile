@@ -4,7 +4,7 @@
 # and profiling them with NVIDIA Nsight Compute (ncu).
 #
 # Base: NVIDIA CUDA development image with Ubuntu
-# Includes: CUDA toolkit, Nsight Compute, LLVM/Clang, CMake, Python dependencies
+# Includes: CUDA toolkit, Nsight Compute, LLVM/Clang 20, CMake, Python via Miniconda
 #
 # Build:
 #   docker build -t gpuflopbench-updated .
@@ -24,21 +24,25 @@ LABEL description="Build and profiling environment for HeCBench benchmarks"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
+# Change default shell to bash
+SHELL ["/bin/bash", "-c"]
+
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
     # Build essentials
     build-essential \
     cmake \
     git \
     wget \
     curl \
-    # LLVM/Clang toolchain
-    clang-15 \
-    llvm-15 \
-    libomp-15-dev \
+    unzip \
+    # LLVM/Clang 20 toolchain
+    lsb-release \
+    software-properties-common \
+    gnupg \
     # Additional tools
-    python3 \
-    python3-pip \
     binutils \
     # Utilities
     vim \
@@ -46,22 +50,38 @@ RUN apt-get update && apt-get install -y \
     htop \
     && rm -rf /var/lib/apt/lists/*
 
-# Set clang as default compiler
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100 && \
-    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100 && \
-    update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-15 100 && \
-    update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-15 100
+# Install LLVM/Clang 20
+RUN wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh 20 all && \
+    rm llvm.sh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies for profiling script
-RUN pip3 install --no-cache-dir \
-    pandas \
-    numpy \
-    pyyaml \
-    tqdm
+# Set clang-20 as default compiler
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 && \
+    update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-20 100 && \
+    update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-20 100
 
-# Verify CUDA and NCU are available
-RUN nvcc --version && \
-    ncu --version || echo "NCU not available in this image - may need nsight-compute package"
+# Install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash ./Miniconda3-latest-Linux-x86_64.sh -b -p ~/anaconda3 && \
+    rm ./Miniconda3-latest-Linux-x86_64.sh
+
+# Initialize conda and accept terms of service
+RUN source ~/anaconda3/bin/activate && \
+    conda init --all && \
+    conda config --set channel_priority strict
+
+# Create conda environment for gpuFLOPBench-updated
+RUN source ~/anaconda3/bin/activate && \
+    conda create --name gpuflopbench-updated python=3.11 -y
+
+# Install Python dependencies in conda environment
+RUN source ~/anaconda3/bin/activate && \
+    conda activate gpuflopbench-updated && \
+    pip install --no-cache-dir pandas numpy pyyaml tqdm
 
 # Set working directory
 WORKDIR /workspace
@@ -82,6 +102,13 @@ ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
+# Activate conda environment on container startup
+RUN echo 'source ~/anaconda3/bin/activate' >> ~/.bashrc && \
+    echo 'conda activate gpuflopbench-updated' >> ~/.bashrc
+
+# Set environment variable for convenience
+ENV GPUFLOPBENCH_ROOT=/workspace
+
 # Default command
 CMD ["/bin/bash"]
 
@@ -93,7 +120,7 @@ RUN echo "===================================================" && \
     echo "  ./runBuild.sh" && \
     echo "" && \
     echo "To profile benchmarks (requires GPU):" && \
-    echo "  python3 cuda-profiling/gatherData.py" && \
+    echo "  python cuda-profiling/gatherData.py" && \
     echo "" && \
     echo "Output locations:" && \
     echo "  - Executables: build/" && \

@@ -14,7 +14,7 @@
 #
 # Options:
 #   --clean      Remove build directory before building
-#   --cuda-arch  CUDA architecture (default: sm_80)
+#   --cuda-arch  CUDA architecture (default: sm_86)
 #   --help       Show this help message
 
 set -e  # Exit on error
@@ -26,7 +26,7 @@ HECBENCH_DIR="$PROJECT_ROOT/HeCBench"
 BUILD_DIR="$PROJECT_ROOT/build"
 
 # Default configuration
-CUDA_ARCH="sm_80"
+CUDA_ARCH="sm_86"
 CLEAN_BUILD=false
 
 # Color output
@@ -57,7 +57,7 @@ Build all CUDA and OpenMP benchmarks from HeCBench using LLVM clang/clang++.
 
 Options:
     --clean          Remove build directory before building
-    --cuda-arch ARG  CUDA architecture (default: sm_80)
+    --cuda-arch ARG  CUDA architecture (default: sm_86)
     --help           Show this help message
 
 Examples:
