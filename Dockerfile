@@ -74,6 +74,14 @@ RUN source ~/anaconda3/bin/activate && \
     conda init --all && \
     conda config --set channel_priority strict
 
+# Accept Anaconda Terms of Service for non-interactive builds
+# This is required for CI/CD pipelines and automated Docker builds
+# where user interaction is not possible. Without this, conda will
+# fail with CondaToSNonInteractiveError when trying to use default channels.
+RUN source ~/anaconda3/bin/activate && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 # Create conda environment for gpuFLOPBench-updated
 RUN source ~/anaconda3/bin/activate && \
     conda create --name gpuflopbench-updated python=3.11 -y
