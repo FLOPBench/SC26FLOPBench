@@ -9,6 +9,12 @@ import pytest
 import subprocess
 import re
 
+# Test constants: Mangled C++ names for testing demangling
+# These are standard Itanium ABI mangled names
+SIMPLE_MANGLED_NAME = "_Z3foov"  # foo()
+SIMPLE_KERNEL_MANGLED = "_Z6kernelv"  # kernel()
+TEMPLATE_KERNEL_MANGLED = "_Z6kernelIiEvPT_"  # void kernel<int>(int*)
+
 
 def check_tool_available(tool_name):
     """Check if a command-line tool is available"""
@@ -128,23 +134,19 @@ def test_cxxfilt_basic_demangling():
         pytest.skip("c++filt not available")
     
     # Simple mangled C++ name
-    mangled = "_Z3foov"
-    demangled = demangle_name(mangled, 'c++filt')
+    demangled = demangle_name(SIMPLE_MANGLED_NAME, 'c++filt')
     
-    assert demangled != mangled, "c++filt failed to demangle simple name"
+    assert demangled != SIMPLE_MANGLED_NAME, "c++filt failed to demangle simple name"
     assert "foo" in demangled, f"Unexpected demangled result: {demangled}"
 
 
 def test_demangling_with_preferred_tool():
     """Test that preferred tool is used first"""
     
-    # Sample mangled name
-    mangled = "_Z6kernelv"
-    
     # Try with c++filt if available
     if check_tool_available('c++filt'):
-        result = demangle_name_reliable(mangled, prefer_tool='c++filt')
-        assert result != mangled, "Demangling failed"
+        result = demangle_name_reliable(SIMPLE_KERNEL_MANGLED, prefer_tool='c++filt')
+        assert result != SIMPLE_KERNEL_MANGLED, "Demangling failed"
         assert "kernel" in result, f"Unexpected result: {result}"
 
 
@@ -167,19 +169,16 @@ def test_demangling_first_try_succeeds():
     if not available_tool:
         pytest.skip("No demangling tools available")
     
-    # Test with simple mangled name
-    mangled = "_Z6kernelv"
-    
     # Should succeed with first tool
-    first_try_result = demangle_name(mangled, available_tool)
+    first_try_result = demangle_name(SIMPLE_KERNEL_MANGLED, available_tool)
     
     # Should get same result with reliable function
-    reliable_result = demangle_name_reliable(mangled, available_tool)
+    reliable_result = demangle_name_reliable(SIMPLE_KERNEL_MANGLED, available_tool)
     
     assert first_try_result == reliable_result, \
         "Demangling results differ between first try and reliable function"
     
-    assert first_try_result != mangled or mangled.startswith('__omp'), \
+    assert first_try_result != SIMPLE_KERNEL_MANGLED or SIMPLE_KERNEL_MANGLED.startswith('__omp'), \
         f"Demangling failed on first try with {available_tool}"
 
 
@@ -280,13 +279,10 @@ def test_demangling_integration():
     if not available_tool:
         pytest.skip("No demangling tools available")
     
-    # Sample mangled name
-    mangled = "_Z6kernelIiEvPT_"  # kernel<int>(int*)
-    
     # Step 1: Demangle
-    demangled = demangle_name_reliable(mangled, available_tool)
+    demangled = demangle_name_reliable(TEMPLATE_KERNEL_MANGLED, available_tool)
     
-    print(f"\nMangled:   {mangled}")
+    print(f"\nMangled:   {TEMPLATE_KERNEL_MANGLED}")
     print(f"Demangled: {demangled}")
     
     # Step 2: Extract simple name
@@ -308,20 +304,17 @@ def test_demangling_multiple_tools():
     if not available:
         pytest.skip("No demangling tools available")
     
-    # Test with sample mangled name
-    mangled = "_Z6kernelv"
-    
     results = {}
     for tool in available:
-        result = demangle_name(mangled, tool)
+        result = demangle_name(SIMPLE_KERNEL_MANGLED, tool)
         results[tool] = result
     
-    print(f"\nDemangling results for '{mangled}':")
+    print(f"\nDemangling results for '{SIMPLE_KERNEL_MANGLED}':")
     for tool, result in results.items():
         print(f"  {tool}: {result}")
     
     # All tools should produce similar results
-    demangled_values = [r for r in results.values() if r != mangled]
+    demangled_values = [r for r in results.values() if r != SIMPLE_KERNEL_MANGLED]
     
     assert len(demangled_values) > 0, "No tool successfully demangled the name"
 

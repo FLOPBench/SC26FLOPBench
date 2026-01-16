@@ -195,8 +195,7 @@ def get_cuobjdump_kernels(target):
     # Try cuobjdump first
     try:
         result = subprocess.run(
-            f'cuobjdump --list-text {exe_path}',
-            shell=True,
+            ['cuobjdump', '--list-text', exe_path],
             cwd=srcDir,
             timeout=60,
             stdout=subprocess.PIPE,
@@ -207,7 +206,11 @@ def get_cuobjdump_kernels(target):
             output = result.stdout.decode('UTF-8')
             
             # Extract kernel names with regex
-            # Pattern matches kernel names in cuobjdump output
+            # Pattern explanation:
+            #   - Matches text after ' : x-' or ' : x-void '
+            #   - Captures kernel name characters (word chars, hyphens, colons)
+            #   - Looks ahead for function signature in parentheses/angle brackets
+            #   - Followed by architecture-specific suffix (.sm_XX.elf.bin or [clone])
             pattern = r'((?<= : x-)|(?<= : x-void ))[\w\-\:]*(?=[\(\<].*[\)\>](?:(?:(?:(?:\.sm_)|(?: \(\.sm_)).*\.elf\.bin)|(?: \[clone)))'
             matches = re.finditer(pattern, output, re.MULTILINE)
             
@@ -225,9 +228,10 @@ def get_cuobjdump_kernels(target):
     
     # Try llvm-objdump as fallback
     try:
+        # Note: Using shell=True here for pipe, but inputs are from filesystem, not user input
+        # exe_path is validated to be an existing file in our build directory
         result = subprocess.run(
-            f'llvm-objdump -t {exe_path} | c++filt',
-            shell=True,
+            ['sh', '-c', f'llvm-objdump -t {shlex.quote(exe_path)} | c++filt'],
             cwd=srcDir,
             timeout=60,
             stdout=subprocess.PIPE,
@@ -253,8 +257,7 @@ def get_objdump_kernels(target):
     
     try:
         result = subprocess.run(
-            f'objdump -t --section=omp_offloading_entries {exe_path}',
-            shell=True,
+            ['objdump', '-t', '--section=omp_offloading_entries', exe_path],
             cwd=srcDir,
             timeout=60,
             stdout=subprocess.PIPE,
@@ -265,6 +268,8 @@ def get_objdump_kernels(target):
             output = result.stdout.decode('UTF-8')
             
             # Extract offloading entry names
+            # Pattern matches OMP offloading entries of form:
+            #   .omp_offloading.entry.__omp_offloading_...
             pattern = r'(?<=\.omp_offloading\.entry\.)(__omp_offloading.*)(?=\n)'
             matches = re.finditer(pattern, output, re.MULTILINE)
             
@@ -352,22 +357,26 @@ def execute_target_with_ncu(target, kernelName):
     # -c 2: Capture first 2 invocations (use first, second as confirmation)
     # --set roofline: Enable roofline metrics
     # --metrics smsp__sass_thread_inst_executed_op_integer_pred_on: Add integer ops
-    ncuCommand = (
-        f'ncu -f -o {reportFileName} '
-        f'--set roofline '
-        f'--metrics smsp__sass_thread_inst_executed_op_integer_pred_on '
-        f'-c 2 -k "{kernelName}"'
-    )
+    ncu_args = [
+        'ncu', '-f', '-o', reportFileName,
+        '--set', 'roofline',
+        '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
+        '-c', '2',
+        '-k', kernelName,
+        exe_path
+    ]
     
-    exeCommand = f'{ncuCommand} {exe_path} {exeArgs}'.strip()
+    # Add executable arguments if present
+    if exeArgs:
+        ncu_args.extend(shlex.split(exeArgs))
     
     print(f'Profiling: {basename} - kernel: {kernelName}', flush=True)
-    print(f'  Command: {exeCommand}', flush=True)
+    print(f'  Command: {" ".join(ncu_args)}', flush=True)
     
     try:
         # Execute with timeout (5 minutes)
         process = subprocess.Popen(
-            shlex.split(exeCommand),
+            ncu_args,
             cwd=srcDir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -406,8 +415,10 @@ def execute_target_with_ncu(target, kernelName):
     # Parse ncu-rep to CSV
     try:
         result = subprocess.run(
-            f'ncu --import {reportFileName}.ncu-rep --csv --print-units base --page raw',
-            shell=True,
+            [
+                'ncu', '--import', f'{reportFileName}.ncu-rep',
+                '--csv', '--print-units', 'base', '--page', 'raw'
+            ],
             cwd=srcDir,
             timeout=60,
             stdout=subprocess.PIPE,

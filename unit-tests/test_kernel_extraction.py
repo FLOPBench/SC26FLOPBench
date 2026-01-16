@@ -80,7 +80,10 @@ def extract_cuda_kernels_with_cuobjdump(exe_path):
         output = result.stdout
         
         # Pattern to match kernel names in cuobjdump output
-        # Looks for ".text." followed by kernel name
+        # Pattern explanation:
+        #   \.text\. - Match literal ".text." prefix
+        #   [\w<>:,\s\*\-]+ - Match kernel name characters (word chars, templates, namespaces, pointers)
+        #   (?=\s|$) - Positive lookahead for whitespace or end of line
         pattern = r'\.text\.[\w<>:,\s\*\-]+(?=\s|$)'
         matches = re.finditer(pattern, output, re.MULTILINE)
         
@@ -117,6 +120,9 @@ def extract_omp_kernels_with_objdump(exe_path):
         output = result.stdout
         
         # Pattern to match OMP offloading entry names
+        # Pattern explanation:
+        #   (?<=\.omp_offloading\.entry\.) - Positive lookbehind for entry prefix
+        #   (__omp_offloading[^\s]+) - Capture __omp_offloading followed by non-whitespace
         pattern = r'(?<=\.omp_offloading\.entry\.)(__omp_offloading[^\s]+)'
         matches = re.finditer(pattern, output, re.MULTILINE)
         
