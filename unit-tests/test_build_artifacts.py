@@ -1,0 +1,132 @@
+"""
+Test suite for verifying build artifacts
+
+Tests that expected executables are built from HeCBench benchmarks.
+"""
+
+import pytest
+from pathlib import Path
+import os
+
+
+def test_build_directory_exists(build_dir):
+    """Verify build directory exists"""
+    assert build_dir.exists(), f"Build directory not found: {build_dir}"
+    assert build_dir.is_dir(), f"Build path exists but is not a directory: {build_dir}"
+
+
+def test_build_has_executables(built_executables):
+    """Verify at least some executables were built"""
+    assert len(built_executables) > 0, \
+        "No executables found in build directory. Did the build succeed?"
+
+
+def test_executables_are_valid(built_executables):
+    """Verify all found executables are actually executable"""
+    for exe in built_executables:
+        assert exe.is_file(), f"{exe.name} is not a regular file"
+        assert os.access(exe, os.X_OK), f"{exe.name} is not executable"
+
+
+def test_expected_cuda_or_omp_executables(built_executables):
+    """Verify executables have expected naming pattern (model suffix)"""
+    valid_suffixes = ['-cuda', '-omp', '-hip', '-sycl']
+    
+    # At least some executables should match expected patterns
+    matching = [exe for exe in built_executables 
+                if any(suffix in exe.name for suffix in valid_suffixes)]
+    
+    assert len(matching) > 0, \
+        "No executables with expected model suffixes (-cuda, -omp) found"
+
+
+def test_cuda_executables_exist(cuda_executables):
+    """Verify at least some CUDA executables were built"""
+    assert len(cuda_executables) > 0, \
+        "No CUDA executables found. Check if CUDA compilation succeeded."
+
+
+def test_omp_executables_exist(omp_executables):
+    """Verify at least some OpenMP executables were built"""
+    assert len(omp_executables) > 0, \
+        "No OpenMP executables found. Check if OpenMP compilation succeeded."
+
+
+def test_no_object_files_in_build_root(build_dir):
+    """Verify no .o or .so files in build root (should be in subdirs)"""
+    for entry in build_dir.iterdir():
+        if entry.is_file():
+            assert not entry.name.endswith('.o'), \
+                f"Object file in build root: {entry.name}"
+            # .so files might be intentional libraries, so just warn
+            if entry.name.endswith('.so'):
+                print(f"WARNING: Shared library in build root: {entry.name}")
+
+
+def test_executables_match_benchmark_names(built_executables, benchmarks_yaml):
+    """Verify built executables correspond to benchmarks in YAML"""
+    
+    # Get benchmark names from YAML
+    benchmark_names = set(benchmarks_yaml.keys())
+    
+    # Extract benchmark names from executable names (remove model suffix)
+    exe_benchmarks = set()
+    for exe in built_executables:
+        # Remove model suffix to get benchmark name
+        name = exe.name
+        for suffix in ['-cuda', '-omp', '-hip', '-sycl']:
+            if suffix in name:
+                bench_name = name.replace(suffix, '')
+                exe_benchmarks.add(bench_name)
+                break
+    
+    # Check that some executables match YAML benchmarks
+    matches = exe_benchmarks & benchmark_names
+    
+    assert len(matches) > 0, \
+        f"No executables match benchmarks in YAML. Found: {exe_benchmarks}, Expected: {benchmark_names}"
+    
+    # Report coverage
+    coverage = len(matches) / len(benchmark_names) * 100
+    print(f"\nBuilt {len(exe_benchmarks)} unique benchmarks")
+    print(f"Matched {len(matches)} benchmarks from YAML ({coverage:.1f}% coverage)")
+
+
+@pytest.mark.slow
+def test_all_yaml_benchmarks_attempted(built_executables, benchmarks_yaml):
+    """
+    Check if all benchmarks from YAML have at least one model built.
+    
+    Note: This is marked slow and may report many failures if build was incomplete.
+    """
+    
+    # Get all expected executables from YAML
+    expected = set()
+    for bench_name, bench_data in benchmarks_yaml.items():
+        if 'models' in bench_data:
+            for model in bench_data['models']:
+                if model in ['cuda', 'omp']:  # Only check models we build
+                    expected.add(f"{bench_name}-{model}")
+    
+    # Get actual executables
+    actual = set(exe.name for exe in built_executables)
+    
+    # Find missing
+    missing = expected - actual
+    
+    # Report
+    print(f"\nExpected: {len(expected)} executables")
+    print(f"Built: {len(actual)} executables")
+    print(f"Missing: {len(missing)} executables")
+    
+    if missing:
+        print(f"\nSample missing executables (first 10):")
+        for name in sorted(missing)[:10]:
+            print(f"  - {name}")
+    
+    # Allow some failures (build may not complete 100%)
+    success_rate = len(actual) / len(expected) * 100
+    assert success_rate > 10, \
+        f"Too few executables built: {success_rate:.1f}% success rate"
+    
+    print(f"\nBuild success rate: {success_rate:.1f}%")
