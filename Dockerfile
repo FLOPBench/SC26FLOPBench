@@ -15,7 +15,7 @@
 #
 # Note: SYS_ADMIN and SYS_PTRACE capabilities are required for ncu profiling
 
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+FROM nvidia/cuda:13.1.0-devel-ubuntu24.04
 
 LABEL maintainer="gpuFLOPBench-updated"
 LABEL description="Build and profiling environment for HeCBench benchmarks"
