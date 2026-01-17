@@ -3,7 +3,7 @@
 # runBuild.sh - Build script for HeCBench CUDA and OpenMP benchmarks
 #
 # This script configures and builds all CUDA and OpenMP codes from HeCBench
-# using the LLVM toolchain (clang/clang++ for both C/C++ and CUDA compilation).
+# using clang/clang++ for C/C++ compilation and nvcc for CUDA compilation.
 #
 # Build outputs:
 #   - All compiled executables are placed in the top-level build/ directory
@@ -14,7 +14,7 @@
 #
 # Options:
 #   --clean      Remove build directory before building
-#   --cuda-arch  CUDA architecture (default: sm_86)
+#   --cuda-arch  CUDA architecture (default: 86 for sm_86)
 #   --help       Show this help message
 
 set -e  # Exit on error
@@ -26,7 +26,7 @@ HECBENCH_DIR="$PROJECT_ROOT/HeCBench"
 BUILD_DIR="$PROJECT_ROOT/build"
 
 # Default configuration
-CUDA_ARCH="sm_86"
+CUDA_ARCH="86"
 CLEAN_BUILD=false
 
 # Color output
@@ -57,13 +57,14 @@ Build all CUDA and OpenMP benchmarks from HeCBench using LLVM clang/clang++.
 
 Options:
     --clean          Remove build directory before building
-    --cuda-arch ARG  CUDA architecture (default: sm_86)
+    --cuda-arch ARG  CUDA compute capability (e.g., 60, 70, 75, 80, 86, 89, 90)
+                     Default: 86 (for sm_86/compute_86)
     --help           Show this help message
 
 Examples:
     ./runBuild.sh
     ./runBuild.sh --clean
-    ./runBuild.sh --cuda-arch sm_86
+    ./runBuild.sh --cuda-arch 80
 EOF
 }
 
@@ -128,12 +129,10 @@ log_info "Configuring CMake..."
 
 cd "$BUILD_DIR"
 
-# Use clang/clang++ for all compilation
+# Use clang/clang++ for C/C++ and let CMake find nvcc for CUDA
 cmake "$HECBENCH_DIR" \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
-    -DCMAKE_CUDA_COMPILER=clang++ \
-    -DCMAKE_CUDA_HOST_COMPILER=clang++ \
     -DCMAKE_BUILD_TYPE=Release \
     -DHECBENCH_ENABLE_CUDA=ON \
     -DHECBENCH_ENABLE_OPENMP=ON \
@@ -142,7 +141,8 @@ cmake "$HECBENCH_DIR" \
     -DHECBENCH_CUDA_ARCH="$CUDA_ARCH" \
     -DHECBENCH_BUILD_ALL_BENCHMARKS=ON \
     -DHECBENCH_ENABLE_TESTING=OFF \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DCMAKE_VERBOSE_MAKEFILE=ON
 
 if [ $? -ne 0 ]; then
     log_error "CMake configuration failed"
@@ -154,17 +154,17 @@ log_info "Configuration complete"
 # Build all benchmarks
 log_info "Building benchmarks (this may take a while)..."
 
-NUM_CORES=$(nproc 2>/dev/null || echo 4)
-log_info "Using $NUM_CORES parallel jobs"
+# Use single core for easier error tracking in CI
+log_info "Using 1 parallel job for clear error output"
 
-cmake --build . -j "$NUM_CORES" 2>&1 | tee build.log
+cmake --build . -j 1 -- VERBOSE=1 2>&1 | tee build.log
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    log_warn "Some benchmarks failed to build (see build.log for details)"
-    log_warn "Continuing with successfully built benchmarks..."
-else
-    log_info "Build complete!"
+    log_error "Build failed! Check build.log for details"
+    exit 1
 fi
+
+log_info "Build complete!"
 
 # Count and list built executables
 EXECUTABLE_COUNT=$(find "$BUILD_DIR" -maxdepth 1 -type f -executable | wc -l)

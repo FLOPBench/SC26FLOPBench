@@ -3,8 +3,8 @@
 # This container provides a complete environment for building HeCBench benchmarks
 # and profiling them with NVIDIA Nsight Compute (ncu).
 #
-# Base: NVIDIA CUDA development image with Ubuntu
-# Includes: CUDA toolkit, Nsight Compute, LLVM/Clang 20, CMake, Python via Miniconda
+# Base: NVIDIA HPC SDK development image with CUDA 13.0
+# Includes: CUDA 13.0 toolkit, NVHPC compilers, CMake, Python via Miniconda
 #
 # Build:
 #   docker build -t gpuflopbench-updated .
@@ -15,7 +15,7 @@
 #
 # Note: SYS_ADMIN and SYS_PTRACE capabilities are required for ncu profiling
 
-FROM nvidia/cuda:13.1.0-devel-ubuntu24.04
+FROM nvcr.io/nvidia/nvhpc:25.11-devel-cuda13.0-ubuntu24.04
 
 LABEL maintainer="gpuFLOPBench-updated"
 LABEL description="Build and profiling environment for HeCBench benchmarks"
@@ -44,6 +44,12 @@ RUN apt-get update && \
     gnupg \
     # Additional tools
     binutils \
+    # MPI for distributed benchmarks
+    libopenmpi-dev \
+    openmpi-bin \
+    # Optional libraries for some benchmarks
+    libboost-all-dev \
+    libgsl-dev \
     # Utilities
     vim \
     less \
@@ -89,18 +95,13 @@ RUN source ~/anaconda3/bin/activate && \
 # Install Python dependencies in conda environment
 RUN source ~/anaconda3/bin/activate && \
     conda activate gpuflopbench-updated && \
-    pip install --no-cache-dir pandas numpy pyyaml tqdm
+    pip install --no-cache-dir pandas numpy pyyaml tqdm pytest pytest-xdist pytest-cov
 
 # Set working directory
 WORKDIR /workspace
 
 # Copy repository contents
 COPY . /workspace/
-
-# Initialize HeCBench submodule if not already done
-RUN if [ -d "HeCBench" ] && [ ! "$(ls -A HeCBench)" ]; then \
-        git submodule update --init --depth 1 HeCBench; \
-    fi
 
 # Set executable permissions
 RUN chmod +x runBuild.sh
