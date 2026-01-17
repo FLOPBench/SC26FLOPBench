@@ -123,12 +123,7 @@ For Windows systems with Docker Desktop and NVIDIA GPU:
 docker build --progress=plain -t gpuflopbench-updated .
 
 # Run with GPU access
-docker run -ti --network=host --gpus all `
-    --name gpuflopbench-updated-container `
-    --cap-add=SYS_ADMIN `
-    --cap-add=SYS_PTRACE `
-    -v ${PWD}:/workspace `
-    gpuflopbench-updated
+docker run -ti --network=host --gpus all --name gpuflopbench-updated-container --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_VISIBLE_DEVICES=all gpuflopbench-updated
 
 # Access the container shell
 docker exec -it gpuflopbench-updated-container /bin/bash
