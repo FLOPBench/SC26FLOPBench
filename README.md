@@ -161,6 +161,13 @@ cd cuda-profiling
 python gatherData.py
 ```
 
+## Build Notes
+Of the version of HeCBench that we use as a submodule, we manage to build most of the codes.
+- 488 CUDA codes building
+- 318 OMP codes building
+
+There are some errors that we run into during build for some codes, but we ignore these programs as we didn't want to spend the extra effort to get their builds to work.
+
 ## Documentation
 
 - **[AGENTS.md](AGENTS.md)**: Comprehensive documentation of the infrastructure

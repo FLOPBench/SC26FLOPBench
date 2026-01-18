@@ -160,8 +160,9 @@ log_info "Configuration complete"
 # Build all benchmarks
 log_info "Building benchmarks (this may take a while)..."
 
-# Use single core for easier error tracking in CI
-log_info "Using 1 parallel job for clear error output"
+# we use the -k flag to keep going on errors and log all output
+# this way we at least build what we can and not stop on the codes with 
+# bad builds
 
 cmake --build . -j 4 -- VERBOSE=1 -k 2>&1 | tee build.log
 
