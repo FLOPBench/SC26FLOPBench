@@ -52,6 +52,28 @@ def test_omp_executables_exist(omp_executables):
         "No OpenMP executables found. Check if OpenMP compilation succeeded."
 
 
+def test_cuda_executable_threshold(cuda_executables):
+    """Verify CUDA executables meet minimum threshold (450)"""
+    MIN_CUDA_EXECUTABLES = 450
+    cuda_count = len(cuda_executables)
+    
+    assert cuda_count >= MIN_CUDA_EXECUTABLES, \
+        f"CUDA executable count {cuda_count} below threshold {MIN_CUDA_EXECUTABLES}"
+    
+    print(f"\nCUDA executables: {cuda_count} (threshold: {MIN_CUDA_EXECUTABLES})")
+
+
+def test_omp_executable_threshold(omp_executables):
+    """Verify OpenMP executables meet minimum threshold (300)"""
+    MIN_OMP_EXECUTABLES = 300
+    omp_count = len(omp_executables)
+    
+    assert omp_count >= MIN_OMP_EXECUTABLES, \
+        f"OpenMP executable count {omp_count} below threshold {MIN_OMP_EXECUTABLES}"
+    
+    print(f"\nOpenMP executables: {omp_count} (threshold: {MIN_OMP_EXECUTABLES})")
+
+
 def test_no_object_files_in_build_root(build_dir):
     """Verify no .o or .so files in build root (should be in subdirs)"""
     for entry in build_dir.iterdir():

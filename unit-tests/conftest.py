@@ -51,11 +51,24 @@ def built_executables(build_dir):
         pytest.skip(f"Build directory not found: {build_dir}")
     
     exes = []
-    for entry in build_dir.iterdir():
-        if entry.is_file() and os.access(entry, os.X_OK):
-            # Skip non-executable files
-            if not any(ext in entry.name for ext in ['.cpp', '.c', '.o', '.so', '.log']):
-                exes.append(entry)
+    
+    # Check new structure: build/bin/cuda/ and build/bin/omp/
+    bin_dir = build_dir / "bin"
+    if bin_dir.exists():
+        for model_dir in ["cuda", "omp"]:
+            model_path = bin_dir / model_dir
+            if model_path.exists() and model_path.is_dir():
+                for entry in model_path.iterdir():
+                    if entry.is_file() and os.access(entry, os.X_OK):
+                        exes.append(entry)
+    
+    # Fallback: check old structure (build root) for backward compatibility
+    if not exes:
+        for entry in build_dir.iterdir():
+            if entry.is_file() and os.access(entry, os.X_OK):
+                # Skip non-executable files
+                if not any(ext in entry.name for ext in ['.cpp', '.c', '.o', '.so', '.log']):
+                    exes.append(entry)
     
     return exes
 
@@ -68,12 +81,36 @@ def sample_executables(built_executables):
 
 
 @pytest.fixture
-def cuda_executables(built_executables):
+def cuda_executables(build_dir):
     """CUDA executables only"""
-    return [exe for exe in built_executables if '-cuda' in exe.name]
+    cuda_bin = build_dir / "bin" / "cuda"
+    if cuda_bin.exists() and cuda_bin.is_dir():
+        return [entry for entry in cuda_bin.iterdir() 
+                if entry.is_file() and os.access(entry, os.X_OK)]
+    
+    # Fallback: check old structure
+    exes = []
+    if build_dir.exists():
+        for entry in build_dir.iterdir():
+            if entry.is_file() and os.access(entry, os.X_OK):
+                if '-cuda' in entry.name:
+                    exes.append(entry)
+    return exes
 
 
 @pytest.fixture
-def omp_executables(built_executables):
+def omp_executables(build_dir):
     """OpenMP executables only"""
-    return [exe for exe in built_executables if '-omp' in exe.name]
+    omp_bin = build_dir / "bin" / "omp"
+    if omp_bin.exists() and omp_bin.is_dir():
+        return [entry for entry in omp_bin.iterdir() 
+                if entry.is_file() and os.access(entry, os.X_OK)]
+    
+    # Fallback: check old structure
+    exes = []
+    if build_dir.exists():
+        for entry in build_dir.iterdir():
+            if entry.is_file() and os.access(entry, os.X_OK):
+                if '-omp' in entry.name:
+                    exes.append(entry)
+    return exes

@@ -104,7 +104,7 @@ WORKDIR /workspace
 COPY . /workspace/
 
 # Set executable permissions
-RUN chmod +x runBuild.sh
+RUN chmod +x runBuild.sh runTests.sh
 
 # Environment variables for CUDA
 ENV CUDA_HOME=/usr/local/cuda

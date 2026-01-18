@@ -31,7 +31,16 @@ git submodule update --init
 ./runBuild.sh
 ```
 
-Executables will be placed in `build/`.
+Executables will be placed in `build/bin/cuda/` (CUDA implementations) and `build/bin/omp/` (OpenMP implementations).
+
+The build succeeds if it produces at least 450 CUDA executables and 300 OpenMP executables.
+
+### Run Tests
+
+```bash
+./runTests.sh           # Run all tests
+./runTests.sh --noGPU   # Run tests excluding GPU-dependent tests
+```
 
 ### Profile Benchmarks
 
@@ -176,6 +185,12 @@ There are some errors that we run into during build for some codes, but we ignor
 ## Testing
 
 ```bash
+./runTests.sh           # Run all tests
+./runTests.sh --noGPU   # Run tests excluding GPU-dependent tests
+```
+
+Or manually with pytest:
+```bash
 cd unit-tests
 pip install -r requirements.txt
 pytest -v
@@ -186,10 +201,14 @@ pytest -v
 ```
 ├── HeCBench/              # Submodule: benchmark suite
 ├── runBuild.sh            # Build script
+├── runTests.sh            # Test script
 ├── cuda-profiling/
 │   ├── gatherData.py      # Profiling script
 │   └── gpuData.csv        # Output (generated)
-├── build/                 # Executables (generated)
+├── build/                 # Build artifacts (generated)
+│   └── bin/
+│       ├── cuda/          # CUDA executables (450+ expected)
+│       └── omp/           # OpenMP executables (300+ expected)
 ├── unit-tests/            # Test suite
 ├── Dockerfile             # Container definition
 └── AGENTS.md              # Full documentation

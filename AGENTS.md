@@ -20,7 +20,11 @@ gpuFLOPBench-updated/
 │   ├── gatherData.py          # Profiling script using ncu
 │   ├── gpuData.csv            # Output: profiling results (generated)
 │   └── downloads/             # Downloaded input files (generated)
-├── build/                     # Built executables (generated)
+├── build/                     # Build artifacts (generated)
+│   └── bin/
+│       ├── cuda/              # CUDA executables (450+ expected)
+│       └── omp/               # OpenMP executables (300+ expected)
+├── runTests.sh                # Test runner script
 ├── unit-tests/                # Test suite
 │   ├── AGENTS.md              # Test documentation
 │   └── test_*.py              # Test files
@@ -102,27 +106,38 @@ The build script configures and builds all CUDA and OpenMP benchmarks using the 
    - Sets `CMAKE_CUDA_COMPILER=clang++` (uses clang for CUDA!)
    - Enables CUDA and OpenMP models
    - Disables HIP and SYCL models
-4. **Parallel Build**: Builds using all available cores
-5. **Output**: Executables placed in `build/` directory
+4. **Parallel Build**: Builds using all available cores with `-k` flag (continues on errors)
+5. **Validation**: Counts executables and checks thresholds (450 CUDA, 300 OpenMP)
+6. **Output**: Executables placed in `build/bin/cuda/` and `build/bin/omp/`
 
 #### Build Outputs
 
-All executables are placed in the `build/` directory with names matching their source directory:
+All executables are organized by model type in `build/bin/`:
 
 ```
 build/
-├── accuracy-cuda          # From HeCBench/src/accuracy-cuda/
-├── accuracy-omp           # From HeCBench/src/accuracy-omp/
-├── lulesh-cuda            # From HeCBench/src/lulesh-cuda/
-└── ...
+└── bin/
+    ├── cuda/              # CUDA executables (450+ expected)
+    │   ├── accuracy-cuda
+    │   ├── lulesh-cuda
+    │   └── ...
+    └── omp/               # OpenMP executables (300+ expected)
+        ├── accuracy-omp
+        ├── lulesh-omp
+        └── ...
 ```
+
+The build succeeds only if:
+- CMake configuration completes successfully
+- At least 450 CUDA executables are built
+- At least 300 OpenMP executables are built
 
 #### Troubleshooting
 
 - **Missing submodule**: Run `git submodule update --init`
 - **Clang not found**: Install LLVM/Clang 14+
 - **CUDA compilation fails**: Ensure CUDA toolkit is installed
-- **Some benchmarks fail**: Check `build/build.log` for specific errors
+- **Insufficient executables**: Check `build/build.log` for compilation errors
 
 ## Profiling Benchmarks
 
@@ -158,7 +173,7 @@ python3 gatherData.py --skipRuns
 #### Profiling Workflow
 
 1. **Parse benchmarks.yaml**: Load metadata and execution arguments
-2. **Discover executables**: Find all binaries in `build/`
+2. **Discover executables**: Find all binaries in `build/bin/cuda/` and `build/bin/omp/`
 3. **Extract kernel names**: 
    - For CUDA: Use `cuobjdump --list-text` or `llvm-objdump -t`
    - For OpenMP: Use `objdump -t --section=omp_offloading_entries`
@@ -311,7 +326,8 @@ python3 cuda-profiling/gatherData.py
 
 | Output | Location | Description |
 |--------|----------|-------------|
-| Executables | `build/` | Compiled benchmarks |
+| CUDA executables | `build/bin/cuda/` | Compiled CUDA benchmarks (450+) |
+| OpenMP executables | `build/bin/omp/` | Compiled OpenMP benchmarks (300+) |
 | Build logs | `build/build.log` | CMake and compiler output |
 | Profiling data | `cuda-profiling/gpuData.csv` | Performance metrics |
 | NCU reports | `HeCBench/src/*/*.ncu-rep` | Raw ncu reports (large!) |
@@ -360,6 +376,12 @@ Unit tests verify the correctness of the build and profiling infrastructure. See
 
 ```bash
 # Run all tests
+./runTests.sh
+
+# Run tests excluding GPU-dependent tests
+./runTests.sh --noGPU
+
+# Or run pytest manually
 cd unit-tests
 pytest -v
 

@@ -64,13 +64,15 @@ jobs:
           gpuflopbench-updated:latest \
           bash -c "
             echo '=== Build Directory Contents ===' && \
-            ls -lh build/ 2>/dev/null || echo 'Build directory not found' && \
+            ls -lh build/bin/ 2>/dev/null || echo 'Build bin directory not found' && \
             echo '' && \
-            echo '=== Executable Count ===' && \
-            find build/ -maxdepth 1 -type f -executable 2>/dev/null | wc -l || echo '0' && \
+            echo '=== CUDA Executables ===' && \
+            ls build/bin/cuda 2>/dev/null | wc -l || echo '0' && \
+            ls build/bin/cuda 2>/dev/null | head -5 || echo 'None found' && \
             echo '' && \
-            echo '=== Sample Executables ===' && \
-            find build/ -maxdepth 1 -type f -executable 2>/dev/null | head -10 || echo 'None found'
+            echo '=== OpenMP Executables ===' && \
+            ls build/bin/omp 2>/dev/null | wc -l || echo '0' && \
+            ls build/bin/omp 2>/dev/null | head -5 || echo 'None found'
           "
     
     - name: Run unit tests (excluding GPU and slow tests)
@@ -80,7 +82,7 @@ jobs:
           -w /workspace \
           gpuflopbench-updated:latest \
           bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && \
-                   cd unit-tests && pytest -v -m 'not gpu and not slow'"
+                   ./runTests.sh --noGPU"
     
     - name: Upload build logs on failure
       if: failure()

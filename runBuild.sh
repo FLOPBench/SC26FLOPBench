@@ -166,26 +166,82 @@ log_info "Building benchmarks (this may take a while)..."
 
 cmake --build . -j 4 -- VERBOSE=1 -k 2>&1 | tee build.log
 
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    log_error "Build failed! Check build.log for details"
-    exit 1
-fi
+# Note: We intentionally do NOT check PIPESTATUS here because -k flag
+# allows the build to continue on errors. We'll validate success by
+# counting the number of successfully built executables instead.
 
 log_info "Build complete!"
 
-# Count and list built executables
-EXECUTABLE_COUNT=$(find "$BUILD_DIR" -maxdepth 1 -type f -executable | wc -l)
-log_info "Built $EXECUTABLE_COUNT executable(s)"
+# Thresholds for successful build
+MIN_CUDA_EXECUTABLES=450
+MIN_OMP_EXECUTABLES=300
 
-if [ $EXECUTABLE_COUNT -gt 0 ]; then
-    log_info "Sample executables:"
-    find "$BUILD_DIR" -maxdepth 1 -type f -executable | head -10 | while read exe; do
+# Number of sample executables to display
+SAMPLE_COUNT=5
+
+# Count built executables by type
+CUDA_BIN_DIR="$BUILD_DIR/bin/cuda"
+OMP_BIN_DIR="$BUILD_DIR/bin/omp"
+
+if [ -d "$CUDA_BIN_DIR" ]; then
+    CUDA_COUNT=$(find "$CUDA_BIN_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l)
+else
+    CUDA_COUNT=0
+fi
+
+if [ -d "$OMP_BIN_DIR" ]; then
+    OMP_COUNT=$(find "$OMP_BIN_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l)
+else
+    OMP_COUNT=0
+fi
+
+# Print diagnostics
+log_info "===== Build Results ====="
+log_info "CUDA executables: $CUDA_COUNT (minimum required: $MIN_CUDA_EXECUTABLES)"
+log_info "OpenMP executables: $OMP_COUNT (minimum required: $MIN_OMP_EXECUTABLES)"
+log_info "========================="
+
+# Check if thresholds are met
+BUILD_SUCCESS=true
+
+if [ $CUDA_COUNT -lt $MIN_CUDA_EXECUTABLES ]; then
+    log_error "Insufficient CUDA executables: $CUDA_COUNT < $MIN_CUDA_EXECUTABLES"
+    BUILD_SUCCESS=false
+fi
+
+if [ $OMP_COUNT -lt $MIN_OMP_EXECUTABLES ]; then
+    log_error "Insufficient OpenMP executables: $OMP_COUNT < $MIN_OMP_EXECUTABLES"
+    BUILD_SUCCESS=false
+fi
+
+if [ "$BUILD_SUCCESS" = false ]; then
+    log_error "Build failed to meet executable count thresholds"
+    log_error "Check build.log for compilation errors"
+    exit 1
+fi
+
+# Show sample executables
+log_info "Build thresholds met successfully!"
+
+if [ $CUDA_COUNT -gt 0 ]; then
+    log_info "Sample CUDA executables:"
+    find "$CUDA_BIN_DIR" -maxdepth 1 -type f 2>/dev/null | head -n $SAMPLE_COUNT | while IFS= read -r exe; do
         log_info "  - $(basename "$exe")"
     done
-    if [ $EXECUTABLE_COUNT -gt 10 ]; then
-        log_info "  ... and $((EXECUTABLE_COUNT - 10)) more"
+    if [ $CUDA_COUNT -gt $SAMPLE_COUNT ]; then
+        log_info "  ... and $((CUDA_COUNT - SAMPLE_COUNT)) more"
+    fi
+fi
+
+if [ $OMP_COUNT -gt 0 ]; then
+    log_info "Sample OpenMP executables:"
+    find "$OMP_BIN_DIR" -maxdepth 1 -type f 2>/dev/null | head -n $SAMPLE_COUNT | while IFS= read -r exe; do
+        log_info "  - $(basename "$exe")"
+    done
+    if [ $OMP_COUNT -gt $SAMPLE_COUNT ]; then
+        log_info "  ... and $((OMP_COUNT - SAMPLE_COUNT)) more"
     fi
 fi
 
 log_info "Build script completed successfully"
-log_info "Executables are in: $BUILD_DIR"
+log_info "Executables are in: $BUILD_DIR/bin/cuda and $BUILD_DIR/bin/omp"
