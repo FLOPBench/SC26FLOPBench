@@ -129,7 +129,9 @@ log_info "Configuring CMake..."
 
 cd "$BUILD_DIR"
 
-# Use clang/clang++ for C/C++ and let CMake find nvcc for CUDA
+
+
+# Use clang/clang++ for C/C++/OpenMP and let CMake find nvcc for CUDA
 cmake "$HECBENCH_DIR" \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
@@ -142,7 +144,11 @@ cmake "$HECBENCH_DIR" \
     -DHECBENCH_BUILD_ALL_BENCHMARKS=ON \
     -DHECBENCH_ENABLE_TESTING=OFF \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DCMAKE_VERBOSE_MAKEFILE=ON
+    -DCMAKE_VERBOSE_MAKEFILE=ON \
+    -DHECBENCH_OMP_TARGET=-fopenmp \
+    -DHECBENCH_OMP_TARGET_BACKEND=--offload-arch=sm_$CUDA_ARCH \
+    -DNCCL_DIR=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/13.0/nccl \
+    -DCMAKE_PREFIX_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/13.0/nccl
 
 if [ $? -ne 0 ]; then
     log_error "CMake configuration failed"
@@ -157,7 +163,7 @@ log_info "Building benchmarks (this may take a while)..."
 # Use single core for easier error tracking in CI
 log_info "Using 1 parallel job for clear error output"
 
-cmake --build . -j 1 -- VERBOSE=1 2>&1 | tee build.log
+cmake --build . -j 4 -- VERBOSE=1 -k 2>&1 | tee build.log
 
 if [ ${PIPESTATUS[0]} -ne 0 ]; then
     log_error "Build failed! Check build.log for details"
