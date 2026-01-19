@@ -52,6 +52,7 @@ from utils import (
     extract_kernel_name_for_ncu,
     source_has_cuda_kernels,
     exe_has_cuda_kernels,
+    get_makefile_run_args,
 )
 
 # Global directory paths
@@ -170,14 +171,26 @@ def get_exe_args_from_yaml(targets, benchmarks_data):
         
         target['exeArgs'] = ''
         
+        yaml_args = None
+        have_args = False
+
         if benchmark_name in benchmarks_data:
             bench_info = benchmarks_data[benchmark_name]
             if 'test' in bench_info and bench_info['test'] and 'args' in bench_info['test']:
-                args = bench_info['test']['args']
-                if args:
-                    target['exeArgs'] = ' '.join(str(a) for a in args)
-        
-        if not target['exeArgs']:
+                yaml_args = bench_info['test']['args']
+                if yaml_args is not None:
+                    have_args = True
+                if yaml_args:
+                    target['exeArgs'] = ' '.join(str(a) for a in yaml_args)
+
+        if yaml_args is None:
+            make_args = get_makefile_run_args(target.get('src'), exe_name=None)
+            if make_args:
+                have_args = True
+                last_args = make_args[-1]
+                target['exeArgs'] = ' '.join(str(a) for a in last_args) if last_args else ''
+
+        if not target['exeArgs'] and not have_args:
             print(f"WARNING: No execution args found for {targetName}")
     
     return targets

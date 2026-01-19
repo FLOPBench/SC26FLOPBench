@@ -18,6 +18,7 @@ gpuFLOPBench-updated/
 ├── runBuild.sh                # Build script for all benchmarks
 ├── cuda-profiling/
 │   ├── gatherData.py          # Profiling script using ncu
+│   ├── utils.py               # Shared demangling/kernel discovery utilities
 │   ├── gpuData.csv            # Output: profiling results (generated)
 │   └── downloads/             # Downloaded input files (generated)
 ├── build/                     # Build artifacts (generated)
@@ -149,6 +150,9 @@ The build succeeds only if:
 - **Built benchmarks**: Run `./runBuild.sh` first
 
 ### Profiling Script: `cuda-profiling/gatherData.py`
+
+Shared helper utilities for demangling and kernel discovery live in
+`cuda-profiling/utils.py`.
 
 The profiling script executes benchmarks with NVIDIA Nsight Compute to gather roofline performance data.
 
@@ -445,10 +449,11 @@ sudo usermod -a -G video $USER
 When modifying this infrastructure:
 
 1. **runBuild.sh**: Keep LLVM toolchain configuration, ensure all models build
-2. **gatherData.py**: Maintain demangling correctness, handle new input file patterns
-3. **Dockerfile**: Keep base image updated, ensure all tools available
-4. **Tests**: Add tests for new functionality
-5. **Documentation**: Update this file for any workflow changes
+2. **gatherData.py**: Maintain profiling logic and workflow for NCU runs
+3. **cuda-profiling/utils.py**: Maintain demangling and kernel discovery helpers
+4. **Dockerfile**: Keep base image updated, ensure all tools available
+5. **Tests**: Add tests for new functionality
+6. **Documentation**: Update this file for any workflow changes
 
 ## License
 

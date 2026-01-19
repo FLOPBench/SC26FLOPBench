@@ -9,6 +9,306 @@ import os
 import re
 import subprocess
 import shlex
+from pathlib import Path
+
+
+MAKEFILE_CANDIDATES = ("Makefile", "makefile", "GNUmakefile")
+
+
+def find_makefile_for_target(src_dir):
+    """
+    Locate the Makefile for a benchmark source directory.
+
+    Args:
+        src_dir: Path to the benchmark source directory
+
+    Returns:
+        Absolute path to Makefile if found, else None
+    """
+    if not src_dir or not os.path.isdir(src_dir):
+        return None
+
+    for name in MAKEFILE_CANDIDATES:
+        path = os.path.join(src_dir, name)
+        if os.path.isfile(path):
+            return path
+
+    ignore_dirs = {".git", "build", "cmake", "CMakeFiles", "_deps"}
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        for name in MAKEFILE_CANDIDATES:
+            if name in files:
+                return os.path.join(root, name)
+
+    return None
+
+
+def _file_has_run_target(lines):
+    """Return True if the file contains a run target with at least one recipe line."""
+    recipe = _collect_run_recipe_lines(lines)
+    return len(recipe) > 0
+
+
+def find_run_target_file(src_dir):
+    """
+    Search for a file containing a Make-style run target.
+
+    This is a fallback for benchmarks that store run targets in non-Makefile
+    include files (e.g., src/make_targets).
+    """
+    if not src_dir or not os.path.isdir(src_dir):
+        return None
+
+    ignore_dirs = {".git", "build", "cmake", "CMakeFiles", "_deps"}
+    max_size = 2 * 1024 * 1024  # 2MB
+
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+
+        for name in files:
+            path = os.path.join(root, name)
+            try:
+                if os.path.getsize(path) > max_size:
+                    continue
+            except OSError:
+                continue
+
+            try:
+                with open(path, "r", errors="ignore") as f:
+                    lines = f.readlines()
+            except OSError:
+                continue
+
+            if _file_has_run_target(lines):
+                return path
+
+    return None
+
+
+def _strip_make_comment(line):
+    """Strip Makefile comments while respecting quotes."""
+    if not line:
+        return line
+
+    in_single = False
+    in_double = False
+    escaped = False
+    for i, ch in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if ch == "#" and not in_single and not in_double:
+            return line[:i].rstrip()
+    return line.rstrip()
+
+
+def _collect_run_recipe_lines(lines):
+    """Collect recipe lines under the run: target."""
+    run_lines = []
+    in_run = False
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if not in_run:
+            if re.match(r"^\s*run\s*:", line) and not stripped.startswith("#"):
+                in_run = True
+            i += 1
+            continue
+
+        if stripped == "":
+            i += 1
+            continue
+
+        if re.match(r"^[^\s].*:\s*", line) and not re.match(r"^\s*run\s*:", line):
+            break
+
+        if re.match(r"^\s*#", line):
+            i += 1
+            continue
+
+        if not re.match(r"^\s+", line):
+            break
+
+        run_lines.append(line)
+        i += 1
+
+    return run_lines
+
+
+def _strip_recipe_prefix(line):
+    """Remove recipe prefixes like @, -, + and leading whitespace."""
+    cleaned = line.lstrip()
+    while cleaned and cleaned[0] in ("@", "-", "+"):
+        cleaned = cleaned[1:].lstrip()
+    return cleaned
+
+
+def _find_exec_index(tokens, exe_name=None):
+    """Find the token index for the executable invocation."""
+    for i, token in enumerate(tokens):
+        if token.startswith("./"):
+            return i
+        if exe_name:
+            if token == exe_name or token.endswith(f"/{exe_name}"):
+                return i
+        if token in ("$(program)", "$(PROGRAM)", "$(exe)", "$(EXE)", "$(target)", "$(TARGET)"):
+            return i
+        if token.startswith("./$(program)") or token.startswith("./$(PROGRAM)"):
+            return i
+        if token.endswith("/$(program)") or token.endswith("/$(PROGRAM)"):
+            return i
+    return None
+
+
+def _find_hecbench_src_root(src_dir):
+    """Locate the HeCBench/src root given a benchmark src directory."""
+    if not src_dir:
+        return None
+
+    path = Path(src_dir).resolve()
+    for parent in [path] + list(path.parents):
+        if parent.name == "src":
+            return str(parent)
+    return None
+
+
+def _is_numeric_token(token):
+    return bool(re.match(r"^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$", token))
+
+
+def _resolve_arg_path(arg, src_dir, run_cwd=None):
+    """Resolve input file arguments to paths relative to src_dir."""
+    if not arg or arg.startswith("-"):
+        return arg
+    if _is_numeric_token(arg):
+        return arg
+    if "$(" in arg or "${" in arg:
+        return arg
+
+    if os.path.isabs(arg):
+        return arg
+
+    candidates = []
+    if run_cwd:
+        candidates.append(os.path.join(run_cwd, arg))
+    if src_dir:
+        candidates.append(os.path.join(src_dir, arg))
+
+    for path in candidates:
+        if os.path.exists(path):
+            return os.path.relpath(path, src_dir)
+
+    src_root = _find_hecbench_src_root(src_dir)
+    if src_root:
+        basename = os.path.basename(arg)
+        for root, _, files in os.walk(src_root):
+            if basename in files:
+                path = os.path.join(root, basename)
+                return os.path.relpath(path, src_dir)
+
+    return arg
+
+
+def extract_run_args_from_makefile(makefile_path, exe_name=None, src_dir=None):
+    """
+    Extract command-line arguments from the Makefile run target.
+
+    Returns a list of argument lists (one per run command).
+    """
+    if not makefile_path or not os.path.isfile(makefile_path):
+        return None
+
+    try:
+        with open(makefile_path, "r", errors="ignore") as f:
+            lines = f.readlines()
+    except OSError:
+        return None
+
+    recipe_lines = _collect_run_recipe_lines(lines)
+    if not recipe_lines:
+        return None
+
+    args_list = []
+    shell_ops = {"&&", ";", "|", "||", "&"}
+    i = 0
+    while i < len(recipe_lines):
+        merged = recipe_lines[i].rstrip()
+        while merged.endswith("\\") and i + 1 < len(recipe_lines):
+            merged = merged[:-1].rstrip() + " " + recipe_lines[i + 1].lstrip()
+            i += 1
+        i += 1
+
+        merged = _strip_make_comment(merged)
+        merged = _strip_recipe_prefix(merged)
+
+        if not merged:
+            continue
+
+        try:
+            tokens = shlex.split(merged)
+        except ValueError:
+            continue
+
+        if not tokens:
+            continue
+
+        tokens = [tok for tok in tokens if tok != "\\"]
+
+        run_cwd = None
+        if len(tokens) >= 2 and tokens[0] == "cd":
+            cd_path = tokens[1]
+            run_cwd = os.path.normpath(os.path.join(src_dir or "", cd_path)) if not os.path.isabs(cd_path) else cd_path
+            tokens = tokens[2:]
+            if tokens and tokens[0] in shell_ops:
+                tokens = tokens[1:]
+
+        exec_index = _find_exec_index(tokens, exe_name=exe_name)
+        if exec_index is None:
+            continue
+
+        args = []
+        for token in tokens[exec_index + 1:]:
+            if token in shell_ops:
+                break
+            if token == "\\":
+                continue
+            args.append(token)
+
+        if src_dir:
+            args = [_resolve_arg_path(arg, src_dir, run_cwd=run_cwd) for arg in args]
+
+        args_list.append(args)
+
+    return args_list
+
+
+def get_makefile_run_args(src_dir, exe_name=None):
+    """
+    Convenience wrapper to find Makefile and extract run args.
+    """
+    makefile_path = find_makefile_for_target(src_dir)
+    if makefile_path:
+        args = extract_run_args_from_makefile(makefile_path, exe_name=exe_name, src_dir=src_dir)
+        if args:
+            return args
+
+    fallback_path = find_run_target_file(src_dir)
+    if fallback_path:
+        return extract_run_args_from_makefile(fallback_path, exe_name=exe_name, src_dir=src_dir)
+
+    return []
 
 
 def demangle_kernel_name(mangled_name, prefer_tool='cu++filt'):
