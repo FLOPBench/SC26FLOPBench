@@ -15,7 +15,7 @@ from pathlib import Path
 GATHERDATA_DIR = Path(__file__).resolve().parents[1] / "cuda-profiling"
 sys.path.insert(0, str(GATHERDATA_DIR))
 
-import gatherData as gd
+import utils as gd
 
 # Test constants: Mangled C++ names for testing demangling
 # These are standard Itanium ABI mangled names
