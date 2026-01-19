@@ -56,20 +56,19 @@ RUN apt-get update && \
     htop \
     && rm -rf /var/lib/apt/lists/*
 
-# Install LLVM/Clang 20
+# Install LLVM/Clang 21
 RUN wget https://apt.llvm.org/llvm.sh && \
     chmod +x llvm.sh && \
-    ./llvm.sh 20 all && \
+    ./llvm.sh 21 all && \
     rm llvm.sh && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set clang-20 as default compiler
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
-    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 && \
-    update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-20 100 && \
-    update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-20 100
-
+# Set clang-21 as default compiler
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100 && \
+    update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-21 100 && \
+    update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-21 100
 # Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash ./Miniconda3-latest-Linux-x86_64.sh -b -p ~/anaconda3 && \

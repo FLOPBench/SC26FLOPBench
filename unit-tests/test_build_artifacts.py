@@ -28,18 +28,6 @@ def test_executables_are_valid(built_executables):
         assert os.access(exe, os.X_OK), f"{exe.name} is not executable"
 
 
-def test_expected_cuda_or_omp_executables(built_executables):
-    """Verify executables have expected naming pattern (model suffix)"""
-    valid_suffixes = ['-cuda', '-omp', '-hip', '-sycl']
-    
-    # At least some executables should match expected patterns
-    matching = [exe for exe in built_executables 
-                if any(suffix in exe.name for suffix in valid_suffixes)]
-    
-    assert len(matching) > 0, \
-        "No executables with expected model suffixes (-cuda, -omp) found"
-
-
 def test_cuda_executables_exist(cuda_executables):
     """Verify at least some CUDA executables were built"""
     assert len(cuda_executables) > 0, \

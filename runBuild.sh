@@ -64,7 +64,7 @@ Options:
 Examples:
     ./runBuild.sh
     ./runBuild.sh --clean
-    ./runBuild.sh --cuda-arch 80
+    ./runBuild.sh --cuda-arch 86
 EOF
 }
 
