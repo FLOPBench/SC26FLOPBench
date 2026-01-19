@@ -428,35 +428,48 @@ def calc_roofline_data(df):
     if kdf.shape[0] == 0:
         return kdf
     
-    # Cycles per second
+    # Cycles per second (cycles/sec)
     avgCyclesPerSecond = kdf['smsp__cycles_elapsed.avg.per_second'].apply(str_to_float)
     
-    # Double precision ops
+    # Double precision ops (operations per cycle)
+    # Resulting dpPerf is in OP/s
     sumDPAddOps = kdf['smsp__sass_thread_inst_executed_op_dadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
     sumDPMulOps = kdf['smsp__sass_thread_inst_executed_op_dmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
     sumDPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_dfma_pred_on_x2'].apply(str_to_float)
+
+    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
     kdf['dpPerf'] = (sumDPAddOps + sumDPMulOps + sumDPfmaOps) * avgCyclesPerSecond
     
-    # Single precision ops
+    # Single precision ops (operations per cycle)
+    # Resulting spPerf is in OP/s
     sumSPAddOps = kdf['smsp__sass_thread_inst_executed_op_fadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
     sumSPMulOps = kdf['smsp__sass_thread_inst_executed_op_fmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
     sumSPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_ffma_pred_on_x2'].apply(str_to_float)
+
+    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
     kdf['spPerf'] = (sumSPAddOps + sumSPMulOps + sumSPfmaOps) * avgCyclesPerSecond
     
-    # DRAM traffic
+    # DRAM traffic (bytes/sec)
     kdf['traffic'] = kdf['dram__bytes.sum.per_second'].apply(str_to_float)
     
-    # Arithmetic intensity
+    # Arithmetic intensity (OP/byte)
     kdf['dpAI'] = kdf['dpPerf'] / kdf['traffic']
     kdf['spAI'] = kdf['spPerf'] / kdf['traffic']
     
-    # Execution time
+    # Execution time (ns)
     kdf['xtime'] = kdf['gpu__time_duration.sum'].apply(str_to_float)
     kdf['device'] = kdf['device__attribute_display_name']
     
-    # Integer ops
-    kdf['intops'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
+    # Total floating-point operations (unitless count)
+    # spPerf/dpPerf are in OP/s and xtime is in ns
+    kdf['SP_FLOP'] = (kdf['spPerf'] * 1e-9 * kdf['xtime']).apply(int)
+    kdf['DP_FLOP'] = (kdf['dpPerf'] * 1e-9 * kdf['xtime']).apply(int)
+    
+    # Integer ops (unitless count)
+    kdf['INTOP'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
+    # Integer performance (OP/s), xtime in ns
     kdf['intPerf'] = kdf['intops'] / (1e-9 * kdf['xtime'])  # xtime is in nanoseconds
+    # Integer arithmetic intensity (OP/byte)
     kdf['intAI'] = kdf['intPerf'] / kdf['traffic']
     
     return kdf
