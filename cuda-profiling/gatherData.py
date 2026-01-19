@@ -88,32 +88,63 @@ def load_benchmarks_yaml():
 
 def get_runnable_targets():
     """Gather list of executable files from build directory"""
-    files = glob.glob(f'{BUILD_DIR}/*')
     execs = []
-    
-    for entry in files:
-        # Check if file is executable
-        if os.path.isfile(entry) and os.access(entry, os.X_OK):
-            basename = os.path.basename(entry)
-            
-            # Skip non-executable files
-            if any(ext in basename for ext in ['.cpp', '.c', '.o', '.so', '.log']):
+
+    bin_dir = os.path.join(BUILD_DIR, 'bin')
+    if os.path.isdir(bin_dir):
+        for model in ['cuda', 'omp']:
+            model_dir = os.path.join(bin_dir, model)
+            if not os.path.isdir(model_dir):
                 continue
-            
-            # Determine source directory
-            execSrcDir = os.path.abspath(f'{SRC_DIR}/{basename}')
-            
-            # Check source directory exists
-            if not os.path.isdir(execSrcDir):
-                print(f"WARNING: No source dir for {basename} at {execSrcDir}")
-                continue
-            
-            execDict = {
-                'basename': basename,
-                'exe': entry,
-                'src': execSrcDir
-            }
-            execs.append(execDict)
+
+            for entry in glob.glob(f'{model_dir}/*'):
+                if os.path.isfile(entry) and os.access(entry, os.X_OK):
+                    targetName = os.path.basename(entry)
+
+                    if any(ext in targetName for ext in ['.cpp', '.c', '.o', '.so', '.log']):
+                        continue
+
+                    execSrcDir = os.path.abspath(f'{SRC_DIR}/{targetName}-{model}')
+                    if not os.path.isdir(execSrcDir):
+                        fallback_src = os.path.abspath(f'{SRC_DIR}/{targetName}')
+                        if os.path.isdir(fallback_src):
+                            execSrcDir = fallback_src
+                        else:
+                            print(f"WARNING: No source dir for {targetName} at {execSrcDir}")
+                            continue
+
+                    execDict = {
+                        'targetName': targetName,
+                        'exe': entry,
+                        'src': execSrcDir,
+                        'model': model
+                    }
+                    execs.append(execDict)
+    else:
+        files = glob.glob(f'{BUILD_DIR}/*')
+        for entry in files:
+            # Check if file is executable
+            if os.path.isfile(entry) and os.access(entry, os.X_OK):
+                targetName = os.path.basename(entry)
+
+                # Skip non-executable files
+                if any(ext in targetName for ext in ['.cpp', '.c', '.o', '.so', '.log']):
+                    continue
+
+                # Determine source directory
+                execSrcDir = os.path.abspath(f'{SRC_DIR}/{targetName}')
+
+                # Check source directory exists
+                if not os.path.isdir(execSrcDir):
+                    print(f"WARNING: No source dir for {targetName} at {execSrcDir}")
+                    continue
+
+                execDict = {
+                    'targetName': targetName,
+                    'exe': entry,
+                    'src': execSrcDir
+                }
+                execs.append(execDict)
     
     print(f"Found {len(execs)} executable targets")
     return execs
@@ -121,9 +152,9 @@ def get_runnable_targets():
 def get_exe_args_from_yaml(targets, benchmarks_data):
     """Extract execution arguments from benchmarks.yaml"""
     for target in targets:
-        basename = target['basename']
+        targetName = target['targetName']
         # Remove model suffix (-cuda, -omp, etc) to get benchmark name
-        benchmark_name = re.sub(r'-(cuda|omp|hip|sycl)$', '', basename)
+        benchmark_name = re.sub(r'-(cuda|omp|hip|sycl)$', '', targetName)
         
         target['exeArgs'] = ''
         
@@ -135,7 +166,7 @@ def get_exe_args_from_yaml(targets, benchmarks_data):
                     target['exeArgs'] = ' '.join(str(a) for a in args)
         
         if not target['exeArgs']:
-            print(f"WARNING: No execution args found for {basename}")
+            print(f"WARNING: No execution args found for {targetName}")
     
     return targets
 
@@ -186,9 +217,50 @@ def demangle_kernel_name(mangled_name, prefer_tool='cu++filt'):
     # If all tools fail, return original
     return mangled_name
 
+def demangle_omp_offload_name(omp_symbol, prefer_tool='llvm-cxxfilt'):
+    """
+    Demangle an OpenMP offload entry name and preserve line number.
+
+    Example:
+        __omp_offloading_7f_437f7__Z20compact_cell_centric9full_data12compact_dataiPPc_l148
+        -> compact_cell_centric(full_data, compact_data, int, char**):l148
+    """
+    if not omp_symbol:
+        return omp_symbol
+
+    line_tag = None
+    line_match = re.match(r'^(.*)_l(\d+)$', omp_symbol)
+    if line_match:
+        omp_symbol = line_match.group(1)
+        line_tag = f"l{line_match.group(2)}"
+
+    mangled_part = omp_symbol.split('__')[-1] if '__' in omp_symbol else omp_symbol
+    demangled = demangle_kernel_name(mangled_part, prefer_tool=prefer_tool)
+
+    if demangled == mangled_part:
+        demangled = mangled_part
+
+    if line_tag:
+        return f"{demangled}:{line_tag}"
+
+    return demangled
+
+def is_library_kernel(demangled_name):
+    """Return True if the demangled name is from common CUDA libraries."""
+    if not demangled_name:
+        return False
+
+    library_markers = [
+        'cub::',
+        'thrust::',
+        '__cuda_'
+    ]
+
+    return any(marker in demangled_name for marker in library_markers)
+
 def get_cuobjdump_kernels(target):
     """Extract CUDA kernel names from executable using cuobjdump"""
-    basename = target['basename']
+    targetName = target['targetName']
     srcDir = target['src']
     exe_path = target['exe']
     
@@ -215,16 +287,9 @@ def get_cuobjdump_kernels(target):
             matches = re.finditer(pattern, output, re.MULTILINE)
             
             raw_names = [m.group() for m in matches if m.group()]
-            
-            # Demangle each name
-            demangled = []
-            for name in raw_names:
-                demangled_name = demangle_kernel_name(name)
-                demangled.append(demangled_name)
-            
-            return demangled
+            return raw_names
     except Exception as e:
-        print(f"cuobjdump failed for {basename}: {e}")
+        print(f"cuobjdump failed for {targetName}: {e}")
     
     # Try llvm-objdump as fallback
     try:
@@ -245,44 +310,58 @@ def get_cuobjdump_kernels(target):
             matches = re.finditer(kernel_pattern, output, re.MULTILINE)
             return [m.group().replace('.text.', '') for m in matches if m.group()]
     except Exception as e:
-        print(f"llvm-objdump failed for {basename}: {e}")
+        print(f"llvm-objdump failed for {targetName}: {e}")
     
     return []
 
+def parse_omp_offload_entries(objdump_output):
+    """Parse OpenMP offload entry names from objdump output text."""
+    patterns = [
+        r'(?<=\.offloading\.entry\.)(__omp_offloading.*)(?=\n)',
+        r'(?<=\.omp_offloading\.entry\.)(__omp_offloading.*)(?=\n)'
+    ]
+
+    kernel_names = []
+    for pattern in patterns:
+        matches = re.finditer(pattern, objdump_output, re.MULTILINE)
+        kernel_names.extend([m.group() for m in matches if m.group()])
+
+    return kernel_names
+
 def get_objdump_kernels(target):
     """Extract OpenMP kernel names from executable using objdump"""
-    basename = target['basename']
+    targetName = target['targetName']
     srcDir = target['src']
     exe_path = target['exe']
-    
-    try:
-        result = subprocess.run(
-            ['objdump', '-t', '--section=omp_offloading_entries', exe_path],
-            cwd=srcDir,
-            timeout=60,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        
-        if result.returncode == 0:
+
+    sections = ['llvm_offload_entries', 'omp_offloading_entries']
+
+    for section in sections:
+        try:
+            result = subprocess.run(
+                ['objdump', '-t', '--section', section, exe_path],
+                cwd=srcDir,
+                timeout=60,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+
+            if result.returncode != 0:
+                continue
+
             output = result.stdout.decode('UTF-8')
-            
-            # Extract offloading entry names
-            # Pattern matches OMP offloading entries of form:
-            #   .omp_offloading.entry.__omp_offloading_...
-            pattern = r'(?<=\.omp_offloading\.entry\.)(__omp_offloading.*)(?=\n)'
-            matches = re.finditer(pattern, output, re.MULTILINE)
-            
-            kernel_names = [m.group() for m in matches if m.group()]
-            
-            # OpenMP targets should have at least one offload region
-            if not kernel_names:
-                print(f"WARNING: No OMP offload entries found in {basename}")
-            
-            return kernel_names
-    except Exception as e:
-        print(f"objdump failed for {basename}: {e}")
-    
+            raw_names = parse_omp_offload_entries(output)
+
+            if not raw_names:
+                continue
+
+            return raw_names
+
+        except Exception as e:
+            print(f"objdump failed for {targetName}: {e}")
+            continue
+
+        print(f"WARNING: No OMP offload entries found in {targetName}")
     return []
 
 def extract_kernel_name_for_ncu(full_kernel_name):
@@ -291,6 +370,9 @@ def extract_kernel_name_for_ncu(full_kernel_name):
     
     Handles templates and namespaces by extracting the core function name.
     """
+    if not full_kernel_name:
+        return ''
+
     # Remove return type if present
     if ' ' in full_kernel_name:
         parts = full_kernel_name.split()
@@ -305,38 +387,60 @@ def extract_kernel_name_for_ncu(full_kernel_name):
     if '::' in full_kernel_name:
         full_kernel_name = full_kernel_name.split('::')[-1]
     
-    # Filter out library kernels (like cub::)
-    if full_kernel_name.startswith('cub::') or full_kernel_name.startswith('thrust::'):
-        return None
-    
     return full_kernel_name
 
 def get_kernel_names(targets):
     """Extract kernel names from all targets"""
     for target in tqdm(targets, desc='Extracting kernel names'):
-        basename = target['basename']
+        targetName = target['targetName']
+        model = target.get('model')
         
-        kernel_names = []
-        
-        if '-cuda' in basename:
+        kernels = []
+
+        if model == 'cuda' or '-cuda' in targetName:
             raw_names = get_cuobjdump_kernels(target)
             
             # Process each kernel name
             for name in raw_names:
-                simple_name = extract_kernel_name_for_ncu(name)
-                if simple_name:
-                    kernel_names.append(simple_name)
-        
-        elif '-omp' in basename:
-            kernel_names = get_objdump_kernels(target)
+                demangled = demangle_kernel_name(name)
+
+                if is_library_kernel(demangled):
+                    continue
+
+                profiler_name = extract_kernel_name_for_ncu(demangled)
+
+                if profiler_name:
+                    kernels.append({
+                        'mangled': name,
+                        'demangled': demangled,
+                        'profiler': profiler_name
+                    })
+
+        elif model == 'omp' or '-omp' in targetName:
+            raw_names = get_objdump_kernels(target)
+            for name in raw_names:
+                demangled = demangle_omp_offload_name(name)
+                kernels.append({
+                    'mangled': name,
+                    'demangled': demangled,
+                    'profiler': name
+                })
         
         # Remove duplicates while preserving order
-        kernel_names = list(dict.fromkeys(kernel_names))
+        unique = []
+        seen = set()
+        for kernel in kernels:
+            key = (kernel.get('mangled'), kernel.get('profiler'))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(kernel)
+        kernels = unique
         
-        target['kernelNames'] = kernel_names
+        target['kernels'] = kernels
         
-        if not kernel_names:
-            print(f"WARNING: No kernels found for {basename}")
+        if not kernels:
+            print(f"WARNING: No kernels found for {targetName}")
     
     return targets
 
@@ -346,12 +450,12 @@ def execute_target_with_ncu(target, kernelName):
     
     Captures roofline metrics for the first invocation of the kernel.
     """
-    basename = target['basename']
+    targetName = target['targetName']
     exeArgs = target['exeArgs']
     srcDir = target['src']
     exe_path = target['exe']
     
-    reportFileName = f'{basename}-[{kernelName}]-report'
+    reportFileName = f'{targetName}-[{kernelName}]-report'
     
     # NCU command for roofline profiling
     # -c 2: Capture first 2 invocations (use first, second as confirmation)
@@ -370,7 +474,7 @@ def execute_target_with_ncu(target, kernelName):
     if exeArgs:
         ncu_args.extend(shlex.split(exeArgs))
     
-    print(f'Profiling: {basename} - kernel: {kernelName}', flush=True)
+    print(f'Profiling: {targetName} - kernel: {kernelName}', flush=True)
     print(f'  Command: {" ".join(ncu_args)}', flush=True)
     
     try:
@@ -390,10 +494,10 @@ def execute_target_with_ncu(target, kernelName):
         # Kill process group on timeout
         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
         stdout, _ = process.communicate()
-        print(f'  TIMEOUT for {basename}-[{kernelName}]')
+        print(f'  TIMEOUT for {targetName}-[{kernelName}]')
         return (None, None)
     except Exception as e:
-        print(f'  ERROR executing {basename}-[{kernelName}]: {e}')
+        print(f'  ERROR executing {targetName}-[{kernelName}]: {e}')
         return (None, None)
     
     if returncode != 0:
@@ -403,7 +507,7 @@ def execute_target_with_ncu(target, kernelName):
     stdout_str = stdout.decode('UTF-8')
     
     if '==WARNING== No kernels were profiled.' in stdout_str:
-        print(f'  No kernels profiled (kernel not invoked)')
+        print(f'  No kernels profiled for {targetName} with kernel name {kernelName}')
         return (None, None)
     
     # Read ncu-rep file
@@ -497,12 +601,12 @@ def calc_roofline_data(df):
     
     return kdf
 
-def has_already_been_sampled(basename, kernelName, df):
+def has_already_been_sampled(targetName, kernelName, df):
     """Check if kernel has already been profiled"""
     if df.shape[0] == 0:
         return False
     
-    subset = df[(df['targetName'] == basename) & (df['kernelName'] == kernelName)]
+    subset = df[(df['targetName'] == targetName) & (df['kernelName'] == kernelName)]
     return subset.shape[0] > 0
 
 def execute_targets(targets, csvFilename, skipRuns=False):
@@ -516,25 +620,29 @@ def execute_targets(targets, csvFilename, skipRuns=False):
         df = pd.DataFrame()
     
     for target in tqdm(targets, desc='Profiling benchmarks'):
-        basename = target['basename']
-        kernelNames = target['kernelNames']
+        targetName = target['targetName']
+        kernels = target['kernels']
         exeArgs = target['exeArgs']
         
-        if not kernelNames:
-            print(f"Skipping {basename} - no kernels found")
+        if not kernels:
+            print(f"Skipping {targetName} - no kernels found")
             continue
         
-        for kernelName in kernelNames:
-            if has_already_been_sampled(basename, kernelName, df):
-                print(f"Skipping {basename}:[{kernelName}] - already sampled")
+        for kernel in kernels:
+            kernel_profiler = kernel['profiler']
+            kernel_mangled = kernel['mangled']
+            kernel_demangled = kernel['demangled']
+
+            if has_already_been_sampled(targetName, kernel_profiler, df):
+                print(f"Skipping {targetName}:[{kernel_profiler}] - already sampled")
                 continue
             
             if skipRuns:
-                print(f"Skipping {basename}:[{kernelName}] - skipRuns enabled")
+                print(f"Skipping {targetName}:[{kernel_profiler}] - skipRuns enabled")
                 continue
             
             # Execute with NCU
-            stdout, ncuResult = execute_target_with_ncu(target, kernelName)
+            stdout, ncuResult = execute_target_with_ncu(target, kernel_profiler)
             
             if ncuResult is None:
                 continue
@@ -551,9 +659,12 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                     'intops', 'intPerf', 'intAI'
                 ]].copy()
                 
-                subset['targetName'] = basename
+                subset['targetName'] = targetName
                 subset['exeArgs'] = exeArgs
-                subset['kernelName'] = kernelName
+                subset['kernelName'] = kernel_profiler
+                subset['kernelMangled'] = kernel_mangled
+                subset['kernelDemangled'] = kernel_demangled
+                subset['kernelProfiler'] = kernel_profiler
                 
                 # Append to dataframe
                 df = pd.concat([df, subset], ignore_index=True)
@@ -562,7 +673,7 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                 df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"', 
                          index=False, na_rep='NULL')
                 
-                print(f"  Saved data for {basename}:[{kernelName}]")
+                print(f"  Saved data for {targetName}:[{kernel_profiler}]")
                 
             except Exception as e:
                 print(f"  Error processing results: {e}")

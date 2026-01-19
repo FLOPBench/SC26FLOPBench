@@ -79,16 +79,17 @@ def test_executables_match_benchmark_names(built_executables, benchmarks_yaml):
     # Get benchmark names from YAML
     benchmark_names = set(benchmarks_yaml.keys())
     
-    # Extract benchmark names from executable names (remove model suffix)
+    # Extract benchmark names from executable names
+    # Current build outputs have no model suffix, but keep backward compatibility.
     exe_benchmarks = set()
     for exe in built_executables:
-        # Remove model suffix to get benchmark name
         name = exe.name
+        stripped = name
         for suffix in ['-cuda', '-omp', '-hip', '-sycl']:
             if suffix in name:
-                bench_name = name.replace(suffix, '')
-                exe_benchmarks.add(bench_name)
+                stripped = name.replace(suffix, '')
                 break
+        exe_benchmarks.add(stripped)
     
     # Check that some executables match YAML benchmarks
     matches = exe_benchmarks & benchmark_names
@@ -110,24 +111,33 @@ def test_all_yaml_benchmarks_attempted(built_executables, benchmarks_yaml):
     Note: This is marked slow and may report many failures if build was incomplete.
     """
     
-    # Get all expected executables from YAML
+    # Get all expected benchmarks from YAML
     expected = set()
     for bench_name, bench_data in benchmarks_yaml.items():
         if 'models' in bench_data:
             for model in bench_data['models']:
                 if model in ['cuda', 'omp']:  # Only check models we build
-                    expected.add(f"{bench_name}-{model}")
+                    expected.add(bench_name)
+                    break
     
-    # Get actual executables
-    actual = set(exe.name for exe in built_executables)
+    # Get actual executables (strip any model suffix for backward compatibility)
+    actual = set()
+    for exe in built_executables:
+        name = exe.name
+        stripped = name
+        for suffix in ['-cuda', '-omp', '-hip', '-sycl']:
+            if suffix in name:
+                stripped = name.replace(suffix, '')
+                break
+        actual.add(stripped)
     
     # Find missing
     missing = expected - actual
     
     # Report
-    print(f"\nExpected: {len(expected)} executables")
-    print(f"Built: {len(actual)} executables")
-    print(f"Missing: {len(missing)} executables")
+    print(f"\nExpected: {len(expected)} benchmarks")
+    print(f"Built: {len(actual)} benchmarks")
+    print(f"Missing: {len(missing)} benchmarks")
     
     if missing:
         print(f"\nSample missing executables (first 10):")

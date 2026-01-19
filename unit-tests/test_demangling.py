@@ -8,6 +8,13 @@ Includes test for the demangling bug fix from upstream gpuFLOPBench.
 import pytest
 import subprocess
 import re
+import sys
+from pathlib import Path
+
+GATHERDATA_DIR = Path(__file__).resolve().parents[1] / "cuda-profiling"
+sys.path.insert(0, str(GATHERDATA_DIR))
+
+import gatherData as gd
 
 # Test constants: Mangled C++ names for testing demangling
 # These are standard Itanium ABI mangled names
@@ -44,87 +51,6 @@ def test_demangling_tools_available():
         "No demangling tools available. Need at least one of: cu++filt, c++filt, llvm-cxxfilt"
 
 
-def demangle_name(mangled, tool='c++filt'):
-    """
-    Demangle a kernel name using specified tool.
-    
-    Returns demangled name or original if demangling fails.
-    """
-    if not check_tool_available(tool):
-        return mangled
-    
-    try:
-        result = subprocess.run(
-            [tool],
-            input=mangled.encode(),
-            capture_output=True,
-            timeout=5
-        )
-        
-        if result.returncode == 0:
-            demangled = result.stdout.decode('utf-8').strip()
-            if demangled and demangled != mangled:
-                return demangled
-    except Exception:
-        pass
-    
-    return mangled
-
-
-def demangle_name_reliable(mangled, prefer_tool='cu++filt'):
-    """
-    Demangle kernel name using preferred tool, with fallbacks.
-    
-    This is the FIXED version that tries tools in order and returns
-    first successful result (avoiding the upstream bug).
-    """
-    tools = [prefer_tool]
-    
-    # Add other tools as fallbacks
-    for tool in ['cu++filt', 'c++filt', 'llvm-cxxfilt']:
-        if tool != prefer_tool and tool not in tools:
-            tools.append(tool)
-    
-    for tool in tools:
-        result = demangle_name(mangled, tool)
-        if result != mangled:
-            return result
-    
-    return mangled
-
-
-def extract_simple_kernel_name(full_name):
-    """
-    Extract simple kernel name for use with ncu -k.
-    
-    Removes:
-    - Return types
-    - Template parameters
-    - Namespaces
-    """
-    # Handle empty or whitespace-only input
-    if not full_name or not full_name.strip():
-        return full_name.strip() if full_name else ""
-    
-    # Remove return type if present
-    if ' ' in full_name:
-        parts = full_name.split()
-        if parts:
-            full_name = parts[-1]
-    
-    # Remove template parameters
-    if '<' in full_name or '>' in full_name:
-        parts = re.split(r'<|>', full_name)
-        if parts:
-            full_name = parts[0]
-    
-    # Remove namespace
-    if '::' in full_name:
-        parts = full_name.split('::')
-        if parts:
-            full_name = parts[-1]
-    
-    return full_name
 
 
 def test_cxxfilt_basic_demangling():
@@ -134,7 +60,7 @@ def test_cxxfilt_basic_demangling():
         pytest.skip("c++filt not available")
     
     # Simple mangled C++ name
-    demangled = demangle_name(SIMPLE_MANGLED_NAME, 'c++filt')
+    demangled = gd.demangle_kernel_name(SIMPLE_MANGLED_NAME, 'c++filt')
     
     assert demangled != SIMPLE_MANGLED_NAME, "c++filt failed to demangle simple name"
     assert "foo" in demangled, f"Unexpected demangled result: {demangled}"
@@ -145,7 +71,7 @@ def test_demangling_with_preferred_tool():
     
     # Try with c++filt if available
     if check_tool_available('c++filt'):
-        result = demangle_name_reliable(SIMPLE_KERNEL_MANGLED, prefer_tool='c++filt')
+        result = gd.demangle_kernel_name(SIMPLE_KERNEL_MANGLED, prefer_tool='c++filt')
         assert result != SIMPLE_KERNEL_MANGLED, "Demangling failed"
         assert "kernel" in result, f"Unexpected result: {result}"
 
@@ -170,10 +96,10 @@ def test_demangling_first_try_succeeds():
         pytest.skip("No demangling tools available")
     
     # Should succeed with first tool
-    first_try_result = demangle_name(SIMPLE_KERNEL_MANGLED, available_tool)
+    first_try_result = gd.demangle_kernel_name(SIMPLE_KERNEL_MANGLED, available_tool)
     
     # Should get same result with reliable function
-    reliable_result = demangle_name_reliable(SIMPLE_KERNEL_MANGLED, available_tool)
+    reliable_result = gd.demangle_kernel_name(SIMPLE_KERNEL_MANGLED, available_tool)
     
     assert first_try_result == reliable_result, \
         "Demangling results differ between first try and reliable function"
@@ -187,7 +113,7 @@ def test_extract_simple_name_removes_templates():
     
     # Template without spaces (as would come from real demangling)
     full_name = "myKernel<int>"
-    simple = extract_simple_kernel_name(full_name)
+    simple = gd.extract_kernel_name_for_ncu(full_name)
     
     assert simple == "myKernel", f"Template removal failed: {simple}"
 
@@ -196,7 +122,7 @@ def test_extract_simple_name_removes_namespace():
     """Test that namespace is removed"""
     
     full_name = "my::namespace::kernel"
-    simple = extract_simple_kernel_name(full_name)
+    simple = gd.extract_kernel_name_for_ncu(full_name)
     
     assert simple == "kernel", f"Namespace removal failed: {simple}"
 
@@ -205,7 +131,7 @@ def test_extract_simple_name_removes_return_type():
     """Test that return type is removed"""
     
     full_name = "void myKernel"
-    simple = extract_simple_kernel_name(full_name)
+    simple = gd.extract_kernel_name_for_ncu(full_name)
     
     assert simple == "myKernel", f"Return type removal failed: {simple}"
 
@@ -215,7 +141,7 @@ def test_extract_simple_name_complex():
     
     # More realistic: demangled names don't have spaces in templates
     full_name = "void my::space::kernel<int>"
-    simple = extract_simple_kernel_name(full_name)
+    simple = gd.extract_kernel_name_for_ncu(full_name)
     
     assert simple == "kernel", f"Complex name extraction failed: {simple}"
 
@@ -226,7 +152,7 @@ def test_extract_simple_name_already_simple():
     simple_names = ["kernel", "myKernel", "kernel_v2"]
     
     for name in simple_names:
-        result = extract_simple_kernel_name(name)
+        result = gd.extract_kernel_name_for_ncu(name)
         assert result == name, f"Simple name modified: {name} -> {result}"
 
 
@@ -237,7 +163,7 @@ def test_omp_kernel_names_dont_need_demangling():
     
     # Demangling should return original (or similar)
     if check_tool_available('c++filt'):
-        result = demangle_name(omp_name, 'c++filt')
+        result = gd.demangle_kernel_name(omp_name, 'c++filt')
         # OMP names typically don't demangle or demangle to themselves
         assert '__omp_offloading' in result, \
             f"OMP kernel name changed unexpectedly: {result}"
@@ -253,7 +179,7 @@ def test_filter_library_kernels():
     ]
     
     for kernel in library_kernels:
-        simple = extract_simple_kernel_name(kernel)
+        simple = gd.extract_kernel_name_for_ncu(kernel)
         
         # After extraction, check if we should filter
         # In practice, gatherData.py filters before extraction
@@ -280,13 +206,13 @@ def test_demangling_integration():
         pytest.skip("No demangling tools available")
     
     # Step 1: Demangle
-    demangled = demangle_name_reliable(TEMPLATE_KERNEL_MANGLED, available_tool)
+    demangled = gd.demangle_kernel_name(TEMPLATE_KERNEL_MANGLED, available_tool)
     
     print(f"\nMangled:   {TEMPLATE_KERNEL_MANGLED}")
     print(f"Demangled: {demangled}")
     
     # Step 2: Extract simple name
-    simple = extract_simple_kernel_name(demangled)
+    simple = gd.extract_kernel_name_for_ncu(demangled)
     
     print(f"Simple:    {simple}")
     
@@ -306,7 +232,7 @@ def test_demangling_multiple_tools():
     
     results = {}
     for tool in available:
-        result = demangle_name(SIMPLE_KERNEL_MANGLED, tool)
+        result = gd.demangle_kernel_name(SIMPLE_KERNEL_MANGLED, tool)
         results[tool] = result
     
     print(f"\nDemangling results for '{SIMPLE_KERNEL_MANGLED}':")
@@ -325,6 +251,31 @@ def test_empty_name_handling():
     empty_names = ["", "   ", "\n"]
     
     for name in empty_names:
-        simple = extract_simple_kernel_name(name)
+        simple = gd.extract_kernel_name_for_ncu(name)
         # Should not crash, should return stripped version
         assert isinstance(simple, str), "Extract returned non-string"
+
+
+def test_parse_omp_offload_entries():
+    """Test parsing of OpenMP offload entries from objdump output."""
+    sample_output = """
+0000000000000000  w    O llvm_offload_entries   0000000000000038              .offloading.entry.__omp_offloading_7f_1234__Z3foov_l12
+0000000000000000  w    O llvm_offload_entries   0000000000000038              .offloading.entry.__omp_offloading_7f_5678__Z3barv_l34
+"""
+
+    names = gd.parse_omp_offload_entries(sample_output)
+    assert names == [
+        "__omp_offloading_7f_1234__Z3foov_l12",
+        "__omp_offloading_7f_5678__Z3barv_l34",
+    ]
+
+
+def test_demangle_omp_offload_name_with_line():
+    """Demangle OpenMP offload name and keep line tag."""
+    if not any(check_tool_available(t) for t in ['llvm-cxxfilt', 'c++filt', 'cu++filt']):
+        pytest.skip("No demangling tools available")
+
+    omp_symbol = "__omp_offloading_7f_437f7__Z20compact_cell_centric9full_data12compact_dataiPPc_l148"
+    demangled = gd.demangle_omp_offload_name(omp_symbol, prefer_tool='llvm-cxxfilt')
+    assert demangled.endswith(":l148")
+    assert "compact_cell_centric" in demangled
