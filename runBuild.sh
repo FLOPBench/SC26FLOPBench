@@ -148,7 +148,7 @@ cmake "$HECBENCH_DIR" \
     -DHECBENCH_OMP_TARGET=-fopenmp \
     -DHECBENCH_OMP_TARGET_BACKEND=--offload-arch=sm_$CUDA_ARCH \
     -DNCCL_DIR=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/13.0/nccl \
-    -DCMAKE_PREFIX_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/13.0/nccl
+    -DCMAKE_PREFIX_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/13.0/nccl 
 
 if [ $? -ne 0 ]; then
     log_error "CMake configuration failed"

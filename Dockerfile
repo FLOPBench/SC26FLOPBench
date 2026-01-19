@@ -64,6 +64,12 @@ RUN wget https://apt.llvm.org/llvm.sh && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# for offloading support, we need to install these packages
+# they fix the following OpenMP compilation error
+# clang++: error: no library 'libomptarget-nvptx.bc' found in the default clang lib directory
+RUN apt-get update && \
+    apt-get install liboffload-21-dev libomp-21-dev
+
 # Set clang-21 as default compiler
 RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100 && \
     update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100 && \
