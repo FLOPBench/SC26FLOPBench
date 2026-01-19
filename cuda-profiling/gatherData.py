@@ -483,6 +483,47 @@ def get_kernel_names(targets):
     return targets
 
 
+def summarize_profiliable_kernels(targets):
+    """
+    Summarize profiliable codes/kernels and list targets without kernels.
+    """
+    cuda_missing = []
+    omp_missing = []
+    cuda_profiliable = 0
+    omp_profiliable = 0
+    cuda_kernels = 0
+    omp_kernels = 0
+
+    for target in targets:
+        target_name = target.get('targetName')
+        model = target.get('model')
+        kernels = target.get('kernels') or []
+
+        if model == 'cuda' or '-cuda' in (target_name or ''):
+            if kernels:
+                cuda_profiliable += 1
+                cuda_kernels += len(kernels)
+            else:
+                cuda_missing.append(target_name)
+        elif model == 'omp' or '-omp' in (target_name or ''):
+            if kernels:
+                omp_profiliable += 1
+                omp_kernels += len(kernels)
+            else:
+                omp_missing.append(target_name)
+
+    summary = {
+        'cuda_profiliable': cuda_profiliable,
+        'omp_profiliable': omp_profiliable,
+        'cuda_kernels': cuda_kernels,
+        'omp_kernels': omp_kernels,
+        'cuda_missing': cuda_missing,
+        'omp_missing': omp_missing,
+    }
+
+    return summary
+
+
 def source_has_cuda_kernels(src_dir):
     """
     Best-effort check whether CUDA sources define kernels.
@@ -809,6 +850,33 @@ def main():
     
     # Extract kernel names
     targets = get_kernel_names(targets)
+
+    summary = summarize_profiliable_kernels(targets)
+    total_codes = summary['cuda_profiliable'] + summary['omp_profiliable']
+    total_kernels = summary['cuda_kernels'] + summary['omp_kernels']
+
+    print("\n===== Profiling Summary =====")
+    print(
+        f"Profiliable codes: {total_codes} "
+        f"(CUDA: {summary['cuda_profiliable']}, OpenMP: {summary['omp_profiliable']})"
+    )
+    print(
+        f"Profiliable kernels: {total_kernels} "
+        f"(CUDA: {summary['cuda_kernels']}, OpenMP: {summary['omp_kernels']})"
+    )
+
+    if summary['cuda_missing']:
+        print("\nCUDA codes without profiliable kernels:")
+        for name in summary['cuda_missing']:
+            print(f"  - {name}")
+
+    if summary['omp_missing']:
+        print("\nOpenMP codes without profiliable kernels:")
+        for name in summary['omp_missing']:
+            print(f"  - {name}")
+
+    print("============================\n")
+    input("Press Enter to continue profiling...")
     
     # Execute and profile
     results = execute_targets(targets, args.outfile, args.skipRuns)
