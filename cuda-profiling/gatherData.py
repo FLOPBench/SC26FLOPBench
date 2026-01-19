@@ -313,7 +313,9 @@ def execute_target_with_ncu(target, kernelName):
     srcDir = target['src']
     exe_path = target['exe']
     
-    reportFileName = f'{targetName}-[{kernelName}]-report'
+    results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
+    os.makedirs(results_dir, exist_ok=True)
+    reportFileName = os.path.join(results_dir, f'{targetName}-[{kernelName}]-report')
     
     # NCU command for roofline profiling
     # -c 2: Capture first 2 invocations (use first, second as confirmation)
@@ -323,7 +325,7 @@ def execute_target_with_ncu(target, kernelName):
         'ncu', '-f', '-o', reportFileName,
         '--set', 'roofline',
         '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
-        '-c', '2',
+        '-c', '1',
         '-k', kernelName,
         exe_path
     ]
@@ -369,7 +371,7 @@ def execute_target_with_ncu(target, kernelName):
         return (None, None)
     
     # Read ncu-rep file
-    rep_file = f'{srcDir}/{reportFileName}.ncu-rep'
+    rep_file = f'{reportFileName}.ncu-rep'
     if not os.path.exists(rep_file):
         print(f'  No .ncu-rep file generated')
         return (None, None)
@@ -543,18 +545,27 @@ def execute_targets(targets, csvFilename, skipRuns=False):
     return df
 
 def main():
+    script_dir = os.path.abspath(os.path.dirname(__file__))
+    default_build_dir = os.path.abspath(os.path.join(script_dir, '../build'))
+    default_src_dir = os.path.abspath(os.path.join(script_dir, '../HeCBench/src'))
+    default_outfile = os.path.abspath(os.path.join(script_dir, 'gpuData.csv'))
+
     parser = argparse.ArgumentParser(
         description='Profile HeCBench benchmarks with NVIDIA Nsight Compute'
     )
     
-    parser.add_argument('--buildDir', type=str, default='../build',
+    parser.add_argument('--buildDir', type=str, default=default_build_dir,
                        help='Directory containing built executables')
-    parser.add_argument('--srcDir', type=str, default='../HeCBench/src',
+    parser.add_argument('--srcDir', type=str, default=default_src_dir,
                        help='Directory containing source files')
-    parser.add_argument('--outfile', type=str, default='./gpuData.csv',
+    parser.add_argument('--outfile', type=str, default=default_outfile,
                        help='Output CSV file for profiling data')
     parser.add_argument('--skipRuns', action='store_true',
                        help='Skip execution, only parse existing ncu-rep files')
+    parser.add_argument('--cudaOnly', action='store_true',
+                       help='Profile CUDA targets only')
+    parser.add_argument('--ompOnly', action='store_true',
+                       help='Profile OpenMP targets only')
     
     args = parser.parse_args()
     
@@ -566,6 +577,21 @@ def main():
     
     # Get executable targets
     targets = get_runnable_targets()
+
+    if args.cudaOnly and args.ompOnly:
+        print("ERROR: --cudaOnly and --ompOnly cannot be used together")
+        sys.exit(1)
+
+    if args.cudaOnly:
+        targets = [
+            t for t in targets
+            if t.get('model') == 'cuda' or '-cuda' in (t.get('targetName') or '')
+        ]
+    elif args.ompOnly:
+        targets = [
+            t for t in targets
+            if t.get('model') == 'omp' or '-omp' in (t.get('targetName') or '')
+        ]
     
     if not targets:
         print("ERROR: No executable targets found!")

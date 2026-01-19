@@ -246,7 +246,8 @@ def extract_run_args_from_makefile(makefile_path, exe_name=None, src_dir=None):
     while i < len(recipe_lines):
         merged = recipe_lines[i].rstrip()
         while merged.endswith("\\") and i + 1 < len(recipe_lines):
-            merged = merged[:-1].rstrip() + " " + recipe_lines[i + 1].lstrip()
+            next_line = recipe_lines[i + 1].rstrip()
+            merged = merged[:-1].rstrip() + " " + next_line.lstrip()
             i += 1
         i += 1
 

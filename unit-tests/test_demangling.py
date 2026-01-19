@@ -448,3 +448,46 @@ def test_profiliable_kernel_counts(cuda_executables, omp_executables):
     print(
         f"Profiliable kernels: {total_kernels} (CUDA: {cuda_kernels}, OpenMP: {omp_kernels})"
     )
+
+
+def test_cuda_non_profiliable_targets_have_no_source_kernels(cuda_executables):
+    """
+    For CUDA executables that appear to have no profiliable kernels,
+    confirm their sources contain no CUDA kernel markers.
+    """
+    if not cuda_executables:
+        pytest.skip("No CUDA executables found")
+
+    if not check_tool_available('cuobjdump'):
+        pytest.skip("cuobjdump not available")
+
+    hecbench_src = Path(__file__).resolve().parents[1] / "HeCBench" / "src"
+
+    mismatches = []
+    for exe in cuda_executables:
+        target_name = exe.name
+        src_dir = hecbench_src / f"{target_name}-cuda"
+        if not src_dir.is_dir():
+            alt = hecbench_src / target_name
+            if alt.is_dir():
+                src_dir = alt
+            else:
+                continue
+
+        target = {
+            'targetName': target_name,
+            'exe': str(exe),
+            'src': str(src_dir),
+            'model': 'cuda'
+        }
+
+        if gd.exe_has_cuda_kernels(target):
+            continue
+
+        if gd.source_has_cuda_kernels(str(src_dir)):
+            mismatches.append(target_name)
+
+    assert not mismatches, (
+        "CUDA targets deemed non-profiliable but found kernel markers in source: "
+        f"{sorted(mismatches)}"
+    )
