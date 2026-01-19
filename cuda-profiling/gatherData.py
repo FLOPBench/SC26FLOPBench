@@ -278,15 +278,35 @@ def get_cuobjdump_kernels(target):
             output = result.stdout.decode('UTF-8')
             
             # Extract kernel names with regex
-            # Pattern explanation:
-            #   - Matches text after ' : x-' or ' : x-void '
-            #   - Captures kernel name characters (word chars, hyphens, colons)
-            #   - Looks ahead for function signature in parentheses/angle brackets
-            #   - Followed by architecture-specific suffix (.sm_XX.elf.bin or [clone])
-            pattern = r'((?<= : x-)|(?<= : x-void ))[\w\-\:]*(?=[\(\<].*[\)\>](?:(?:(?:(?:\.sm_)|(?: \(\.sm_)).*\.elf\.bin)|(?: \[clone)))'
-            matches = re.finditer(pattern, output, re.MULTILINE)
-            
-            raw_names = [m.group() for m in matches if m.group()]
+            # cuobjdump output formats vary across CUDA/clang versions. Common forms:
+            #   "SASS text section 3 : x-_Z15accuracy_kerneliiiPKfPKiPi.sm_86.elf.bin"
+            #   "SASS text section 1 : x-void myKernel(int*) (sm_80)"
+            #   "SASS text section 1 : x-_Z6kernelv [clone]"
+            raw_names = []
+
+            patterns = [
+                # Capture mangled name before .sm_XX.elf.bin or [clone]
+                r': x-([^\s]+?)(?=\.sm_[0-9A-Za-z]+\.elf\.bin| \[clone\]|$)',
+                # Capture name after "x-void" for verbose output formats
+                r': x-void\s+([^\s\(]+)',
+            ]
+
+            for pattern in patterns:
+                matches = re.finditer(pattern, output, re.MULTILINE)
+                for m in matches:
+                    name = m.group(1).strip()
+                    if name:
+                        raw_names.append(name)
+
+            # Fallback for older outputs with .text.<symbol>
+            if not raw_names:
+                text_pattern = r'\.text\.[\w<>:,\s\*\-]+(?=\s|$)'
+                matches = re.finditer(text_pattern, output, re.MULTILINE)
+                for m in matches:
+                    name = m.group().replace('.text.', '').strip()
+                    if name:
+                        raw_names.append(name)
+
             return raw_names
     except Exception as e:
         print(f"cuobjdump failed for {targetName}: {e}")
@@ -373,21 +393,31 @@ def extract_kernel_name_for_ncu(full_kernel_name):
     if not full_kernel_name:
         return ''
 
-    # Remove return type if present
-    if ' ' in full_kernel_name:
-        parts = full_kernel_name.split()
-        full_kernel_name = parts[-1]
-    
-    # Handle templates - remove angle brackets and contents
-    if '<' in full_kernel_name or '>' in full_kernel_name:
-        parts = re.split(r'<|>', full_kernel_name)
-        full_kernel_name = parts[0]
-    
-    # Handle namespaces - take last component
-    if '::' in full_kernel_name:
-        full_kernel_name = full_kernel_name.split('::')[-1]
-    
-    return full_kernel_name
+    name = full_kernel_name.strip()
+    if not name:
+        return ''
+
+    # Drop parameter list if present: "void kernel<int>(T1 *)" -> "void kernel<int>"
+    if '(' in name:
+        name = name.split('(', 1)[0].strip()
+
+    # Remove return type: "void my::kernel<int>" -> "my::kernel<int>"
+    if ' ' in name:
+        parts = [p for p in re.split(r'\s+', name) if p]
+        name = parts[-1] if parts else ''
+
+    if not name:
+        return ''
+
+    # Remove templates: "kernel<int>" -> "kernel"
+    if '<' in name:
+        name = name.split('<', 1)[0]
+
+    # Remove namespaces: "my::space::kernel" -> "kernel"
+    if '::' in name:
+        name = name.split('::')[-1]
+
+    return name.strip()
 
 def get_kernel_names(targets):
     """Extract kernel names from all targets"""
@@ -438,11 +468,72 @@ def get_kernel_names(targets):
         kernels = unique
         
         target['kernels'] = kernels
-        
+
         if not kernels:
-            print(f"WARNING: No kernels found for {targetName}")
+            if model == 'cuda' or '-cuda' in targetName:
+                if not source_has_cuda_kernels(target.get('src')):
+                    print(f"INFO: No profiliable CUDA kernels found in sources for {targetName}; skipping.")
+                elif not exe_has_cuda_kernels(target):
+                    print(f"INFO: No profiliable CUDA kernels found in executable for {targetName}; skipping.")
+                else:
+                    print(f"WARNING: No CUDA kernels found for {targetName} (kernels expected from source)")
+            else:
+                print(f"WARNING: No kernels found for {targetName}")
     
     return targets
+
+
+def source_has_cuda_kernels(src_dir):
+    """
+    Best-effort check whether CUDA sources define kernels.
+
+    Returns True if any source file contains __global__ or __device__.
+    """
+    if not src_dir or not os.path.isdir(src_dir):
+        return False
+
+    patterns = ["__global__", "__device__"]
+    extensions = (".cu", ".cuh", ".cpp", ".cc", ".c", ".h", ".hpp")
+
+    try:
+        for root, _, files in os.walk(src_dir):
+            for name in files:
+                if not name.endswith(extensions):
+                    continue
+                path = os.path.join(root, name)
+                try:
+                    with open(path, 'r', errors='ignore') as f:
+                        contents = f.read()
+                        if any(pat in contents for pat in patterns):
+                            return True
+                except OSError:
+                    continue
+    except Exception:
+        return False
+
+    return False
+
+
+def exe_has_cuda_kernels(target):
+    """
+    Check if CUDA executable contains any profiliable (non-library) kernels.
+    """
+    if not target:
+        return False
+
+    raw_names = get_cuobjdump_kernels(target)
+    if not raw_names:
+        return False
+
+    for name in raw_names:
+        demangled = demangle_kernel_name(name)
+        if is_library_kernel(demangled):
+            continue
+        profiler = extract_kernel_name_for_ncu(demangled)
+        if profiler:
+            return True
+
+    return False
 
 def execute_target_with_ncu(target, kernelName):
     """

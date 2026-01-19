@@ -91,10 +91,10 @@ cd "$TESTS_DIR"
 
 if [ "$EXCLUDE_GPU" = true ]; then
     log_info "Running tests (excluding GPU and slow tests)..."
-    pytest -v -m 'not gpu and not slow'
+    pytest -v -s -m 'not gpu and not slow'
 else
     log_info "Running all tests..."
-    pytest -v
+    pytest -v -s
 fi
 
 # pytest will return its exit code, which we propagate

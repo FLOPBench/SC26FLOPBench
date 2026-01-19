@@ -279,3 +279,92 @@ def test_demangle_omp_offload_name_with_line():
     demangled = gd.demangle_omp_offload_name(omp_symbol, prefer_tool='llvm-cxxfilt')
     assert demangled.endswith(":l148")
     assert "compact_cell_centric" in demangled
+
+
+@pytest.mark.slow
+def test_ncu_name_extraction_all_executables(cuda_executables, omp_executables):
+    """
+    Ensure NCU kernel name extraction works for CUDA and OpenMP executables.
+
+    All executables should have at least one kernel name extracted from their
+    respective binaries.
+    """
+    if not cuda_executables and not omp_executables:
+        pytest.skip("No executables found to test")
+
+    if cuda_executables and not check_tool_available('cuobjdump'):
+        pytest.skip("cuobjdump not available")
+
+    hecbench_src = Path(__file__).resolve().parents[1] / "HeCBench" / "src"
+
+    # CUDA executables: use cuobjdump + demangle + extract for NCU
+    missing_cuda = []
+    skipped_cuda = []
+    for exe in cuda_executables:
+        target_name = exe.name
+        src_dir = hecbench_src / f"{target_name}-cuda"
+        if not src_dir.is_dir():
+            alt = hecbench_src / target_name
+            if alt.is_dir():
+                src_dir = alt
+
+        if not gd.source_has_cuda_kernels(str(src_dir)):
+            skipped_cuda.append(target_name)
+            continue
+
+        target = {
+            'targetName': target_name,
+            'exe': str(exe),
+            'src': str(src_dir),
+            'model': 'cuda'
+        }
+
+        if not gd.exe_has_cuda_kernels(target):
+            skipped_cuda.append(target_name)
+            continue
+
+        raw_names = gd.get_cuobjdump_kernels(target)
+        profiler_names = []
+        for name in raw_names:
+            demangled = gd.demangle_kernel_name(name)
+            if gd.is_library_kernel(demangled):
+                continue
+            profiler = gd.extract_kernel_name_for_ncu(demangled)
+            if profiler:
+                profiler_names.append(profiler)
+
+        if not profiler_names:
+            missing_cuda.append(target_name)
+
+    if missing_cuda:
+        pytest.fail(f"CUDA executables without extracted kernel names: {missing_cuda[:10]}")
+
+    # OpenMP executables: use objdump + demangle
+    missing_omp = []
+    for exe in omp_executables:
+        target_name = exe.name
+        src_dir = hecbench_src / f"{target_name}-omp"
+        if not src_dir.is_dir():
+            alt = hecbench_src / target_name
+            if alt.is_dir():
+                src_dir = alt
+
+        target = {
+            'targetName': target_name,
+            'exe': str(exe),
+            'src': str(src_dir),
+            'model': 'omp'
+        }
+
+        raw_names = gd.get_objdump_kernels(target)
+        if not raw_names:
+            missing_omp.append(target_name)
+            continue
+
+        # Ensure demangling runs and yields non-empty names
+        demangled = [gd.demangle_omp_offload_name(name) for name in raw_names]
+        if not any(name.strip() for name in demangled):
+            missing_omp.append(target_name)
+
+    if missing_omp:
+        pytest.fail(f"OpenMP executables without extracted kernel names: {missing_omp[:10]}")

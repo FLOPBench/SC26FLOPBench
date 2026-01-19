@@ -79,20 +79,32 @@ def extract_cuda_kernels_with_cuobjdump(exe_path):
         
         output = result.stdout
         
-        # Pattern to match kernel names in cuobjdump output
-        # Pattern explanation:
-        #   \.text\. - Match literal ".text." prefix
-        #   [\w<>:,\s\*\-]+ - Match kernel name characters (word chars, templates, namespaces, pointers)
-        #   (?=\s|$) - Positive lookahead for whitespace or end of line
-        pattern = r'\.text\.[\w<>:,\s\*\-]+(?=\s|$)'
-        matches = re.finditer(pattern, output, re.MULTILINE)
-        
         kernel_names = []
-        for match in matches:
-            name = match.group().replace('.text.', '').strip()
-            if name:
-                kernel_names.append(name)
-        
+
+        # Common cuobjdump output formats vary; handle multiple patterns.
+        patterns = [
+            # "SASS text section 3 : x-_Z15kernel...sm_86.elf.bin"
+            r': x-([^\s]+?)(?=\.sm_[0-9A-Za-z]+\.elf\.bin| \[clone\]|$)',
+            # "SASS text section 1 : x-void myKernel(...)"
+            r': x-void\s+([^\s\(]+)',
+        ]
+
+        for pattern in patterns:
+            matches = re.finditer(pattern, output, re.MULTILINE)
+            for match in matches:
+                name = match.group(1).strip()
+                if name:
+                    kernel_names.append(name)
+
+        # Fallback for older outputs with .text.<symbol>
+        if not kernel_names:
+            text_pattern = r'\.text\.[\w<>:,\s\*\-]+(?=\s|$)'
+            matches = re.finditer(text_pattern, output, re.MULTILINE)
+            for match in matches:
+                name = match.group().replace('.text.', '').strip()
+                if name:
+                    kernel_names.append(name)
+
         return kernel_names
     
     except Exception as e:
@@ -107,28 +119,38 @@ def extract_omp_kernels_with_objdump(exe_path):
     Returns list of kernel names or empty list if extraction fails.
     """
     try:
-        result = subprocess.run(
-            ['objdump', '-t', '--section=omp_offloading_entries', str(exe_path)],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        if result.returncode != 0:
-            return []
-        
-        output = result.stdout
-        
-        # Pattern to match OMP offloading entry names
-        # Pattern explanation:
-        #   (?<=\.omp_offloading\.entry\.) - Positive lookbehind for entry prefix
-        #   (__omp_offloading[^\s]+) - Capture __omp_offloading followed by non-whitespace
-        pattern = r'(?<=\.omp_offloading\.entry\.)(__omp_offloading[^\s]+)'
-        matches = re.finditer(pattern, output, re.MULTILINE)
-        
-        kernel_names = [m.group(1) for m in matches if m.group(1)]
-        
-        return kernel_names
+        sections = [
+            'llvm_offload_entries',
+            'omp_offloading_entries',
+        ]
+
+        patterns = [
+            r'(?<=\.offloading\.entry\.)(__omp_offloading[^\s]+)',
+            r'(?<=\.omp_offloading\.entry\.)(__omp_offloading[^\s]+)',
+        ]
+
+        for section in sections:
+            result = subprocess.run(
+                ['objdump', '-t', f'--section={section}', str(exe_path)],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                continue
+
+            output = result.stdout
+
+            kernel_names = []
+            for pattern in patterns:
+                matches = re.finditer(pattern, output, re.MULTILINE)
+                kernel_names.extend([m.group(1) for m in matches if m.group(1)])
+
+            if kernel_names:
+                return kernel_names
+
+        return []
     
     except Exception as e:
         print(f"objdump failed: {e}")
