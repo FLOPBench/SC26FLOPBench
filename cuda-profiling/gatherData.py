@@ -468,7 +468,7 @@ def calc_roofline_data(df):
     # Integer ops (unitless count)
     kdf['INTOP'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
     # Integer performance (OP/s), xtime in ns
-    kdf['intPerf'] = kdf['intops'] / (1e-9 * kdf['xtime'])  # xtime is in nanoseconds
+    kdf['intPerf'] = kdf['INTOP'] / (1e-9 * kdf['xtime'])  # xtime is in nanoseconds
     # Integer arithmetic intensity (OP/byte)
     kdf['intAI'] = kdf['intPerf'] / kdf['traffic']
     
@@ -528,8 +528,8 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                 # Extract relevant columns
                 subset = roofDF[[
                     'Kernel Name', 'traffic', 'dpAI', 'spAI', 'dpPerf', 'spPerf',
-                    'xtime', 'Block Size', 'Grid Size', 'device',
-                    'intops', 'intPerf', 'intAI'
+                    'xtime', 'Block Size', 'Grid Size', 'device', 'SP_FLOP', 'DP_FLOP',
+                    'INTOP', 'intPerf', 'intAI'
                 ]].copy()
                 
                 subset['targetName'] = targetName
