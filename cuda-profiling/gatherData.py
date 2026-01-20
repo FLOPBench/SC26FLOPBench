@@ -614,7 +614,7 @@ def _reorder_output_columns(df):
     if df is None or df.empty:
         return df
 
-    preferred = ['source', 'exePath', 'kernel_executed']
+    preferred = ['source', 'exePath', 'kernel_executed', 'eteProfilerXtime']
     remaining = [c for c in df.columns if c not in preferred]
     return df[preferred + remaining]
 
