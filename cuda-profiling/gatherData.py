@@ -496,6 +496,7 @@ def calc_roofline_data(df):
     # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
     kdf['dpPerf'] = (sumDPAddOps + sumDPMulOps + sumDPfmaOps) * avgCyclesPerSecond
     
+    
     # Single precision ops (operations per cycle)
     # Resulting spPerf is in OP/s
     sumSPAddOps = kdf['smsp__sass_thread_inst_executed_op_fadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
@@ -504,6 +505,17 @@ def calc_roofline_data(df):
 
     # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
     kdf['spPerf'] = (sumSPAddOps + sumSPMulOps + sumSPfmaOps) * avgCyclesPerSecond
+
+
+    sumHPAddInst = kdf['smsp__sass_thread_inst_executed_op_hadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumHPMulInst = kdf['smsp__sass_thread_inst_executed_op_hmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    # Already weighted to 4 ops per HFMA2 (2 lanes * 2 FLOPs/lane)
+    sumHPFmaOps  = kdf['derived__smsp__sass_thread_inst_executed_op_hfma_pred_on_x4'].apply(str_to_float)
+
+    # Convert HADD2/HMUL2 instruction rate -> scalar FLOP rate by *2
+    kdf['hpPerf'] = ((2*sumHPAddInst) + (2*sumHPMulInst) + sumHPFmaOps) * avgCyclesPerSecond
+
+
     
     # DRAM traffic (bytes/sec)
     kdf['traffic'] = kdf['dram__bytes.sum.per_second'].apply(str_to_float)
@@ -511,15 +523,17 @@ def calc_roofline_data(df):
     # Arithmetic intensity (OP/byte)
     kdf['dpAI'] = kdf['dpPerf'] / kdf['traffic']
     kdf['spAI'] = kdf['spPerf'] / kdf['traffic']
+    kdf['hpAI'] = kdf['hpPerf'] / kdf['traffic']
     
     # Execution time (ns)
     kdf['xtime'] = kdf['gpu__time_duration.sum'].apply(str_to_float)
     kdf['device'] = kdf['device__attribute_display_name']
     
     # Total floating-point operations (unitless count)
-    # spPerf/dpPerf are in OP/s and xtime is in ns
+    # spPerf/dpPerf/hpPerf are in OP/s and xtime is in ns
     kdf['SP_FLOP'] = (kdf['spPerf'] * 1e-9 * kdf['xtime']).apply(int)
     kdf['DP_FLOP'] = (kdf['dpPerf'] * 1e-9 * kdf['xtime']).apply(int)
+    kdf['HP_FLOP'] = (kdf['hpPerf'] * 1e-9 * kdf['xtime']).apply(int)
     
     # Integer ops (unitless count)
     kdf['INTOP'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
@@ -584,14 +598,17 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                         'traffic': np.nan,
                         'dpAI': np.nan,
                         'spAI': np.nan,
+                        'hpAI': np.nan,
                         'dpPerf': np.nan,
                         'spPerf': np.nan,
+                        'hpPerf': np.nan,
                         'xtime': np.nan,
                         'Block Size': np.nan,
                         'Grid Size': np.nan,
                         'device': np.nan,
                         'SP_FLOP': np.nan,
                         'DP_FLOP': np.nan,
+                        'HP_FLOP': np.nan,
                         'INTOP': np.nan,
                         'intPerf': np.nan,
                         'intAI': np.nan,
@@ -618,9 +635,9 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                 
                 # Extract relevant columns
                 subset = roofDF[[
-                    'Kernel Name', 'traffic', 'dpAI', 'spAI', 'dpPerf', 'spPerf',
-                    'xtime', 'Block Size', 'Grid Size', 'device', 'SP_FLOP', 'DP_FLOP',
-                    'INTOP', 'intPerf', 'intAI'
+                    'Kernel Name', 'traffic', 'dpAI', 'spAI', 'hpAI', 'dpPerf', 'spPerf',
+                    'hpPerf', 'xtime', 'Block Size', 'Grid Size', 'device', 'SP_FLOP', 'DP_FLOP',
+                    'HP_FLOP', 'INTOP', 'intPerf', 'intAI'
                 ]].copy()
                 
                 subset['targetName'] = targetName
