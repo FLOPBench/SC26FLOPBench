@@ -371,9 +371,40 @@ def execute_target_with_ncu(target, kernelName):
     results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
     os.makedirs(results_dir, exist_ok=True)
     reportFileName = os.path.join(results_dir, f'{targetName}-[{kernelName}]-report')
+
+    def _try_parse_ncu_report(stdout_str):
+        if stdout_str is None:
+            stdout_str = ''
+        rep_file = f'{reportFileName}.ncu-rep'
+        if not os.path.exists(rep_file):
+            print(f'  No .ncu-rep file generated')
+            return None
+        if os.path.getsize(rep_file) == 0:
+            print(f'  .ncu-rep file is empty')
+            return None
+
+        try:
+            result = subprocess.run(
+                [
+                    'ncu', '--import', rep_file,
+                    '--csv', '--print-units', 'base', '--page', 'raw'
+                ],
+                cwd=srcDir,
+                timeout=60,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+
+            if result.returncode != 0:
+                print(f'  Failed to parse ncu-rep file')
+                return None
+
+            return (stdout_str, result, True)
+        except Exception as e:
+            print(f'  Error parsing ncu-rep: {e}')
+            return None
     
     # NCU command for roofline profiling
-    # -c 2: Capture first 2 invocations (use first, second as confirmation)
     # --set roofline: Enable roofline metrics
     # --metrics smsp__sass_thread_inst_executed_op_integer_pred_on: Add integer ops
     ncu_args = [
@@ -411,13 +442,27 @@ def execute_target_with_ncu(target, kernelName):
         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
         stdout, _ = process.communicate()
         print(f'  TIMEOUT for {targetName}-[{kernelName}]')
+        stdout_str = stdout.decode('UTF-8') if stdout else ''
+        parsed = _try_parse_ncu_report(stdout_str)
+        if parsed is not None:
+            print(f'  Parsed existing report after timeout')
+            return parsed
         return (None, None, None)
     except Exception as e:
         print(f'  ERROR executing {targetName}-[{kernelName}]: {e}')
+        parsed = _try_parse_ncu_report(None)
+        if parsed is not None:
+            print(f'  Parsed existing report after execution error')
+            return parsed
         return (None, None, None)
     
     if returncode != 0:
         print(f'  Execution failed with code {returncode}')
+        stdout_str = stdout.decode('UTF-8') if stdout else ''
+        parsed = _try_parse_ncu_report(stdout_str)
+        if parsed is not None:
+            print(f'  Parsed existing report despite nonzero exit code')
+            return parsed
         return (None, None, None)
     
     stdout_str = stdout.decode('UTF-8')
@@ -425,35 +470,11 @@ def execute_target_with_ncu(target, kernelName):
     if '==WARNING== No kernels were profiled.' in stdout_str:
         print(f'  No kernels profiled for {targetName} with kernel name {kernelName}')
         return (stdout_str, None, False)
-    
-    # Read ncu-rep file
-    rep_file = f'{reportFileName}.ncu-rep'
-    if not os.path.exists(rep_file):
-        print(f'  No .ncu-rep file generated')
-        return (stdout_str, None, None)
-    
-    # Parse ncu-rep to CSV
-    try:
-        result = subprocess.run(
-            [
-                'ncu', '--import', f'{reportFileName}.ncu-rep',
-                '--csv', '--print-units', 'base', '--page', 'raw'
-            ],
-            cwd=srcDir,
-            timeout=60,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        
-        if result.returncode != 0:
-            print(f'  Failed to parse ncu-rep file')
-            return (stdout_str, None, None)
-        
-        return (stdout_str, result, True)
-    
-    except Exception as e:
-        print(f'  Error parsing ncu-rep: {e}')
-        return (stdout_str, None, None)
+
+    parsed = _try_parse_ncu_report(stdout_str)
+    if parsed is not None:
+        return parsed
+    return (stdout_str, None, None)
 
 def roofline_results_to_df(ncuOutput):
     """Convert NCU CSV output to pandas DataFrame"""
