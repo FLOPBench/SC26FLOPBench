@@ -334,7 +334,7 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
 
         sampled_df = existing_df[['targetName', 'kernelName']]
         if 'kernel_executed' in existing_df.columns:
-            sampled_df = existing_df[existing_df['kernel_executed'] == True][['targetName', 'kernelName']]
+            sampled_df = existing_df[existing_df['kernel_executed'] == 'normal'][['targetName', 'kernelName']]
 
         sampled_pairs = set(
             (row['targetName'], row['kernelName'])
@@ -451,6 +451,7 @@ def execute_target_with_ncu(target, timeout_sec=120):
         stdout, _ = process.communicate(timeout=timeout_sec)
         returncode = process.returncode
         elapsed = time.monotonic() - start_time
+        timed_out = False
         
     except subprocess.TimeoutExpired:
         # Send SIGINT so ncu can flush report, then fall back to SIGKILL
@@ -466,42 +467,47 @@ def execute_target_with_ncu(target, timeout_sec=120):
             stdout, _ = process.communicate()
         stdout_str = stdout.decode('UTF-8') if stdout else ''
         elapsed = time.monotonic() - start_time
+        timed_out = True
         parsed = _try_parse_ncu_report(stdout_str)
         if parsed is not None:
             print(f'  Parsed existing report after timeout')
-            return (*parsed, elapsed)
-        return (None, None, None, elapsed)
+            return (*parsed, elapsed, timed_out)
+        return (None, None, None, elapsed, timed_out)
     except Exception as e:
         print(f'  ERROR executing {targetName}: {e}')
         elapsed = time.monotonic() - start_time
+        timed_out = False
         parsed = _try_parse_ncu_report(None)
         if parsed is not None:
             print(f'  Parsed existing report after execution error')
-            return (*parsed, elapsed)
-        return (None, None, None, elapsed)
+            return (*parsed, elapsed, timed_out)
+        return (None, None, None, elapsed, timed_out)
     
     if returncode != 0:
         print(f'  Execution failed with code {returncode}')
         stdout_str = stdout.decode('UTF-8') if stdout else ''
         elapsed = time.monotonic() - start_time
+        timed_out = False
         parsed = _try_parse_ncu_report(stdout_str)
         if parsed is not None:
             print(f'  Parsed existing report despite nonzero exit code')
-            return (*parsed, elapsed)
-        return (None, None, None, elapsed)
+            return (*parsed, elapsed, timed_out)
+        return (None, None, None, elapsed, timed_out)
     
     stdout_str = stdout.decode('UTF-8')
     
     if '==WARNING== No kernels were profiled.' in stdout_str:
         print(f'  No kernels profiled for {targetName}')
         elapsed = time.monotonic() - start_time
-        return (stdout_str, None, False, elapsed)
+        timed_out = False
+        return (stdout_str, None, False, elapsed, timed_out)
 
     parsed = _try_parse_ncu_report(stdout_str)
     elapsed = time.monotonic() - start_time
+    timed_out = False
     if parsed is not None:
-        return (*parsed, elapsed)
-    return (stdout_str, None, None, elapsed)
+        return (*parsed, elapsed, timed_out)
+    return (stdout_str, None, None, elapsed, timed_out)
 
 def roofline_results_to_df(ncuOutput):
     """Convert NCU CSV output to pandas DataFrame"""
@@ -616,7 +622,7 @@ def target_fully_sampled(target, df):
         return False
 
     if 'kernel_executed' in subset.columns:
-        subset = subset[subset['kernel_executed'] == True]
+        subset = subset[subset['kernel_executed'] == 'normal']
 
     sampled = set(subset['kernelName'].dropna().tolist())
     return set(expected).issubset(sampled)
@@ -657,7 +663,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
     if os.path.isfile(csvFilename):
         df = pd.read_csv(csvFilename)
         if 'kernel_executed' not in df.columns:
-            df['kernel_executed'] = True
+            df['kernel_executed'] = 'normal'
         print(f"Loaded existing data: {df.shape[0]} rows")
     else:
         df = pd.DataFrame()
@@ -702,7 +708,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
         expected_kernels = list(kernel_map.keys())
 
         # Execute with NCU once per target
-        stdout, ncuResult, kernel_executed, ete_profiler_xtime = execute_target_with_ncu(
+        stdout, ncuResult, kernel_executed, ete_profiler_xtime, timed_out = execute_target_with_ncu(
             target,
             timeout_sec=timeout_sec
         )
@@ -711,6 +717,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
             if kernel_executed is False:
                 for kernel_mangled in expected_kernels:
                     kernel = kernel_map.get(kernel_mangled, {})
+                    status = 'timeout' if timed_out else 'not profiled'
                     row = {
                         'runtime': runtime,
                         'eteProfilerXtime': ete_profiler_xtime,
@@ -739,7 +746,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
                         'kernelMangled': kernel.get('mangled'),
                         'kernelDemangled': kernel.get('demangled'),
                         'kernelProfiler': kernel.get('profiler'),
-                        'kernel_executed': False,
+                        'kernel_executed': status,
                         'exePath': exe_path,
                         'source': source_name,
                     }
@@ -786,7 +793,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
             subset['kernelProfiler'] = subset['Kernel Name'].map(
                 lambda k: kernel_map.get(k, {}).get('profiler') or k
             )
-            subset['kernel_executed'] = True
+            subset['kernel_executed'] = 'normal'
             subset['exePath'] = exe_path
             subset['source'] = source_name
 
@@ -799,6 +806,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
                     kernel_map.get(k, {}).get('profiler') or k for k in missing_kernels
                 ]
                 print(f"  Missing kernels for {targetName}: {', '.join(missing_labels)}")
+                status = 'timeout' if timed_out else 'not profiled'
                 for kernel_mangled in missing_kernels:
                     kernel = kernel_map.get(kernel_mangled, {})
                     row = {
@@ -829,7 +837,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
                         'kernelMangled': kernel.get('mangled'),
                         'kernelDemangled': kernel.get('demangled'),
                         'kernelProfiler': kernel.get('profiler'),
-                        'kernel_executed': False,
+                        'kernel_executed': status,
                         'exePath': exe_path,
                         'source': source_name,
                     }
