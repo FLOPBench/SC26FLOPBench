@@ -362,7 +362,7 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
 
 
 
-def execute_target_with_ncu(target):
+def execute_target_with_ncu(target, timeout_sec=120):
     """
     Execute target with ncu profiling for all kernels (first invocation).
 
@@ -381,7 +381,7 @@ def execute_target_with_ncu(target):
             model = 'cuda'
         elif '-omp' in (targetName or ''):
             model = 'omp'
-    model_tag = 'CUDA' if model == 'cuda' else 'OMP' if model == 'omp' else 'UNKNOWN'
+    model_tag = 'cuda' if model == 'cuda' else 'omp' if model == 'omp' else 'UNKNOWN'
     reportFileName = os.path.join(results_dir, f'{targetName}-{model_tag}-report')
 
     def _try_parse_ncu_report(stdout_str):
@@ -399,7 +399,8 @@ def execute_target_with_ncu(target):
             result = subprocess.run(
                 [
                     'ncu', '--import', rep_file,
-                    '--csv', '--print-units', 'base', '--page', 'raw'
+                    '--csv', '--print-units', 'base', '--page', 'raw',
+                    '--print-kernel-base', 'mangled'
                 ],
                 cwd=srcDir,
                 timeout=60,
@@ -438,7 +439,7 @@ def execute_target_with_ncu(target):
     start_time = time.monotonic()
 
     try:
-        # Execute with timeout (5 minutes)
+        # Execute with timeout
         process = subprocess.Popen(
             ncu_args,
             cwd=srcDir,
@@ -446,16 +447,23 @@ def execute_target_with_ncu(target):
             stderr=subprocess.STDOUT,
             start_new_session=True
         )
-        
-        stdout, _ = process.communicate(timeout=300)
+
+        stdout, _ = process.communicate(timeout=timeout_sec)
         returncode = process.returncode
         elapsed = time.monotonic() - start_time
         
     except subprocess.TimeoutExpired:
-        # Kill process group on timeout
-        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        stdout, _ = process.communicate()
-        print(f'  TIMEOUT for {targetName}')
+        # Send SIGINT so ncu can flush report, then fall back to SIGKILL
+        print(f'  TIMEOUT for {targetName}; sending SIGINT to allow report flush')
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGINT)
+            stdout, _ = process.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            stdout, _ = process.communicate()
+        except Exception:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            stdout, _ = process.communicate()
         stdout_str = stdout.decode('UTF-8') if stdout else ''
         elapsed = time.monotonic() - start_time
         parsed = _try_parse_ncu_report(stdout_str)
@@ -594,11 +602,16 @@ def target_fully_sampled(target, df):
         return False
 
     targetName = target.get('targetName')
+    source_name = os.path.basename(target.get('src') or '')
     expected = _expected_kernel_names(target)
     if not expected:
         return False
 
-    subset = df[df['targetName'] == targetName]
+    if 'source' in df.columns and source_name:
+        subset = df[df['source'] == source_name]
+    else:
+        subset = df[df['targetName'] == targetName]
+
     if subset.empty or 'kernelName' not in subset.columns:
         return False
 
@@ -637,7 +650,7 @@ def _get_ncu_report_path(target):
     results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
     return os.path.join(results_dir, f'{targetName}-{model_tag}-report.ncu-rep')
 
-def execute_targets(targets, csvFilename, skipRuns=False):
+def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120):
     """Execute all targets and gather profiling data"""
     
     # Load existing data if available
@@ -673,22 +686,31 @@ def execute_targets(targets, csvFilename, skipRuns=False):
             print(f"Skipping {targetName} - skipRuns enabled")
             continue
 
-        if df.shape[0] > 0 and 'targetName' in df.columns:
-            existing = df[df['targetName'] == targetName]
+        if df.shape[0] > 0:
+            if 'source' in df.columns and source_name:
+                existing = df[df['source'] == source_name]
+            else:
+                existing = df[df['targetName'] == targetName]
             if not existing.empty:
                 print(f"Reprofiling {targetName} - incomplete kernel data detected")
-                df = df[df['targetName'] != targetName]
+                if 'source' in df.columns and source_name:
+                    df = df[df['source'] != source_name]
+                else:
+                    df = df[df['targetName'] != targetName]
 
-        kernel_map = {k.get('profiler'): k for k in kernels if k.get('profiler')}
+        kernel_map = {k.get('mangled'): k for k in kernels if k.get('mangled')}
         expected_kernels = list(kernel_map.keys())
 
         # Execute with NCU once per target
-        stdout, ncuResult, kernel_executed, ete_profiler_xtime = execute_target_with_ncu(target)
+        stdout, ncuResult, kernel_executed, ete_profiler_xtime = execute_target_with_ncu(
+            target,
+            timeout_sec=timeout_sec
+        )
 
         if ncuResult is None:
             if kernel_executed is False:
-                for kernel_profiler in expected_kernels:
-                    kernel = kernel_map.get(kernel_profiler, {})
+                for kernel_mangled in expected_kernels:
+                    kernel = kernel_map.get(kernel_mangled, {})
                     row = {
                         'runtime': runtime,
                         'eteProfilerXtime': ete_profiler_xtime,
@@ -713,10 +735,10 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                         'intAI': np.nan,
                         'targetName': targetName,
                         'exeArgs': exeArgs,
-                        'kernelName': kernel_profiler,
+                        'kernelName': kernel.get('profiler'),
                         'kernelMangled': kernel.get('mangled'),
                         'kernelDemangled': kernel.get('demangled'),
-                        'kernelProfiler': kernel_profiler,
+                        'kernelProfiler': kernel.get('profiler'),
                         'kernel_executed': False,
                         'exePath': exe_path,
                         'source': source_name,
@@ -753,11 +775,17 @@ def execute_targets(targets, csvFilename, skipRuns=False):
             subset['targetName'] = targetName
             subset['exeArgs'] = exeArgs
             subset['runtime'] = runtime
-            subset['kernelName'] = subset['Kernel Name']
+            subset['kernelMangled'] = subset['Kernel Name']
+            subset['kernelName'] = subset['Kernel Name'].map(
+                lambda k: kernel_map.get(k, {}).get('profiler') or k
+            )
             subset['eteProfilerXtime'] = ete_profiler_xtime
-            subset['kernelMangled'] = subset['Kernel Name'].map(lambda k: kernel_map.get(k, {}).get('mangled'))
-            subset['kernelDemangled'] = subset['Kernel Name'].map(lambda k: kernel_map.get(k, {}).get('demangled'))
-            subset['kernelProfiler'] = subset['Kernel Name']
+            subset['kernelDemangled'] = subset['Kernel Name'].map(
+                lambda k: kernel_map.get(k, {}).get('demangled')
+            )
+            subset['kernelProfiler'] = subset['Kernel Name'].map(
+                lambda k: kernel_map.get(k, {}).get('profiler') or k
+            )
             subset['kernel_executed'] = True
             subset['exePath'] = exe_path
             subset['source'] = source_name
@@ -767,9 +795,12 @@ def execute_targets(targets, csvFilename, skipRuns=False):
 
             # Add NULL rows for missing kernels
             if missing_kernels:
-                print(f"  Missing kernels for {targetName}: {', '.join(missing_kernels)}")
-                for kernel_profiler in missing_kernels:
-                    kernel = kernel_map.get(kernel_profiler, {})
+                missing_labels = [
+                    kernel_map.get(k, {}).get('profiler') or k for k in missing_kernels
+                ]
+                print(f"  Missing kernels for {targetName}: {', '.join(missing_labels)}")
+                for kernel_mangled in missing_kernels:
+                    kernel = kernel_map.get(kernel_mangled, {})
                     row = {
                         'runtime': runtime,
                         'eteProfilerXtime': ete_profiler_xtime,
@@ -794,10 +825,10 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                         'intAI': np.nan,
                         'targetName': targetName,
                         'exeArgs': exeArgs,
-                        'kernelName': kernel_profiler,
+                        'kernelName': kernel.get('profiler'),
                         'kernelMangled': kernel.get('mangled'),
                         'kernelDemangled': kernel.get('demangled'),
-                        'kernelProfiler': kernel_profiler,
+                        'kernelProfiler': kernel.get('profiler'),
                         'kernel_executed': False,
                         'exePath': exe_path,
                         'source': source_name,
@@ -838,6 +869,8 @@ def main():
                        help='Output CSV file for profiling data')
     parser.add_argument('--skipRuns', action='store_true',
                        help='Skip execution, only parse existing ncu-rep files')
+    parser.add_argument('--timeout', type=int, default=120,
+                       help='NCU profiling timeout in seconds (default: 120)')
     parser.add_argument('--cudaOnly', action='store_true',
                        help='Profile CUDA targets only')
     parser.add_argument('--ompOnly', action='store_true',
@@ -853,6 +886,7 @@ def main():
     
     # Get executable targets
     targets = get_runnable_targets()
+    targets = sorted(targets, key=lambda t: t.get('targetName', ''))
 
     if args.cudaOnly and args.ompOnly:
         print("ERROR: --cudaOnly and --ompOnly cannot be used together")
@@ -959,7 +993,7 @@ def main():
     input("Press Enter to continue profiling...")
     
     # Execute and profile
-    results = execute_targets(targets, args.outfile, args.skipRuns)
+    results = execute_targets(targets, args.outfile, args.skipRuns, args.timeout)
     
     return 0
 
