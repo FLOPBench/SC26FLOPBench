@@ -301,6 +301,62 @@ def summarize_profiliable_kernels(targets):
     return summary
 
 
+def summarize_existing_sampling_progress(targets, outfile, summary):
+    """Summarize already-sampled CUDA/OpenMP codes and kernels from existing CSV."""
+    sampled = {
+        'cuda_codes': 0,
+        'omp_codes': 0,
+        'cuda_kernels': 0,
+        'omp_kernels': 0,
+    }
+
+    if not os.path.isfile(outfile):
+        return sampled
+
+    try:
+        existing_df = pd.read_csv(outfile)
+        if existing_df.empty or 'targetName' not in existing_df.columns or 'kernelName' not in existing_df.columns:
+            return sampled
+
+        target_model = {}
+        valid_pairs = set()
+        for t in targets:
+            tname = t.get('targetName')
+            model = t.get('model')
+            if not model:
+                if '-cuda' in (tname or ''):
+                    model = 'cuda'
+                elif '-omp' in (tname or ''):
+                    model = 'omp'
+            target_model[tname] = model
+            for k in t.get('kernels') or []:
+                valid_pairs.add((tname, k.get('profiler')))
+
+        sampled_pairs = set(
+            (row['targetName'], row['kernelName'])
+            for _, row in existing_df[['targetName', 'kernelName']].dropna().iterrows()
+        )
+        sampled_pairs = sampled_pairs.intersection(valid_pairs)
+
+        sampled_codes_by_model = {'cuda': set(), 'omp': set()}
+        sampled_kernels_by_model = {'cuda': 0, 'omp': 0}
+
+        for tname, _ in sampled_pairs:
+            model = target_model.get(tname)
+            if model in sampled_codes_by_model:
+                sampled_codes_by_model[model].add(tname)
+                sampled_kernels_by_model[model] += 1
+
+        sampled['cuda_codes'] = len(sampled_codes_by_model['cuda'])
+        sampled['omp_codes'] = len(sampled_codes_by_model['omp'])
+        sampled['cuda_kernels'] = sampled_kernels_by_model['cuda']
+        sampled['omp_kernels'] = sampled_kernels_by_model['omp']
+        return sampled
+    except Exception as e:
+        print(f"WARNING: Failed to read existing data from {outfile}: {e}")
+        return sampled
+
+
 
 def execute_target_with_ncu(target, kernelName):
     """
@@ -355,26 +411,26 @@ def execute_target_with_ncu(target, kernelName):
         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
         stdout, _ = process.communicate()
         print(f'  TIMEOUT for {targetName}-[{kernelName}]')
-        return (None, None)
+        return (None, None, None)
     except Exception as e:
         print(f'  ERROR executing {targetName}-[{kernelName}]: {e}')
-        return (None, None)
+        return (None, None, None)
     
     if returncode != 0:
         print(f'  Execution failed with code {returncode}')
-        return (None, None)
+        return (None, None, None)
     
     stdout_str = stdout.decode('UTF-8')
     
     if '==WARNING== No kernels were profiled.' in stdout_str:
         print(f'  No kernels profiled for {targetName} with kernel name {kernelName}')
-        return (None, None)
+        return (stdout_str, None, False)
     
     # Read ncu-rep file
     rep_file = f'{reportFileName}.ncu-rep'
     if not os.path.exists(rep_file):
         print(f'  No .ncu-rep file generated')
-        return (None, None)
+        return (stdout_str, None, None)
     
     # Parse ncu-rep to CSV
     try:
@@ -391,13 +447,13 @@ def execute_target_with_ncu(target, kernelName):
         
         if result.returncode != 0:
             print(f'  Failed to parse ncu-rep file')
-            return (None, None)
+            return (stdout_str, None, None)
         
-        return (stdout_str, result)
+        return (stdout_str, result, True)
     
     except Exception as e:
         print(f'  Error parsing ncu-rep: {e}')
-        return (None, None)
+        return (stdout_str, None, None)
 
 def roofline_results_to_df(ncuOutput):
     """Convert NCU CSV output to pandas DataFrame"""
@@ -488,6 +544,8 @@ def execute_targets(targets, csvFilename, skipRuns=False):
     # Load existing data if available
     if os.path.isfile(csvFilename):
         df = pd.read_csv(csvFilename)
+        if 'kernel_executed' not in df.columns:
+            df['kernel_executed'] = True
         print(f"Loaded existing data: {df.shape[0]} rows")
     else:
         df = pd.DataFrame()
@@ -496,6 +554,8 @@ def execute_targets(targets, csvFilename, skipRuns=False):
         targetName = target['targetName']
         kernels = target['kernels']
         exeArgs = target['exeArgs']
+        exe_path = target.get('exe')
+        source_name = os.path.basename(target.get('src') or '')
         
         if not kernels:
             print(f"Skipping {targetName} - no kernels found")
@@ -515,9 +575,40 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                 continue
             
             # Execute with NCU
-            stdout, ncuResult = execute_target_with_ncu(target, kernel_profiler)
-            
+            stdout, ncuResult, kernel_executed = execute_target_with_ncu(target, kernel_profiler)
+
             if ncuResult is None:
+                if kernel_executed is False:
+                    row = {
+                        'Kernel Name': np.nan,
+                        'traffic': np.nan,
+                        'dpAI': np.nan,
+                        'spAI': np.nan,
+                        'dpPerf': np.nan,
+                        'spPerf': np.nan,
+                        'xtime': np.nan,
+                        'Block Size': np.nan,
+                        'Grid Size': np.nan,
+                        'device': np.nan,
+                        'SP_FLOP': np.nan,
+                        'DP_FLOP': np.nan,
+                        'INTOP': np.nan,
+                        'intPerf': np.nan,
+                        'intAI': np.nan,
+                        'targetName': targetName,
+                        'exeArgs': exeArgs,
+                        'kernelName': kernel_profiler,
+                        'kernelMangled': kernel_mangled,
+                        'kernelDemangled': kernel_demangled,
+                        'kernelProfiler': kernel_profiler,
+                        'kernel_executed': False,
+                        'exePath': exe_path,
+                        'source': source_name,
+                    }
+                    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+                    df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
+                             index=False, na_rep='NULL')
+                    print(f"  Marked {targetName}:[{kernel_profiler}] as not executed")
                 continue
             
             # Parse results
@@ -538,6 +629,9 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                 subset['kernelMangled'] = kernel_mangled
                 subset['kernelDemangled'] = kernel_demangled
                 subset['kernelProfiler'] = kernel_profiler
+                subset['kernel_executed'] = True
+                subset['exePath'] = exe_path
+                subset['source'] = source_name
                 
                 # Append to dataframe
                 df = pd.concat([df, subset], ignore_index=True)
@@ -641,6 +735,58 @@ def main():
             print(f"  - {name}")
 
     print("============================\n")
+    # Progress summary for already gathered data
+    sampled = summarize_existing_sampling_progress(targets, args.outfile, summary)
+    sampled_cuda_codes = sampled['cuda_codes']
+    sampled_omp_codes = sampled['omp_codes']
+    sampled_cuda_kernels = sampled['cuda_kernels']
+    sampled_omp_kernels = sampled['omp_kernels']
+
+    def _print_progress(label, sampled_codes, total_codes, sampled_kernels, total_kernels):
+        codes_pct = (sampled_codes / total_codes * 100.0) if total_codes else 0.0
+        kernels_pct = (sampled_kernels / total_kernels * 100.0) if total_kernels else 0.0
+        print(
+            f"{label} sampled codes: {sampled_codes}/{total_codes} "
+            f"({codes_pct:.1f}%)"
+        )
+        print(
+            f"{label} sampled kernels: {sampled_kernels}/{total_kernels} "
+            f"({kernels_pct:.1f}%)"
+        )
+
+    print("Progress based on existing data:")
+    if args.cudaOnly:
+        _print_progress(
+            "CUDA",
+            sampled_cuda_codes,
+            summary['cuda_profiliable'],
+            sampled_cuda_kernels,
+            summary['cuda_kernels']
+        )
+    elif args.ompOnly:
+        _print_progress(
+            "OpenMP",
+            sampled_omp_codes,
+            summary['omp_profiliable'],
+            sampled_omp_kernels,
+            summary['omp_kernels']
+        )
+    else:
+        _print_progress(
+            "CUDA",
+            sampled_cuda_codes,
+            summary['cuda_profiliable'],
+            sampled_cuda_kernels,
+            summary['cuda_kernels']
+        )
+        _print_progress(
+            "OpenMP",
+            sampled_omp_codes,
+            summary['omp_profiliable'],
+            sampled_omp_kernels,
+            summary['omp_kernels']
+        )
+
     input("Press Enter to continue profiling...")
     
     # Execute and profile
