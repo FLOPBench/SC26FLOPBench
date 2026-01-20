@@ -21,6 +21,7 @@ build.log
 
 # Profiling outputs
 cuda-profiling/downloads/
+cuda-profiling/ncu-rep-results/
 cuda-profiling/*.ncu-rep
 cuda-profiling/*.nsys-rep
 cuda-profiling/gpuData.csv
@@ -50,3 +51,6 @@ htmlcov/
 # Temporary files
 *.tmp
 /tmp/
+
+# CSV Files
+*.csv

@@ -41,6 +41,7 @@ from io import StringIO
 import numpy as np
 import csv
 from pathlib import Path
+import time
 
 from utils import (
     demangle_kernel_name,
@@ -331,9 +332,13 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
             for k in t.get('kernels') or []:
                 valid_pairs.add((tname, k.get('profiler')))
 
+        sampled_df = existing_df[['targetName', 'kernelName']]
+        if 'kernel_executed' in existing_df.columns:
+            sampled_df = existing_df[existing_df['kernel_executed'] == True][['targetName', 'kernelName']]
+
         sampled_pairs = set(
             (row['targetName'], row['kernelName'])
-            for _, row in existing_df[['targetName', 'kernelName']].dropna().iterrows()
+            for _, row in sampled_df.dropna().iterrows()
         )
         sampled_pairs = sampled_pairs.intersection(valid_pairs)
 
@@ -357,20 +362,27 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
 
 
 
-def execute_target_with_ncu(target, kernelName):
+def execute_target_with_ncu(target):
     """
-    Execute target with ncu profiling for specified kernel.
-    
-    Captures roofline metrics for the first invocation of the kernel.
+    Execute target with ncu profiling for all kernels (first invocation).
+
+    Captures roofline metrics for the first invocation of each kernel.
     """
     targetName = target['targetName']
     exeArgs = target['exeArgs']
     srcDir = target['src']
     exe_path = target['exe']
-    
+
     results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
     os.makedirs(results_dir, exist_ok=True)
-    reportFileName = os.path.join(results_dir, f'{targetName}-[{kernelName}]-report')
+    model = target.get('model')
+    if not model:
+        if '-cuda' in (targetName or ''):
+            model = 'cuda'
+        elif '-omp' in (targetName or ''):
+            model = 'omp'
+    model_tag = 'CUDA' if model == 'cuda' else 'OMP' if model == 'omp' else 'UNKNOWN'
+    reportFileName = os.path.join(results_dir, f'{targetName}-{model_tag}-report')
 
     def _try_parse_ncu_report(stdout_str):
         if stdout_str is None:
@@ -409,11 +421,10 @@ def execute_target_with_ncu(target, kernelName):
     # --metrics smsp__sass_thread_inst_executed_op_integer_pred_on: Add integer ops
     ncu_args = [
         'ncu', '-f', '-o', reportFileName,
-        '--set', 'roofline', '--kill', 'yes',
+        '--set', 'roofline', 
         '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
         '--kernel-name-base', 'demangled',
-        '--kernel-name', kernelName,
-        '--launch-count', '1',
+        '--kernel-id', ':::1',
         exe_path
     ]
     
@@ -421,9 +432,11 @@ def execute_target_with_ncu(target, kernelName):
     if exeArgs:
         ncu_args.extend(shlex.split(exeArgs))
     
-    print(f'Profiling: {targetName} - kernel: {kernelName}', flush=True)
+    print(f'\nProfiling: {targetName} (all kernels, first invocations)', flush=True)
     print(f'  Command: {" ".join(ncu_args)}', flush=True)
     
+    start_time = time.monotonic()
+
     try:
         # Execute with timeout (5 minutes)
         process = subprocess.Popen(
@@ -436,45 +449,51 @@ def execute_target_with_ncu(target, kernelName):
         
         stdout, _ = process.communicate(timeout=300)
         returncode = process.returncode
+        elapsed = time.monotonic() - start_time
         
     except subprocess.TimeoutExpired:
         # Kill process group on timeout
         os.killpg(os.getpgid(process.pid), signal.SIGKILL)
         stdout, _ = process.communicate()
-        print(f'  TIMEOUT for {targetName}-[{kernelName}]')
+        print(f'  TIMEOUT for {targetName}')
         stdout_str = stdout.decode('UTF-8') if stdout else ''
+        elapsed = time.monotonic() - start_time
         parsed = _try_parse_ncu_report(stdout_str)
         if parsed is not None:
             print(f'  Parsed existing report after timeout')
-            return parsed
-        return (None, None, None)
+            return (*parsed, elapsed)
+        return (None, None, None, elapsed)
     except Exception as e:
-        print(f'  ERROR executing {targetName}-[{kernelName}]: {e}')
+        print(f'  ERROR executing {targetName}: {e}')
+        elapsed = time.monotonic() - start_time
         parsed = _try_parse_ncu_report(None)
         if parsed is not None:
             print(f'  Parsed existing report after execution error')
-            return parsed
-        return (None, None, None)
+            return (*parsed, elapsed)
+        return (None, None, None, elapsed)
     
     if returncode != 0:
         print(f'  Execution failed with code {returncode}')
         stdout_str = stdout.decode('UTF-8') if stdout else ''
+        elapsed = time.monotonic() - start_time
         parsed = _try_parse_ncu_report(stdout_str)
         if parsed is not None:
             print(f'  Parsed existing report despite nonzero exit code')
-            return parsed
-        return (None, None, None)
+            return (*parsed, elapsed)
+        return (None, None, None, elapsed)
     
     stdout_str = stdout.decode('UTF-8')
     
     if '==WARNING== No kernels were profiled.' in stdout_str:
-        print(f'  No kernels profiled for {targetName} with kernel name {kernelName}')
-        return (stdout_str, None, False)
+        print(f'  No kernels profiled for {targetName}')
+        elapsed = time.monotonic() - start_time
+        return (stdout_str, None, False, elapsed)
 
     parsed = _try_parse_ncu_report(stdout_str)
+    elapsed = time.monotonic() - start_time
     if parsed is not None:
-        return parsed
-    return (stdout_str, None, None)
+        return (*parsed, elapsed)
+    return (stdout_str, None, None, elapsed)
 
 def roofline_results_to_df(ncuOutput):
     """Convert NCU CSV output to pandas DataFrame"""
@@ -565,13 +584,58 @@ def calc_roofline_data(df):
     
     return kdf
 
-def has_already_been_sampled(targetName, kernelName, df):
-    """Check if kernel has already been profiled"""
-    if df.shape[0] == 0:
+def _expected_kernel_names(target):
+    return [k.get('profiler') for k in (target.get('kernels') or []) if k.get('profiler')]
+
+
+def target_fully_sampled(target, df):
+    """Check whether all kernels for a target are already sampled."""
+    if df is None or df.shape[0] == 0:
         return False
-    
-    subset = df[(df['targetName'] == targetName) & (df['kernelName'] == kernelName)]
-    return subset.shape[0] > 0
+
+    targetName = target.get('targetName')
+    expected = _expected_kernel_names(target)
+    if not expected:
+        return False
+
+    subset = df[df['targetName'] == targetName]
+    if subset.empty or 'kernelName' not in subset.columns:
+        return False
+
+    if 'kernel_executed' in subset.columns:
+        subset = subset[subset['kernel_executed'] == True]
+
+    sampled = set(subset['kernelName'].dropna().tolist())
+    return set(expected).issubset(sampled)
+
+
+def _reorder_output_columns(df):
+    """Ensure key columns appear first for readability."""
+    if df is None or df.empty:
+        return df
+
+    preferred = ['source', 'exePath', 'kernel_executed']
+    remaining = [c for c in df.columns if c not in preferred]
+    return df[preferred + remaining]
+
+
+def _get_target_model(target):
+    targetName = target.get('targetName')
+    model = target.get('model')
+    if not model:
+        if '-cuda' in (targetName or ''):
+            model = 'cuda'
+        elif '-omp' in (targetName or ''):
+            model = 'omp'
+    return model
+
+
+def _get_ncu_report_path(target):
+    targetName = target.get('targetName')
+    model = _get_target_model(target)
+    model_tag = 'CUDA' if model == 'cuda' else 'OMP' if model == 'omp' else 'UNKNOWN'
+    results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
+    return os.path.join(results_dir, f'{targetName}-{model_tag}-report.ncu-rep')
 
 def execute_targets(targets, csvFilename, skipRuns=False):
     """Execute all targets and gather profiling data"""
@@ -591,30 +655,44 @@ def execute_targets(targets, csvFilename, skipRuns=False):
         exeArgs = target['exeArgs']
         exe_path = target.get('exe')
         source_name = os.path.basename(target.get('src') or '')
+        runtime = _get_target_model(target) or 'unknown'
+        report_path = _get_ncu_report_path(target)
         
         if not kernels:
             print(f"Skipping {targetName} - no kernels found")
             continue
-        
-        for kernel in kernels:
-            kernel_profiler = kernel['profiler']
-            kernel_mangled = kernel['mangled']
-            kernel_demangled = kernel['demangled']
 
-            if has_already_been_sampled(targetName, kernel_profiler, df):
-                print(f"Skipping {targetName}:[{kernel_profiler}] - already sampled")
+        if target_fully_sampled(target, df):
+            if report_path and not os.path.exists(report_path):
+                print(f"Reprofiling {targetName} - missing report file")
+            else:
+                print(f"Skipping {targetName} - already sampled (all kernels)")
                 continue
-            
-            if skipRuns:
-                print(f"Skipping {targetName}:[{kernel_profiler}] - skipRuns enabled")
-                continue
-            
-            # Execute with NCU
-            stdout, ncuResult, kernel_executed = execute_target_with_ncu(target, kernel_profiler)
 
-            if ncuResult is None:
-                if kernel_executed is False:
+        if skipRuns:
+            print(f"Skipping {targetName} - skipRuns enabled")
+            continue
+
+        if df.shape[0] > 0 and 'targetName' in df.columns:
+            existing = df[df['targetName'] == targetName]
+            if not existing.empty:
+                print(f"Reprofiling {targetName} - incomplete kernel data detected")
+                df = df[df['targetName'] != targetName]
+
+        kernel_map = {k.get('profiler'): k for k in kernels if k.get('profiler')}
+        expected_kernels = list(kernel_map.keys())
+
+        # Execute with NCU once per target
+        stdout, ncuResult, kernel_executed, ete_profiler_xtime = execute_target_with_ncu(target)
+
+        if ncuResult is None:
+            if kernel_executed is False:
+                for kernel_profiler in expected_kernels:
+                    kernel = kernel_map.get(kernel_profiler, {})
                     row = {
+                        'runtime': runtime,
+                        'eteProfilerXtime': ete_profiler_xtime,
+                        'CC': np.nan,
                         'Kernel Name': np.nan,
                         'traffic': np.nan,
                         'dpAI': np.nan,
@@ -636,53 +714,106 @@ def execute_targets(targets, csvFilename, skipRuns=False):
                         'targetName': targetName,
                         'exeArgs': exeArgs,
                         'kernelName': kernel_profiler,
-                        'kernelMangled': kernel_mangled,
-                        'kernelDemangled': kernel_demangled,
+                        'kernelMangled': kernel.get('mangled'),
+                        'kernelDemangled': kernel.get('demangled'),
                         'kernelProfiler': kernel_profiler,
                         'kernel_executed': False,
                         'exePath': exe_path,
                         'source': source_name,
                     }
                     df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-                    df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
-                             index=False, na_rep='NULL')
-                    print(f"  Marked {targetName}:[{kernel_profiler}] as not executed")
+                df = _reorder_output_columns(df)
+                df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
+                          index=False, na_rep='NULL')
+                print(f"  Marked {targetName} kernels as not executed")
+            continue
+
+        # Parse results
+        try:
+            rawDF = roofline_results_to_df(ncuResult)
+            roofDF = calc_roofline_data(rawDF)
+
+            if roofDF.empty:
+                print(f"  No roofline data parsed for {targetName}")
                 continue
-            
-            # Parse results
-            try:
-                rawDF = roofline_results_to_df(ncuResult)
-                roofDF = calc_roofline_data(rawDF)
-                
-                # Extract relevant columns
-                subset = roofDF[[
-                    'Kernel Name', 'traffic', 'dpAI', 'spAI', 'hpAI', 'dpPerf', 'spPerf',
-                    'hpPerf', 'xtime', 'Block Size', 'Grid Size', 'device', 'SP_FLOP', 'DP_FLOP',
-                    'HP_FLOP', 'INTOP', 'intPerf', 'intAI'
-                ]].copy()
-                
-                subset['targetName'] = targetName
-                subset['exeArgs'] = exeArgs
-                subset['kernelName'] = kernel_profiler
-                subset['kernelMangled'] = kernel_mangled
-                subset['kernelDemangled'] = kernel_demangled
-                subset['kernelProfiler'] = kernel_profiler
-                subset['kernel_executed'] = True
-                subset['exePath'] = exe_path
-                subset['source'] = source_name
-                
-                # Append to dataframe
-                df = pd.concat([df, subset], ignore_index=True)
-                
-                # Save incrementally
-                df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"', 
-                         index=False, na_rep='NULL')
-                
-                print(f"  Saved data for {targetName}:[{kernel_profiler}]")
-                
-            except Exception as e:
-                print(f"  Error processing results: {e}")
-                continue
+
+            filtered = roofDF[roofDF['Kernel Name'].isin(expected_kernels)].copy()
+            if 'CC' not in filtered.columns:
+                filtered['CC'] = np.nan
+            found_kernels = set(filtered['Kernel Name'].dropna().tolist())
+            missing_kernels = [k for k in expected_kernels if k not in found_kernels]
+
+            # Extract relevant columns
+            subset = filtered[[
+                'CC', 'Kernel Name', 'traffic', 'dpAI', 'spAI', 'hpAI', 'dpPerf', 'spPerf',
+                'hpPerf', 'xtime', 'Block Size', 'Grid Size', 'device', 'SP_FLOP', 'DP_FLOP',
+                'HP_FLOP', 'INTOP', 'intPerf', 'intAI'
+            ]].copy()
+
+            subset['targetName'] = targetName
+            subset['exeArgs'] = exeArgs
+            subset['runtime'] = runtime
+            subset['kernelName'] = subset['Kernel Name']
+            subset['eteProfilerXtime'] = ete_profiler_xtime
+            subset['kernelMangled'] = subset['Kernel Name'].map(lambda k: kernel_map.get(k, {}).get('mangled'))
+            subset['kernelDemangled'] = subset['Kernel Name'].map(lambda k: kernel_map.get(k, {}).get('demangled'))
+            subset['kernelProfiler'] = subset['Kernel Name']
+            subset['kernel_executed'] = True
+            subset['exePath'] = exe_path
+            subset['source'] = source_name
+
+            # Append sampled kernels
+            df = pd.concat([df, subset], ignore_index=True)
+
+            # Add NULL rows for missing kernels
+            if missing_kernels:
+                print(f"  Missing kernels for {targetName}: {', '.join(missing_kernels)}")
+                for kernel_profiler in missing_kernels:
+                    kernel = kernel_map.get(kernel_profiler, {})
+                    row = {
+                        'runtime': runtime,
+                        'eteProfilerXtime': ete_profiler_xtime,
+                        'CC': np.nan,
+                        'Kernel Name': np.nan,
+                        'traffic': np.nan,
+                        'dpAI': np.nan,
+                        'spAI': np.nan,
+                        'hpAI': np.nan,
+                        'dpPerf': np.nan,
+                        'spPerf': np.nan,
+                        'hpPerf': np.nan,
+                        'xtime': np.nan,
+                        'Block Size': np.nan,
+                        'Grid Size': np.nan,
+                        'device': np.nan,
+                        'SP_FLOP': np.nan,
+                        'DP_FLOP': np.nan,
+                        'HP_FLOP': np.nan,
+                        'INTOP': np.nan,
+                        'intPerf': np.nan,
+                        'intAI': np.nan,
+                        'targetName': targetName,
+                        'exeArgs': exeArgs,
+                        'kernelName': kernel_profiler,
+                        'kernelMangled': kernel.get('mangled'),
+                        'kernelDemangled': kernel.get('demangled'),
+                        'kernelProfiler': kernel_profiler,
+                        'kernel_executed': False,
+                        'exePath': exe_path,
+                        'source': source_name,
+                    }
+                    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+
+            # Save incrementally
+            df = _reorder_output_columns(df)
+            df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
+                      index=False, na_rep='NULL')
+
+            print(f"  Saved data for {targetName} ({len(found_kernels)} kernels)")
+
+        except Exception as e:
+            print(f"  Error processing results: {e}")
+            continue
     
     print(f"Profiling complete! Data saved to {csvFilename}")
     print(f"Total samples: {df.shape[0]}")
