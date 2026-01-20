@@ -147,6 +147,26 @@ def test_extract_simple_name_complex():
     assert simple == "kernel", f"Complex name extraction failed: {simple}"
 
 
+def test_demangle_preserves_template_parameters():
+    """Ensure demangling keeps template parameters for NCU --kernel-name."""
+
+    available_tool = None
+    for tool in ['cu++filt', 'c++filt', 'llvm-cxxfilt']:
+        if check_tool_available(tool):
+            available_tool = tool
+            break
+
+    if not available_tool:
+        pytest.skip("No demangling tools available")
+
+    demangled = gd.demangle_kernel_name(TEMPLATE_KERNEL_MANGLED, available_tool)
+    assert "kernel" in demangled, f"Unexpected demangled result: {demangled}"
+    assert "<int>" in demangled, (
+        "Template parameters missing from demangled name: "
+        f"{demangled}"
+    )
+
+
 def test_extract_simple_name_already_simple():
     """Test that already-simple names pass through"""
     
@@ -326,9 +346,8 @@ def test_ncu_name_extraction_all_executables(cuda_executables, omp_executables):
             demangled = gd.demangle_kernel_name(name)
             if gd.is_library_kernel(demangled):
                 continue
-            profiler = gd.extract_kernel_name_for_ncu(demangled)
-            if profiler:
-                profiler_names.append(profiler)
+            if demangled:
+                profiler_names.append(demangled)
 
         if not profiler_names:
             missing_cuda.append(target_name)
@@ -409,9 +428,8 @@ def test_profiliable_kernel_counts(cuda_executables, omp_executables):
             demangled = gd.demangle_kernel_name(name)
             if gd.is_library_kernel(demangled):
                 continue
-            profiler = gd.extract_kernel_name_for_ncu(demangled)
-            if profiler:
-                profiler_names.append(profiler)
+            if demangled:
+                profiler_names.append(demangled)
 
         if profiler_names:
             cuda_codes += 1

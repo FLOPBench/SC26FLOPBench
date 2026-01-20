@@ -614,8 +614,7 @@ def exe_has_cuda_kernels(target):
         demangled = demangle_kernel_name(name)
         if is_library_kernel(demangled):
             continue
-        profiler = extract_kernel_name_for_ncu(demangled)
-        if profiler:
+        if demangled:
             return True
 
     return False

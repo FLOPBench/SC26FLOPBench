@@ -49,7 +49,6 @@ from utils import (
     get_cuobjdump_kernels,
     parse_omp_offload_entries,
     get_objdump_kernels,
-    extract_kernel_name_for_ncu,
     source_has_cuda_kernels,
     exe_has_cuda_kernels,
     get_makefile_run_args,
@@ -214,7 +213,7 @@ def get_kernel_names(targets):
                 if is_library_kernel(demangled):
                     continue
 
-                profiler_name = extract_kernel_name_for_ncu(demangled)
+                profiler_name = demangled
 
                 if profiler_name:
                     kernels.append({
@@ -381,8 +380,9 @@ def execute_target_with_ncu(target, kernelName):
         'ncu', '-f', '-o', reportFileName,
         '--set', 'roofline',
         '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
-        '-c', '1',
-        '-k', kernelName,
+        '--kernel-name-base', 'demangled',
+        '--kernel-name', kernelName,
+        '--launch-count', '1',
         exe_path
     ]
     
