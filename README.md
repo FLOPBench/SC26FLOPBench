@@ -6,9 +6,9 @@ Build and profiling infrastructure for [HeCBench](https://github.com/zjin-lcf/He
 
 ### Prerequisites
 
-- **LLVM/Clang** 14+ (clang, clang++)
+- **LLVM/Clang** 21+ (clang, clang++)
 - **CMake** 3.21+
-- **CUDA Toolkit** (for CUDA support)
+- **CUDA Toolkit** v13.0 (for CUDA support)
 - **Python 3.8+** with packages: pandas, numpy, pyyaml, tqdm
 - **NVIDIA GPU** (for profiling)
 - **Nsight Compute (ncu)** (for profiling)

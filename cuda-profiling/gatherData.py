@@ -409,7 +409,7 @@ def execute_target_with_ncu(target, kernelName):
     # --metrics smsp__sass_thread_inst_executed_op_integer_pred_on: Add integer ops
     ncu_args = [
         'ncu', '-f', '-o', reportFileName,
-        '--set', 'roofline',
+        '--set', 'roofline', '--kill', 'yes',
         '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
         '--kernel-name-base', 'demangled',
         '--kernel-name', kernelName,
