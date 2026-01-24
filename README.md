@@ -67,22 +67,17 @@ This takes approximately 5-15 minutes depending on your system.
 
 #### Linux with NVIDIA GPU
 
-For systems with NVIDIA GPUs and nvidia-docker runtime:
+For Ubuntu systems with NVIDIA GPUs and nvidia-docker runtime:
 
 ```bash
+# update the modprobe to elevate privileges
+echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" | sudo tee /etc/modprobe.d/nvidia-elevate-privs.conf > /dev/null
+
 # Build the container
 docker build --progress=plain -t gpuflopbench-updated .
 
 # Run with GPU access (ensure Docker Desktop has 'Enable Host Networking' enabled)
-docker run -ti --network=host --gpus all \
-    --name gpuflopbench-updated-container \
-    --runtime=nvidia \
-    -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    -e NVIDIA_VISIBLE_DEVICES=all \
-    --cap-add=SYS_ADMIN \
-    --cap-add=SYS_PTRACE \
-    -v $(pwd):/workspace \
-    gpuflopbench-updated
+docker run -ti --network=host --gpus all --name gpuflopbench-updated-container -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_VISIBLE_DEVICES=all gpuflopbench-updated
 
 # Access the container shell
 docker exec -it gpuflopbench-updated-container /bin/bash
@@ -90,8 +85,6 @@ docker exec -it gpuflopbench-updated-container /bin/bash
 
 **Capabilities explained**:
 - `--gpus all`: Provides GPU access
-- `--cap-add=SYS_ADMIN`: Required for ncu GPU profiling
-- `--cap-add=SYS_PTRACE`: Required for process tracing
 - `--network=host`: Enables host networking (useful for Jupyter notebooks)
 
 #### macOS (Apple Silicon M1/M2/M3/M4) - No NVIDIA GPU
@@ -132,7 +125,7 @@ For Windows systems with Docker Desktop and NVIDIA GPU:
 docker build --progress=plain -t gpuflopbench-updated .
 
 # Run with GPU access
-docker run -ti --network=host --gpus all --name gpuflopbench-updated-container --runtime=nvidia -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_VISIBLE_DEVICES=all gpuflopbench-updated
+docker run -ti --network=host --gpus all --name gpuflopbench-updated-container -e NVIDIA_DRIVER_CAPABILITIES=compute,utility -e NVIDIA_VISIBLE_DEVICES=all gpuflopbench-updated
 
 # Access the container shell
 docker exec -it gpuflopbench-updated-container /bin/bash
@@ -176,6 +169,14 @@ Of the version of HeCBench that we use as a submodule, we manage to build most o
 - 318 OMP codes building
 
 There are some errors that we run into during build for some codes, but we ignore these programs as we didn't want to spend the extra effort to get their builds to work.
+
+## Running Jupyter Notebooks
+We have a couple Jupyter Notebooks to visualize collected data so we can manually inspect it's correctness.
+To start the server, use the following command:
+
+```
+jupyter notebook --allow-root --no-browser --ip=0.0.0.0 --port=8888 --NotebookApp.token=''
+```
 
 ## Documentation
 

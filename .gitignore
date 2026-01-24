@@ -39,6 +39,7 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+.ipynb_checkpoints/
 
 # IDEs
 .vscode/
