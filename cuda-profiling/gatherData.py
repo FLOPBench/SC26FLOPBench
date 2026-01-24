@@ -420,10 +420,11 @@ def execute_target_with_ncu(target, timeout_sec=120):
     # NCU command for roofline profiling
     # --set roofline: Enable roofline metrics
     # --metrics smsp__sass_thread_inst_executed_op_integer_pred_on: Add integer ops
+    # --metrics dram__bytes_read.sum,dram__bytes_write.sum: Add DRAM traffic
     ncu_args = [
         'ncu', '-f', '-o', reportFileName,
         '--set', 'roofline', 
-        '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on',
+        '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on,dram__bytes_read.sum,dram__bytes_write.sum',
         '--kernel-name-base', 'demangled',
         '--kernel-id', ':::1',
         exe_path
@@ -570,6 +571,9 @@ def calc_roofline_data(df):
     kdf['hpPerf'] = ((2*sumHPAddInst) + (2*sumHPMulInst) + sumHPFmaOps) * avgCyclesPerSecond
 
 
+    kdf['bytesRead'] = kdf['dram__bytes_read.sum'].apply(int)
+    kdf['bytesWrite'] = kdf['dram__bytes_write.sum'].apply(int)
+    kdf['bytesTotal'] = kdf['bytesRead'] + kdf['bytesWrite']
     
     # DRAM traffic (bytes/sec)
     kdf['traffic'] = kdf['dram__bytes.sum.per_second'].apply(str_to_float)
