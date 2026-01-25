@@ -216,6 +216,7 @@ chmod +x llvm.sh
 sudo ./llvm.sh 21 all
 rm llvm.sh
 sudo apt-get clean
+sudo apt-get install liboffload-21-dev libomp-21-dev
 
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
 sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
@@ -240,7 +241,12 @@ export PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-2
 
 export CUDA_HOME=/usr/local/cuda-13.0
 
-# need to document my other commands here
+# need to add these lines to you cmake invocation in ./runBuild.sh
+
+    -DCUDAToolkit_ROOT=$CUDA_HOME \
+    -DCMAKE_CUDA_COMPILER=$CUDA_HOME/bin/nvcc \
+
+./runBuild.sh
 ```
 
 ## GPU Clean Troubleshooting
