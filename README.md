@@ -163,6 +163,98 @@ cd cuda-profiling
 python gatherData.py
 ```
 
+## Using a Lambda AI instance
+Here are some commands for getting set up in a lambda.ai GPU cloud instance.
+```
+sudo apt-get update && sudo apt-get full-upgrade 
+
+echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" | sudo tee /etc/modprobe.d/nvidia-elevate-privs.conf > /dev/null
+
+sudo reboot
+
+# 1) Remove the kernel that triggers the DKMS failures
+sudo apt-get purge -y \
+  linux-image-6.14.0-1015-nvidia \
+  linux-headers-6.14.0-1015-nvidia \
+  linux-nvidia-hwe-24.04 \
+  linux-headers-nvidia-hwe-24.04
+
+# 2) Finish configuring what’s already installed / fix broken state
+sudo dpkg --configure -a
+sudo apt-get -f install
+
+# 3) Force DKMS to build/install for the CURRENT running kernel only
+sudo apt-get install -y linux-headers-$(uname -r) build-essential dkms
+sudo dkms autoinstall -k "$(uname -r)"
+
+# 4) Re-run the driver install to ensure everything is configured
+sudo apt-get install -y nvidia-driver-580-open
+
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin
+sudo mv cuda-ubuntu2404.pin /etc/apt/preferences.d/cuda-repository-pin-600
+wget https://developer.download.nvidia.com/compute/cuda/13.0.0/local_installers/cuda-repo-ubuntu2404-13-0-local_13.0.0-580.65.06-1_amd64.deb
+sudo dpkg -i cuda-repo-ubuntu2404-13-0-local_13.0.0-580.65.06-1_amd64.deb
+sudo cp /var/cuda-repo-ubuntu2404-13-0-local/cuda-*-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get -y install cuda-toolkit-13-0
+
+sudo apt-get remove --purge -y nvidia-cuda-toolkit
+
+sudo reboot
+
+sudo update-alternatives --install /usr/bin/nvcc nvcc /usr/local/cuda-13.0/bin/nvcc 1300
+sudo update-alternatives --set nvcc /usr/local/cuda-13.0/bin/nvcc
+
+curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
+echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' | sudo tee /etc/apt/sources.list.d/nvhpc.list
+sudo apt-get update -y
+sudo apt-get install -y nvhpc-25-11
+
+
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 21 all
+rm llvm.sh
+sudo apt-get clean
+
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
+sudo update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-21 100
+sudo update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-21 100
+
+sudo apt autoremove
+
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash ./Miniconda3-latest-Linux-x86_64.sh -b -p ~/anaconda3
+rm ./Miniconda3-latest-Linux-x86_64.sh
+source ~/anaconda3/bin/activate
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main &&     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+conda create --name gpuflopbench-updated python=3.11 -y
+conda activate gpuflopbench-updated && pip install -r requirements.txt
+
+sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev
+
+export LD_LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+export PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/home/gbolet/.vscode-server/cli/servers/Stable-94e8ae2b28cb5cc932b86e1070569c4463565c37/server/bin/remote-cli:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/anaconda3/envs/gpuflopbench-updated/bin:/home/gbolet/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/gbolet/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:$PATH
+
+export CUDA_HOME=/usr/local/cuda-13.0
+
+# need to document my other commands here
+```
+
+## GPU Clean Troubleshooting
+We ideally want an `nvidia-smi` command output to show that `0MiB` are being used on the GPU memory.
+We found that on our test system, we were reading an idle mem use of `1MiB`.
+In order to fix this, we use the following commands:
+
+```
+sudo modprobe -r nvidia_drm
+sudo nvidia-smi -pm 1
+sudo modprobe -r nvidia_drm
+nvidia-smi
+```
+
 ## Build Notes
 Of the version of HeCBench that we use as a submodule, we manage to build most of the codes.
 - 488 CUDA codes building
