@@ -27,6 +27,7 @@ cuda-profiling/*.nsys-rep
 cuda-profiling/gpuData.csv
 *.ncu-rep
 *.nsys-rep
+*.sass
 
 # Python
 __pycache__/

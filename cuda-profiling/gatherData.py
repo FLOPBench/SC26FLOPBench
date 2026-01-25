@@ -522,6 +522,12 @@ def str_to_float(x):
         return np.nan
     return np.float64(str(x).replace(',', ''))
 
+def str_to_int(x):
+    """Convert string with commas to int"""
+    if pd.isna(x) or x == '':
+        return np.nan
+    return np.int64(str(x).replace(',', ''))
+
 def calc_roofline_data(df):
     """
     Calculate roofline metrics from raw NCU data.
@@ -571,8 +577,8 @@ def calc_roofline_data(df):
     kdf['hpPerf'] = ((2*sumHPAddInst) + (2*sumHPMulInst) + sumHPFmaOps) * avgCyclesPerSecond
 
 
-    kdf['bytesRead'] = kdf['dram__bytes_read.sum'].apply(int)
-    kdf['bytesWrite'] = kdf['dram__bytes_write.sum'].apply(int)
+    kdf['bytesRead'] = kdf['dram__bytes_read.sum'].apply(str_to_int)
+    kdf['bytesWrite'] = kdf['dram__bytes_write.sum'].apply(str_to_int)
     kdf['bytesTotal'] = kdf['bytesRead'] + kdf['bytesWrite']
     
     # DRAM traffic (bytes/sec)
