@@ -490,6 +490,14 @@ def is_library_kernel(demangled_name):
     return any(marker in demangled_name for marker in library_markers)
 
 
+def _looks_mangled_kernel(name):
+    if not name:
+        return False
+    if re.search(r"[\s()]", name):
+        return False
+    return bool(re.match(r"^_Z", name))
+
+
 def get_cuobjdump_kernels(target):
     """Extract CUDA kernel names from executable using cuobjdump"""
     targetName = target['targetName']
@@ -539,7 +547,9 @@ def get_cuobjdump_kernels(target):
                     if name:
                         raw_names.append(name)
 
-            return raw_names
+            mangled_names = [n for n in raw_names if _looks_mangled_kernel(n)]
+            if mangled_names:
+                return mangled_names
     except Exception as e:
         print(f"cuobjdump failed for {targetName}: {e}")
 
@@ -548,7 +558,7 @@ def get_cuobjdump_kernels(target):
         # Note: Using shell=True here for pipe, but inputs are from filesystem, not user input
         # exe_path is validated to be an existing file in our build directory
         result = subprocess.run(
-            ['sh', '-c', f'llvm-objdump -t {shlex.quote(exe_path)} | c++filt'],
+            ['sh', '-c', f'llvm-objdump -t {shlex.quote(exe_path)}'],
             cwd=srcDir,
             timeout=60,
             stdout=subprocess.PIPE,
@@ -560,7 +570,9 @@ def get_cuobjdump_kernels(target):
             # Look for kernel-like symbols
             kernel_pattern = r'\.text\.[\w<>:,\s\*]+(?=\s|$)'
             matches = re.finditer(kernel_pattern, output, re.MULTILINE)
-            return [m.group().replace('.text.', '') for m in matches if m.group()]
+            raw_names = [m.group().replace('.text.', '') for m in matches if m.group()]
+            mangled_names = [n for n in raw_names if _looks_mangled_kernel(n)]
+            return mangled_names
     except Exception as e:
         print(f"llvm-objdump failed for {targetName}: {e}")
 

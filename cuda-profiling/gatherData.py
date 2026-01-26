@@ -353,7 +353,15 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
 
     try:
         existing_df = pd.read_csv(outfile)
-        if existing_df.empty or 'targetName' not in existing_df.columns or 'kernelName' not in existing_df.columns:
+        if existing_df.empty or 'targetName' not in existing_df.columns:
+            return sampled
+
+        kernel_col = None
+        if 'kernelMangled' in existing_df.columns:
+            kernel_col = 'kernelMangled'
+        elif 'kernelName' in existing_df.columns:
+            kernel_col = 'kernelName'
+        else:
             return sampled
 
         target_model = {}
@@ -368,23 +376,41 @@ def summarize_existing_sampling_progress(targets, outfile, summary):
                     model = 'omp'
             target_model[tname] = model
             for k in t.get('kernels') or []:
-                valid_pairs.add((tname, k.get('profiler')))
+                kernel_id = k.get('mangled') if kernel_col == 'kernelMangled' else k.get('profiler')
+                if kernel_id:
+                    valid_pairs.add((tname, model, kernel_id))
+                alt_kernel_id = k.get('profiler') if kernel_col == 'kernelMangled' else k.get('mangled')
+                if alt_kernel_id:
+                    valid_pairs.add((tname, model, alt_kernel_id))
 
-        sampled_df = existing_df[['targetName', 'kernelName']]
+        sampled_df = existing_df[['targetName', kernel_col]].copy()
+        if 'runtime' in existing_df.columns:
+            sampled_df['runtime'] = existing_df['runtime']
+        if 'model' in existing_df.columns:
+            sampled_df['model'] = existing_df['model']
         if 'kernel_executed' in existing_df.columns:
-            sampled_df = existing_df[existing_df['kernel_executed'] == 'normal'][['targetName', 'kernelName']]
+            sampled_df = sampled_df[existing_df['kernel_executed'] == 'normal']
 
-        sampled_pairs = set(
-            (row['targetName'], row['kernelName'])
-            for _, row in sampled_df.dropna().iterrows()
-        )
+        sampled_pairs = set()
+        for _, row in sampled_df.dropna(subset=['targetName', kernel_col]).iterrows():
+            model = None
+            if 'runtime' in row and row['runtime'] in ('cuda', 'omp'):
+                model = row['runtime']
+            elif 'model' in row and row['model'] in ('cuda', 'omp'):
+                model = row['model']
+            else:
+                model = target_model.get(row['targetName'])
+
+            if not model:
+                continue
+            sampled_pairs.add((row['targetName'], model, row[kernel_col]))
+
         sampled_pairs = sampled_pairs.intersection(valid_pairs)
 
         sampled_codes_by_model = {'cuda': set(), 'omp': set()}
         sampled_kernels_by_model = {'cuda': 0, 'omp': 0}
 
-        for tname, _ in sampled_pairs:
-            model = target_model.get(tname)
+        for tname, model, _ in sampled_pairs:
             if model in sampled_codes_by_model:
                 sampled_codes_by_model[model].add(tname)
                 sampled_kernels_by_model[model] += 1
