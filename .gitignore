@@ -56,3 +56,6 @@ htmlcov/
 
 # CSV Files
 *.csv
+
+# zip files
+*.zip
