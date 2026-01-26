@@ -15,6 +15,93 @@ from pathlib import Path
 MAKEFILE_CANDIDATES = ("Makefile", "makefile", "GNUmakefile")
 
 
+def get_gpu_info():
+    """
+    Return GPU info from nvidia-smi.
+
+    Returns a dict with:
+      - gpu_name
+      - cuda_version
+      - driver_version
+      - persistence_mode
+      - memory_total_mib
+      - raw (stdout string)
+    """
+    info = {
+        "gpu_name": None,
+        "cuda_version": None,
+        "driver_version": None,
+        "persistence_mode": None,
+        "memory_total_mib": None,
+        "raw": "",
+    }
+
+    # Prefer structured query output if available (cuda_version is not queryable)
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,driver_version,persistence_mode,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        )
+        raw = result.stdout.decode("UTF-8") if result.stdout else ""
+        if result.returncode == 0 and raw.strip():
+            first = [line.strip() for line in raw.splitlines() if line.strip()]
+            if first:
+                parts = [p.strip() for p in first[0].split(",")]
+                if len(parts) >= 4:
+                    info["gpu_name"] = parts[0]
+                    info["driver_version"] = parts[1]
+                    info["persistence_mode"] = parts[2]
+                    try:
+                        info["memory_total_mib"] = int(float(parts[3]))
+                    except ValueError:
+                        info["memory_total_mib"] = None
+    except Exception:
+        pass
+
+    # Parse standard nvidia-smi output for CUDA version and raw text
+    try:
+        result = subprocess.run(
+            ["nvidia-smi"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=10,
+        )
+        raw = result.stdout.decode("UTF-8") if result.stdout else ""
+        info["raw"] = raw
+
+        if raw:
+            header = re.search(r"Driver Version:\s*([^\s]+)\s+CUDA Version:\s*([^\s]+)", raw)
+            if header:
+                if not info["driver_version"]:
+                    info["driver_version"] = header.group(1)
+                info["cuda_version"] = header.group(2)
+
+            gpu_line = re.search(r"\|\s*\d+\s+(.+?)\s{2,}(On|Off)\s+\|", raw)
+            if gpu_line:
+                if not info["gpu_name"]:
+                    info["gpu_name"] = gpu_line.group(1).strip()
+                if not info["persistence_mode"]:
+                    info["persistence_mode"] = gpu_line.group(2)
+
+            mem_line = re.search(r"/\s*([0-9]+)MiB", raw)
+            if mem_line:
+                try:
+                    if info["memory_total_mib"] is None:
+                        info["memory_total_mib"] = int(mem_line.group(1))
+                except ValueError:
+                    info["memory_total_mib"] = None
+    except Exception:
+        pass
+
+    return info
+
+
 def find_makefile_for_target(src_dir):
     """
     Locate the Makefile for a benchmark source directory.
