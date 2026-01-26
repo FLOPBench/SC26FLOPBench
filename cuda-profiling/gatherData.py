@@ -984,6 +984,10 @@ def _zip_results(csvFilename, log_path, results_dir):
     if log_path:
         files_to_zip.append(log_path)
 
+    compile_commands_path = os.path.join(BUILD_DIR, 'compile_commands.json') if BUILD_DIR else None
+    if compile_commands_path and os.path.isfile(compile_commands_path):
+        files_to_zip.append(compile_commands_path)
+
     ncu_reports = sorted(glob.glob(os.path.join(results_dir, '*.ncu-rep')))
     files_to_zip.extend(ncu_reports)
 
