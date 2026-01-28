@@ -437,6 +437,7 @@ def extract_exe_args_from_ncu_report(ncu_rep_file):
 
                 if exe_index is not None:
                     args = args[exe_index + 1:]
+                    return args
 
                 return None
             else:
