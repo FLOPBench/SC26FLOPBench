@@ -399,6 +399,50 @@ def get_makefile_run_args(src_dir, exe_name=None):
     return []
 
 
+def extract_exe_args_from_ncu_report(ncu_rep_file):
+    result = subprocess.run(
+        [
+            'ncu', '--import', ncu_rep_file,
+            '--csv', '--print-units', 'base', '--page', 'session',
+            '--print-kernel-base', 'mangled'
+        ],
+        timeout=60,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f'ncu command failed {ncu_rep_file}')
+
+    output = result.stdout.decode('utf-8')
+    # let's find the line that starts with ""Profiler Command Line"""
+    for line in output.splitlines():
+        if line.startswith('"Profiler Command Line"'):
+            parts = line.split(',', 1)
+            if len(parts) == 2:
+                cmdline_quoted = parts[1].strip().strip('"')
+                cmdline = cmdline_quoted.replace('""', '"')
+                args = shlex.split(cmdline)
+
+                # find the index of the executable
+                exe_index = None
+                for i, arg in enumerate(args):
+                    if '/bin/cuda/' in arg or '/bin/omp/' in arg:
+                        exe_index = i
+                        break
+
+                if exe_index is len(args) - 1:
+                    print(f'  No arguments found in ncu-rep file {ncu_rep_file}')
+                    return None
+
+                if exe_index is not None:
+                    args = args[exe_index + 1:]
+
+                return None
+            else:
+                raise RuntimeError(f'Cannot parse ncu command line from {ncu_rep_file}')
+
+
 def demangle_kernel_name(mangled_name, prefer_tool='cu++filt'):
     """
     Demangle a kernel name using cu++filt, c++filt, or llvm-cxxfilt.

@@ -644,7 +644,8 @@ def calc_roofline_data(df):
     - Arithmetic Intensity: Performance / Traffic
     """
     # Skip header row (units)
-    kdf = df.iloc[1:].copy(deep=True)
+    # kdf = df.iloc[1:].copy(deep=True)
+    kdf = df.copy(deep=True)
     
     if kdf.shape[0] == 0:
         return kdf
@@ -696,7 +697,11 @@ def calc_roofline_data(df):
     # Execution time (ns)
     kdf['xtime'] = kdf['gpu__time_duration.sum'].apply(str_to_float)
     kdf['device'] = kdf['device__attribute_display_name']
-    
+
+    # some of the ncu reports will have a kernel listed in them, but the 
+    # kernel was not sampled for some reason. So it's values show up as NaN.
+    # Which can cause the apply(int) calls below to fail.
+
     # Total floating-point operations (unitless count)
     # spPerf/dpPerf/hpPerf are in OP/s and xtime is in ns
     kdf['SP_FLOP'] = (kdf['spPerf'] * 1e-9 * kdf['xtime']).apply(int)
@@ -868,6 +873,16 @@ def _append_ncu_results(df, ncuResult, target, kernel_map, expected_kernels,
     # Parse results
     try:
         rawDF = roofline_results_to_df(ncuResult)
+
+        # drop the first row which is units
+        rawDF = rawDF.iloc[1:].copy(deep=True)
+
+        if rawDF['dram__bytes_read.sum'].isna().any() or rawDF['dram__bytes_write.sum'].isna().any():
+            print(f"  WARNING: NCU report contains NaN values for some metrics for {targetName}")
+            # we need to drop these rows to avoid errors
+
+        rawDF = rawDF[(rawDF['dram__bytes_read.sum'].notna()) & (rawDF['dram__bytes_write.sum'].notna())]
+
         roofDF = calc_roofline_data(rawDF)
 
         if roofDF.empty:
