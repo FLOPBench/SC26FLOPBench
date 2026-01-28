@@ -785,7 +785,7 @@ def _get_ncu_report_path(target, sample_idx):
     return os.path.join(results_dir, report_name)
 
 
-def _parse_ncu_report(report_path, src_dir):
+def _parse_ncu_report(report_path, src_dir='./'):
     if not report_path or not os.path.exists(report_path):
         print(f'  No .ncu-rep file found at {report_path}')
         return None
