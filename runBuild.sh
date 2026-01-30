@@ -167,7 +167,7 @@ log_info "Building benchmarks (this may take a while)..."
 # this way we at least build what we can and not stop on the codes with 
 # bad builds
 
-cmake --build . -j 4 -- VERBOSE=1 -k 2>&1 | tee build.log
+cmake --build . -j 10 -- VERBOSE=1 -k 2>&1 | tee build.log
 
 # Note: We intentionally do NOT check PIPESTATUS here because -k flag
 # allows the build to continue on errors. We'll validate success by

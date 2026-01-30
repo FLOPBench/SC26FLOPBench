@@ -230,7 +230,9 @@ sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 
 sudo update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-21 100
 sudo update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-21 100
 
-sudo apt autoremove
+sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev
+
+sudo apt -y autoremove
 
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash ./Miniconda3-latest-Linux-x86_64.sh -b -p ~/anaconda3
@@ -240,9 +242,9 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/ma
 conda create --name gpuflopbench-updated python=3.11 -y
 conda activate gpuflopbench-updated 
 
+cd ~/gpuFLOPBench-updated/
 pip install -r requirements.txt
 
-sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev
 
 export LD_LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
