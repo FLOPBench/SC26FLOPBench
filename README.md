@@ -166,6 +166,13 @@ python gatherData.py
 ## Using a Lambda AI instance
 Here are some commands for getting set up in a lambda.ai GPU cloud instance.
 ```
+ssh-keygen -t ed25519 -C "gbolet@vt.edu"
+cat ~/.ssh/id_ed25519.pub
+
+# add the above key to your github ssh authentication
+
+git clone --recurse-submodules git@github.com:gregbolet/gpuFLOPBench-updated.git
+
 sudo apt-get update && sudo apt-get -y full-upgrade 
 
 echo "options nvidia NVreg_RestrictProfilingToAdminUsers=0" | sudo tee /etc/modprobe.d/nvidia-elevate-privs.conf > /dev/null
@@ -233,8 +240,6 @@ conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/ma
 conda create --name gpuflopbench-updated python=3.11 -y
 conda activate gpuflopbench-updated 
 
-ssh-keygen -t ed25519 -C "gbolet@vt.edu"
-cat ~/.ssh/id_ed25519.pub
 pip install -r requirements.txt
 
 sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev
