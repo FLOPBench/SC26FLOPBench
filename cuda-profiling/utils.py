@@ -540,7 +540,7 @@ def _looks_mangled_kernel(name):
         return False
     if re.search(r"[\s()]", name):
         return False
-    return bool(re.match(r"^_Z", name))
+    return True
 
 
 def get_cuobjdump_kernels(target):
@@ -582,6 +582,8 @@ def get_cuobjdump_kernels(target):
                     name = m.group(1).strip()
                     if name:
                         raw_names.append(name)
+
+            #print('raw_names:', raw_names)
 
             # Fallback for older outputs with .text.<symbol>
             if not raw_names:

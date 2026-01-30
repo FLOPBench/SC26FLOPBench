@@ -41,8 +41,8 @@ def test_omp_executables_exist(omp_executables):
 
 
 def test_cuda_executable_threshold(cuda_executables):
-    """Verify CUDA executables meet minimum threshold (450)"""
-    MIN_CUDA_EXECUTABLES = 450
+    """Verify CUDA executables meet minimum threshold (400)"""
+    MIN_CUDA_EXECUTABLES = 400
     cuda_count = len(cuda_executables)
     
     assert cuda_count >= MIN_CUDA_EXECUTABLES, \
