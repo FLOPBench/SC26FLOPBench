@@ -447,7 +447,7 @@ def _build_ncu_command(target, report_basename):
     exe_path = target['exe']
     ncu_args = [
         'ncu', '-f', '-o', report_basename,
-        '--set', 'roofline',
+        '--set', 'full',
         '--metrics', 'smsp__sass_thread_inst_executed_op_integer_pred_on,dram__bytes_read.sum,dram__bytes_write.sum',
         '--kernel-name-base', 'demangled',
         '--kernel-id', ':::1',
