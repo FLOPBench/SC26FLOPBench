@@ -228,13 +228,15 @@ echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] http
 sudo apt-get update -y
 sudo apt-get install -y nvhpc-25-11
 
-sudo apt-get install -y liboffload-21-dev libomp-21-dev g++ gcc libstdc++-14-dev libboost-all-dev libgsl-dev
+sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev libgsl-dev
 
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
 sudo ./llvm.sh 21 all
 rm llvm.sh
 sudo apt-get clean
+
+sudo apt-get install -y liboffload-21-dev libomp-21-dev
 
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
 sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
