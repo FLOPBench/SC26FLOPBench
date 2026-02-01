@@ -19,8 +19,10 @@ gpuFLOPBench-updated/
 ├── cuda-profiling/
 │   ├── gatherData.py          # Profiling script using ncu
 │   ├── utils.py               # Shared demangling/kernel discovery utilities
-│   ├── gpuData.csv            # Output: profiling results (generated)
-│   └── downloads/             # Downloaded input files (generated)
+│   ├── gpuData.csv            # Output: profiling results (generated, GPU-prefixed)
+│   ├── ncu-rep-results/       # Raw NCU reports (generated)
+│   ├── {GPU_NAME}_profiling-log-{TIMESTAMP}.json   # Per-run logs (generated)
+│   └── downloads/             # Optional input files (user-managed)
 ├── build/                     # Build artifacts (generated)
 │   └── bin/
 │       ├── cuda/              # CUDA executables (450+ expected)
@@ -180,23 +182,23 @@ python3 gatherData.py --skipRuns
 2. **Discover executables**: Find all binaries in `build/bin/cuda/` and `build/bin/omp/`
 3. **Extract kernel names**: 
    - For CUDA: Use `cuobjdump --list-text` or `llvm-objdump -t`
-   - For OpenMP: Use `objdump -t --section=omp_offloading_entries`
-4. **Demangle kernel names**:
-   - Try `cu++filt`, `c++filt`, `llvm-cxxfilt` in order
-   - Extract simple name for `-k` option (handle templates, namespaces)
-5. **Execute with ncu**:
+   - For OpenMP: Use `objdump -t --section=llvm_offload_entries` or `--section=omp_offloading_entries`
+4. **Demangle and filter**:
+   - CUDA: demangle with `cu++filt`, `c++filt`, `llvm-cxxfilt` and drop library kernels
+   - OpenMP: demangle for readability while retaining offload entry names
+5. **Execute with ncu** (all kernels, first invocation):
    ```bash
-   ncu -f -o report --set roofline \
-       --metrics smsp__sass_thread_inst_executed_op_integer_pred_on \
-       -c 2 -k "kernel_name" ./executable args
+   ncu -f -o report --set full \
+       --metrics smsp__sass_thread_inst_executed_op_integer_pred_on,dram__bytes_read.sum,dram__bytes_write.sum \
+       --kernel-name-base demangled --kernel-id :::1 ./executable args
    ```
 6. **Parse ncu-rep files**: Extract performance counters to CSV
 7. **Calculate metrics**: Compute roofline data (AI, performance, traffic)
-8. **Save results**: Write to `gpuData.csv`
+8. **Save results**: Append to GPU-prefixed CSV with per-sample rows
 
 #### Kernel Name Extraction and Demangling
 
-**Problem**: CUDA kernel names in binaries are mangled. The `ncu -k` option needs correct kernel names to profile specific kernels.
+**Problem**: CUDA kernel names in binaries are mangled, and reports contain mangled symbols even when using demangled kernel names for display.
 
 **Solution**: Three-step process:
 
@@ -206,6 +208,7 @@ python3 gatherData.py --skipRuns
    cuobjdump --list-text binary | grep "\.text\."
    
    # OpenMP binaries
+   objdump -t --section=llvm_offload_entries binary
    objdump -t --section=omp_offloading_entries binary
    ```
 
@@ -217,13 +220,12 @@ python3 gatherData.py --skipRuns
    echo "mangled_name" | llvm-cxxfilt
    ```
 
-3. **Extract simple name** for `ncu -k`:
-   - Remove return type: `void kernel<int>` → `kernel<int>`
-   - Remove templates: `kernel<int>` → `kernel`
-   - Remove namespaces: `my::ns::kernel` → `kernel`
+3. **Profile first kernel invocation**:
+   - Use `--kernel-name-base demangled` for demangled display
+   - Use `--kernel-id :::1` to capture the first invocation of each kernel
    - Filter library kernels: Skip `cub::` and `thrust::`
 
-**Bug Fix**: The upstream gpuFLOPBench script had convoluted fallback logic for demangling. Our implementation:
+**Demangling logic**: The script tries CUDA-aware tools in order and returns the first successful demangle:
 - Tries demangling tools in correct order (`cu++filt` first for CUDA)
 - Returns first successful demangle result
 - Avoids unnecessary retries with broken logic
@@ -249,38 +251,19 @@ The script calculates standard roofline metrics:
 
 #### Output: gpuData.csv
 
-The output CSV contains one row per kernel invocation:
-
-| Column | Description |
-|--------|-------------|
-| targetName | Executable basename (e.g., "accuracy-cuda") |
-| kernelName | Kernel name used for profiling |
-| exeArgs | Command-line arguments used |
-| Kernel Name | Full kernel name from ncu |
-| traffic | DRAM traffic (bytes/sec) |
-| dpPerf | Double-precision performance (FLOP/s) |
-| spPerf | Single-precision performance (FLOP/s) |
-| intPerf | Integer performance (OP/s) |
-| dpAI | Double-precision arithmetic intensity |
-| spAI | Single-precision arithmetic intensity |
-| intAI | Integer arithmetic intensity |
-| xtime | Kernel execution time (ns) |
-| Block Size | CUDA block dimensions |
-| Grid Size | CUDA grid dimensions |
-| device | GPU device name |
-| intops | Total integer operations |
+The output CSV contains one row per kernel per sample with key fields like:
+- targetName, exeArgs, exePath, source
+- runtime (cuda/omp), sample, kernel_executed
+- kernelMangled, kernelName, kernelDemangled, kernelProfiler
+- traffic, bytesRead/bytesWrite/bytesTotal
+- dpPerf, spPerf, hpPerf, intPerf and dpAI/spAI/hpAI/intAI
+- xtime, Block Size, Grid Size, device
 
 #### Input Data Handling
 
-Some benchmarks require input files. The script:
-- Automatically extracts `.tar.gz`, `.tgz`, `.zip` archives in source directories
-- Downloads remote files when specified in benchmark metadata
-- Reuses downloaded files in `cuda-profiling/downloads/`
-
-Example benchmarks needing data:
-- `rodinia-*`: Uses Rodinia dataset (auto-downloaded)
-- `mriQ-cuda`: Downloads MRI-Q dataset
-- `word2vec-cuda`: Downloads text8 corpus
+Some benchmarks require input files. The script does not download or extract datasets automatically.
+Instead, it uses benchmarks.yaml arguments or Makefile run targets and resolves relative paths.
+Provide required input files manually (e.g., in the benchmark source directory or via downloads/).
 
 ## Docker Usage
 
@@ -333,9 +316,11 @@ python3 cuda-profiling/gatherData.py
 | CUDA executables | `build/bin/cuda/` | Compiled CUDA benchmarks (450+) |
 | OpenMP executables | `build/bin/omp/` | Compiled OpenMP benchmarks (300+) |
 | Build logs | `build/build.log` | CMake and compiler output |
-| Profiling data | `cuda-profiling/gpuData.csv` | Performance metrics |
-| NCU reports | `HeCBench/src/*/*.ncu-rep` | Raw ncu reports (large!) |
-| Downloaded files | `cuda-profiling/downloads/` | Input datasets |
+| Profiling data | `cuda-profiling/gpuData.csv` | Performance metrics (GPU-prefixed when available) |
+| NCU reports | `cuda-profiling/ncu-rep-results/*.ncu-rep` | Raw ncu reports (large!) |
+| Profiling logs | `cuda-profiling/profiling-log-*.json` | Per-run stdout/stderr and status |
+| Results archive | `cuda-profiling/profiling-results-*.zip` | CSV, logs, build metadata, NCU reports |
+| Optional inputs | `cuda-profiling/downloads/` | User-managed input datasets |
 
 ## Workflow Example
 
@@ -354,7 +339,7 @@ cd cuda-profiling
 python3 gatherData.py
 
 # 4. Analyze results
-# gpuData.csv now contains performance data for all kernels
+# gpuData.csv (GPU-prefixed when available) now contains performance data for all kernels
 ```
 
 ### Docker Workflow
@@ -371,7 +356,7 @@ docker run --gpus all \
     gpuflopbench-updated bash -c \
     "./runBuild.sh && python3 cuda-profiling/gatherData.py"
 
-# 3. Results available in ./results/gpuData.csv
+# 3. Results available in ./results/gpuData.csv (plus logs and NCU reports)
 ```
 
 ## Testing

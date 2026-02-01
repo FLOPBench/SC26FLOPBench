@@ -49,7 +49,18 @@ cd cuda-profiling
 python3 gatherData.py
 ```
 
-Results will be saved to `cuda-profiling/gpuData.csv`.
+Results are saved to gpuData.csv (prefixed with the GPU name when available) alongside:
+- profiling-log-*.json (per-run stdout/stderr and status)
+- profiling-results-*.zip (CSV, log, build log, compile_commands.json, and NCU reports)
+- ncu-rep-results/*.ncu-rep (raw Nsight Compute reports)
+
+Common options:
+- --cudaOnly / --ompOnly: limit to CUDA or OpenMP targets
+- --samples N: repeat profiling per target (default: 3)
+- --timeout SEC: per-run timeout (default: 120)
+- --rerunTimeouts: re-run targets that previously timed out
+- --skipConfirm: skip the interactive confirmation prompt
+- --zipOnly: skip profiling and only create the results archive
 
 ## Docker Usage
 
@@ -97,10 +108,10 @@ docker build --platform=linux/amd64 --progress=plain -t gpuflopbench-updated .
 
 # Run container (ensure Docker Desktop has 'Enable Host Networking' enabled)
 docker run -ti --network=host \
-    --name gpuflopbench-updated-container \
-    --platform=linux/amd64 \
-    -v $(pwd):/workspace \
-    gpuflopbench-updated
+  --name gpuflopbench-updated-container \
+  --platform=linux/amd64 \
+  -v $(pwd):/workspace \
+  gpuflopbench-updated
 
 # Access the container shell
 docker exec -it gpuflopbench-updated-container /bin/bash
@@ -313,7 +324,9 @@ pytest -v
 ├── runTests.sh            # Test script
 ├── cuda-profiling/
 │   ├── gatherData.py      # Profiling script
-│   └── gpuData.csv        # Output (generated)
+│   ├── gpuData.csv        # Output (generated, GPU-prefixed)
+│   ├── ncu-rep-results/   # NCU reports (generated)
+│   └── {GPU_NAME}_profiling-log-{TIMESTAMP}.json  # Per-run logs (generated)
 ├── build/                 # Build artifacts (generated)
 │   └── bin/
 │       ├── cuda/          # CUDA executables (450+ expected)
@@ -326,9 +339,9 @@ pytest -v
 ## Key Features
 
 - **LLVM Toolchain**: Uses clang/clang++ for all compilation (including CUDA)
-- **Roofline Profiling**: Gathers FLOP/s, arithmetic intensity, memory traffic
-- **Kernel Discovery**: Automatic extraction and demangling of kernel names
-- **Input Handling**: Auto-downloads required benchmark input files
+- **Roofline Profiling**: Gathers FLOP/s, arithmetic intensity, memory traffic and per-sample metrics
+- **Kernel Discovery**: Automatic extraction, demangling, and library-kernel filtering
+- **Input Handling**: Uses benchmarks.yaml args and Makefile run targets (with path resolution)
 - **Comprehensive Tests**: Validates build artifacts, kernel extraction, demangling
 
 ## References

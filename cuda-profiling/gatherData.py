@@ -36,6 +36,7 @@ import yaml
 from pprint import pprint
 import re
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 import subprocess
 import shlex
 from io import StringIO
@@ -238,68 +239,81 @@ def get_exe_args_from_yaml(targets, benchmarks_data):
     return targets
 
 
-def get_kernel_names(targets):
-    """Extract kernel names from all targets"""
-    for target in tqdm(targets, desc='Extracting kernel names'):
-        targetName = target['targetName']
-        model = target.get('model')
-        
-        kernels = []
+def _extract_kernels_for_target(target):
+    targetName = target['targetName']
+    model = target.get('model')
 
-        if model == 'cuda' or '-cuda' in targetName:
-            raw_names = get_cuobjdump_kernels(target)
-            
-            # Process each kernel name
-            for name in raw_names:
-                demangled = demangle_kernel_name(name)
+    kernels = []
 
-                if is_library_kernel(demangled):
-                    continue
+    if model == 'cuda' or '-cuda' in targetName:
+        raw_names = get_cuobjdump_kernels(target)
 
-                profiler_name = demangled
+        # Process each kernel name
+        for name in raw_names:
+            demangled = demangle_kernel_name(name)
 
-                if profiler_name:
-                    kernels.append({
-                        'mangled': name,
-                        'demangled': demangled,
-                        'profiler': profiler_name
-                    })
+            if is_library_kernel(demangled):
+                continue
 
-        elif model == 'omp' or '-omp' in targetName:
-            raw_names = get_objdump_kernels(target)
-            for name in raw_names:
-                demangled = demangle_omp_offload_name(name)
+            profiler_name = demangled
+
+            if profiler_name:
                 kernels.append({
                     'mangled': name,
                     'demangled': demangled,
-                    'profiler': name
+                    'profiler': profiler_name
                 })
-        
-        # Remove duplicates while preserving order
-        unique = []
-        seen = set()
-        for kernel in kernels:
-            key = (kernel.get('mangled'), kernel.get('profiler'))
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(kernel)
-        kernels = unique
-        
-        target['kernels'] = kernels
 
-        if not kernels:
-            if model == 'cuda' or '-cuda' in targetName:
-                if not source_has_cuda_kernels(target.get('src')):
-                    print(f"INFO: No profiliable CUDA kernels found in sources for {targetName}; skipping.")
-                elif not exe_has_cuda_kernels(target):
-                    print(f"INFO: No profiliable CUDA kernels found in executable for {targetName}; skipping.")
-                else:
-                    print(f"WARNING: No CUDA kernels found for {targetName} (kernels expected from source)")
+    elif model == 'omp' or '-omp' in targetName:
+        raw_names = get_objdump_kernels(target)
+        for name in raw_names:
+            demangled = demangle_omp_offload_name(name)
+            kernels.append({
+                'mangled': name,
+                'demangled': demangled,
+                'profiler': name
+            })
+
+    # Remove duplicates while preserving order
+    unique = []
+    seen = set()
+    for kernel in kernels:
+        key = (kernel.get('mangled'), kernel.get('profiler'))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(kernel)
+    kernels = unique
+
+    target['kernels'] = kernels
+
+    if not kernels:
+        if model == 'cuda' or '-cuda' in targetName:
+            if not source_has_cuda_kernels(target.get('src')):
+                print(f"INFO: No profiliable CUDA kernels found in sources for {targetName}; skipping.")
+            elif not exe_has_cuda_kernels(target):
+                print(f"INFO: No profiliable CUDA kernels found in executable for {targetName}; skipping.")
             else:
-                print(f"WARNING: No kernels found for {targetName}")
-    
-    return targets
+                print(f"WARNING: No CUDA kernels found for {targetName} (kernels expected from source)")
+        else:
+            print(f"WARNING: No kernels found for {targetName}")
+
+    return target
+
+
+def get_kernel_names(targets):
+    """Extract kernel names from all targets"""
+    if not targets:
+        return targets
+
+    max_workers = os.cpu_count() or 1
+    return process_map(
+        _extract_kernels_for_target,
+        targets,
+        max_workers=max_workers,
+        chunksize=1,
+        desc='Extracting kernel names'
+    )
 
 
 def summarize_profiliable_kernels(targets):
@@ -913,10 +927,6 @@ def execute_targets(targets, csvFilename, timeout_sec=120, samples=3,
     # Load existing data if available
     if os.path.isfile(csvFilename):
         df = pd.read_csv(csvFilename)
-        if 'kernel_executed' not in df.columns:
-            df['kernel_executed'] = 'normal'
-        if 'sample' not in df.columns:
-            df['sample'] = 1
         print(f"Loaded existing data: {df.shape[0]} rows")
     else:
         df = pd.DataFrame()
@@ -933,50 +943,31 @@ def execute_targets(targets, csvFilename, timeout_sec=120, samples=3,
             print(f"Skipping {targetName} - no kernels found")
             continue
 
-        if target_fully_sampled(target, df, samples):
-            print(f"Skipping {targetName} - already sampled (all kernels, all samples)")
-            continue
-
         for sample_idx in range(1, samples + 1):
             report_path = _get_ncu_report_path(target, sample_idx)
-
-            if target_sample_fully_sampled(target, df, sample_idx):
-                if report_path and not os.path.exists(report_path):
-                    print(f"Reprofiling {targetName} sample {sample_idx} - missing report file")
-                else:
-                    print(f"Skipping {targetName} sample {sample_idx} - already sampled")
-                    continue
-
             existing = pd.DataFrame()
             if df.shape[0] > 0:
-                if 'source' in df.columns and source_name and 'sample' in df.columns:
-                    existing = df[(df['source'] == source_name) & (df['sample'] == sample_idx)]
-                elif 'sample' in df.columns:
-                    existing = df[(df['targetName'] == targetName) & (df['sample'] == sample_idx)]
-                else:
-                    existing = df[df['targetName'] == targetName]
+                existing = df[(df['source'] == source_name) & (df['sample'] == sample_idx)]
 
-            if not existing.empty and 'kernel_executed' in existing.columns:
-                statuses = existing['kernel_executed'].dropna().astype(str).str.lower().unique().tolist()
-                has_normal = any(status == 'normal' for status in statuses)
-                has_timeout = any(status == 'timeout' for status in statuses)
-                if statuses and not has_normal and report_path and os.path.exists(report_path):
-                    if has_timeout and rerun_timeouts:
+            if report_path and os.path.exists(report_path):
+                if rerun_timeouts and not existing.empty:
+                    statuses = existing['kernel_executed'].dropna().astype(str).str.lower().unique().tolist()
+                    has_timeout = any(status == 'timeout' for status in statuses)
+                    if has_timeout:
                         print(f"Reprofiling {targetName} sample {sample_idx} - rerun timeouts enabled")
                     else:
-                        print(
-                            f"Skipping {targetName} sample {sample_idx} - existing non-normal results with report"
-                        )
+                        print(f"Skipping {targetName} sample {sample_idx} - report exists")
                         continue
-
-            if df.shape[0] > 0 and not existing.empty:
-                print(f"Reprofiling {targetName} sample {sample_idx} - incomplete kernel data detected")
-                if 'source' in df.columns and source_name and 'sample' in df.columns:
-                    df = df[~((df['source'] == source_name) & (df['sample'] == sample_idx))]
-                elif 'sample' in df.columns:
-                    df = df[~((df['targetName'] == targetName) & (df['sample'] == sample_idx))]
                 else:
-                    df = df[df['targetName'] != targetName]
+                    print(f"Skipping {targetName} sample {sample_idx} - report exists")
+                    continue
+
+            if not existing.empty:
+                if report_path:
+                    print(f"Reprofiling {targetName} sample {sample_idx} - missing report file")
+                else:
+                    print(f"Reprofiling {targetName} sample {sample_idx} - replacing existing data")
+                df = df[~((df['source'] == source_name) & (df['sample'] == sample_idx))]
 
             kernel_map = {k.get('mangled'): k for k in kernels if k.get('mangled')}
             expected_kernels = list(kernel_map.keys())
