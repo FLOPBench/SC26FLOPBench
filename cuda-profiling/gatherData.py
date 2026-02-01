@@ -21,7 +21,7 @@ Options:
     --buildDir PATH      Path to build directory (default: ../build)
     --srcDir PATH        Path to HeCBench src directory (default: ../HeCBench/src)
     --outfile PATH       Output CSV file (default: ./gpuData.csv)
-    --skipRuns           Skip execution, only parse existing ncu-rep files
+    --zipOnly            Skip profiling and only create the results zip archive
     --samples N          Number of samples per target (default: 3)
     --help               Show this message
 '''
@@ -60,6 +60,10 @@ from utils import (
     exe_has_cuda_kernels,
     get_makefile_run_args,
     get_gpu_info,
+    try_parse_ncu_report,
+    str_to_float,
+    str_to_int,
+    calc_roofline_data,
 )
 
 # Global directory paths
@@ -488,40 +492,6 @@ def _run_ncu_process(ncu_args, srcDir, timeout_sec):
         return stdout, stderr, returncode, elapsed, True
 
 
-def _try_parse_ncu_report(report_basename, srcDir, stdout_str):
-    if stdout_str is None:
-        stdout_str = ''
-    rep_file = f'{report_basename}.ncu-rep'
-    if not os.path.exists(rep_file):
-        print('  No .ncu-rep file generated')
-        return None, 'missing .ncu-rep report'
-    if os.path.getsize(rep_file) == 0:
-        print('  .ncu-rep file is empty')
-        return None, 'empty .ncu-rep report'
-
-    try:
-        result = subprocess.run(
-            [
-                'ncu', '--import', rep_file,
-                '--csv', '--print-units', 'base', '--page', 'raw',
-                '--print-kernel-base', 'mangled'
-            ],
-            cwd=srcDir,
-            timeout=60,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-
-        if result.returncode != 0:
-            print('  Failed to parse ncu-rep file')
-            return None, f'ncu --import failed (code {result.returncode})'
-
-        return (stdout_str, result, True), None
-    except Exception as e:
-        print(f'  Error parsing ncu-rep: {e}')
-        return None, f'exception parsing ncu-rep: {e}'
-
-
 def _build_run_result(ncu_args, srcDir, stdout_capture, ncu_result, kernel_executed,
                       elapsed, timed_out, stdout_str, stderr_str, returncode,
                       parse_error, status):
@@ -578,7 +548,7 @@ def execute_target_with_ncu(target, sample_idx, timeout_sec=120):
         )
     except Exception as e:
         print(f'  ERROR executing {targetName}: {e}')
-        parsed, parse_error = _try_parse_ncu_report(report_basename, srcDir, None)
+        parsed, parse_error = try_parse_ncu_report(report_basename, srcDir, None)
         if parsed is not None:
             print('  Parsed existing report after execution error')
             stdout_capture, ncu_result, kernel_executed = parsed
@@ -593,7 +563,7 @@ def execute_target_with_ncu(target, sample_idx, timeout_sec=120):
     stderr_str = stderr.decode('UTF-8') if stderr else ''
     combined_str = stdout_str + stderr_str
 
-    parsed, parse_error = _try_parse_ncu_report(report_basename, srcDir, combined_str)
+    parsed, parse_error = try_parse_ncu_report(report_basename, srcDir, combined_str)
     if parsed is not None:
         stdout_capture, ncu_result, kernel_executed = parsed
     else:
@@ -619,103 +589,6 @@ def roofline_results_to_df(ncuOutput):
     stringified = StringIO(ncuOutput.stdout.decode('UTF-8'))
     df = pd.read_csv(stringified, quotechar='"')
     return df
-
-def str_to_float(x):
-    """Convert string with commas to float"""
-    if pd.isna(x) or x == '':
-        return np.nan
-    return np.float64(str(x).replace(',', ''))
-
-def str_to_int(x):
-    """Convert string with commas to int"""
-    if pd.isna(x) or x == '':
-        return np.nan
-    return np.int64(str(x).replace(',', ''))
-
-def calc_roofline_data(df):
-    """
-    Calculate roofline metrics from raw NCU data.
-    
-    Formulas:
-    - DP Performance: (DP_ADD + DP_MUL + DP_FMA*2) * cycles_per_sec
-    - SP Performance: (SP_ADD + SP_MUL + SP_FMA*2) * cycles_per_sec
-    - INT Performance: int_ops / xtime
-    - Traffic: DRAM bytes/sec
-    - Arithmetic Intensity: Performance / Traffic
-    """
-    # Skip header row (units)
-    # kdf = df.iloc[1:].copy(deep=True)
-    kdf = df.copy(deep=True)
-    
-    if kdf.shape[0] == 0:
-        return kdf
-    
-    # Cycles per second (cycles/sec)
-    avgCyclesPerSecond = kdf['smsp__cycles_elapsed.avg.per_second'].apply(str_to_float)
-    
-    # Double precision ops (operations per cycle)
-    # Resulting dpPerf is in OP/s
-    sumDPAddOps = kdf['smsp__sass_thread_inst_executed_op_dadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    sumDPMulOps = kdf['smsp__sass_thread_inst_executed_op_dmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    sumDPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_dfma_pred_on_x2'].apply(str_to_float)
-
-    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
-    kdf['dpPerf'] = (sumDPAddOps + sumDPMulOps + sumDPfmaOps) * avgCyclesPerSecond
-    
-    
-    # Single precision ops (operations per cycle)
-    # Resulting spPerf is in OP/s
-    sumSPAddOps = kdf['smsp__sass_thread_inst_executed_op_fadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    sumSPMulOps = kdf['smsp__sass_thread_inst_executed_op_fmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    sumSPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_ffma_pred_on_x2'].apply(str_to_float)
-
-    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
-    kdf['spPerf'] = (sumSPAddOps + sumSPMulOps + sumSPfmaOps) * avgCyclesPerSecond
-
-
-    sumHPAddInst = kdf['smsp__sass_thread_inst_executed_op_hadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    sumHPMulInst = kdf['smsp__sass_thread_inst_executed_op_hmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
-    # Already weighted to 4 ops per HFMA2 (2 lanes * 2 FLOPs/lane)
-    sumHPFmaOps  = kdf['derived__smsp__sass_thread_inst_executed_op_hfma_pred_on_x4'].apply(str_to_float)
-
-    # Convert HADD2/HMUL2 instruction rate -> scalar FLOP rate by *2
-    kdf['hpPerf'] = ((2*sumHPAddInst) + (2*sumHPMulInst) + sumHPFmaOps) * avgCyclesPerSecond
-
-
-    kdf['bytesRead'] = kdf['dram__bytes_read.sum'].apply(str_to_int)
-    kdf['bytesWrite'] = kdf['dram__bytes_write.sum'].apply(str_to_int)
-    kdf['bytesTotal'] = kdf['bytesRead'] + kdf['bytesWrite']
-    
-    # DRAM traffic (bytes/sec)
-    kdf['traffic'] = kdf['dram__bytes.sum.per_second'].apply(str_to_float)
-    
-    # Arithmetic intensity (OP/byte)
-    kdf['dpAI'] = kdf['dpPerf'] / kdf['traffic']
-    kdf['spAI'] = kdf['spPerf'] / kdf['traffic']
-    kdf['hpAI'] = kdf['hpPerf'] / kdf['traffic']
-    
-    # Execution time (ns)
-    kdf['xtime'] = kdf['gpu__time_duration.sum'].apply(str_to_float)
-    kdf['device'] = kdf['device__attribute_display_name']
-
-    # some of the ncu reports will have a kernel listed in them, but the 
-    # kernel was not sampled for some reason. So it's values show up as NaN.
-    # Which can cause the apply(int) calls below to fail.
-
-    # Total floating-point operations (unitless count)
-    # spPerf/dpPerf/hpPerf are in OP/s and xtime is in ns
-    kdf['SP_FLOP'] = (kdf['spPerf'] * 1e-9 * kdf['xtime']).apply(int)
-    kdf['DP_FLOP'] = (kdf['dpPerf'] * 1e-9 * kdf['xtime']).apply(int)
-    kdf['HP_FLOP'] = (kdf['hpPerf'] * 1e-9 * kdf['xtime']).apply(int)
-    
-    # Integer ops (unitless count)
-    kdf['INTOP'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
-    # Integer performance (OP/s), xtime in ns
-    kdf['intPerf'] = kdf['INTOP'] / (1e-9 * kdf['xtime'])  # xtime is in nanoseconds
-    # Integer arithmetic intensity (OP/byte)
-    kdf['intAI'] = kdf['intPerf'] / kdf['traffic']
-    
-    return kdf
 
 def _expected_kernel_names(target):
     return [k.get('profiler') for k in (target.get('kernels') or []) if k.get('profiler')]
@@ -1003,6 +876,10 @@ def _zip_results(csvFilename, log_path, results_dir):
     if compile_commands_path and os.path.isfile(compile_commands_path):
         files_to_zip.append(compile_commands_path)
 
+    build_log_path = os.path.join(BUILD_DIR, 'build.log') if BUILD_DIR else None
+    if build_log_path and os.path.isfile(build_log_path):
+        files_to_zip.append(build_log_path)
+
     ncu_reports = sorted(glob.glob(os.path.join(results_dir, '*.ncu-rep')))
     files_to_zip.extend(ncu_reports)
 
@@ -1029,13 +906,12 @@ def _zip_results(csvFilename, log_path, results_dir):
             return None
 
 
-def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120, samples=3, log_path=None, gpu_info=None):
+def execute_targets(targets, csvFilename, timeout_sec=120, samples=3,
+                   log_path=None, gpu_info=None, rerun_timeouts=False):
     """Execute all targets and gather profiling data"""
     
     # Load existing data if available
-    if skipRuns:
-        df = pd.DataFrame()
-    elif os.path.isfile(csvFilename):
+    if os.path.isfile(csvFilename):
         df = pd.read_csv(csvFilename)
         if 'kernel_executed' not in df.columns:
             df['kernel_executed'] = 'normal'
@@ -1071,50 +947,7 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120, sampl
                     print(f"Skipping {targetName} sample {sample_idx} - already sampled")
                     continue
 
-            if skipRuns:
-                kernel_map = {k.get('mangled'): k for k in kernels if k.get('mangled')}
-                expected_kernels = list(kernel_map.keys())
-                ncuResult = _parse_ncu_report(report_path, target.get('src'))
-                if ncuResult is None:
-                    df = _append_missing_kernel_rows(
-                        df,
-                        expected_kernels,
-                        kernel_map,
-                        'not profiled',
-                        runtime,
-                        np.nan,
-                        targetName,
-                        exeArgs,
-                        exe_path,
-                        source_name,
-                        sample_idx,
-                    )
-                    df = _reorder_output_columns(df)
-                    df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
-                              index=False, na_rep='NULL')
-                    print(f"  Marked {targetName} sample {sample_idx} kernels as not profiled (missing report)")
-                    continue
-
-                df, sampled_count = _append_ncu_results(
-                    df,
-                    ncuResult,
-                    target,
-                    kernel_map,
-                    expected_kernels,
-                    runtime,
-                    exeArgs,
-                    exe_path,
-                    source_name,
-                    np.nan,
-                    False,
-                    sample_idx,
-                )
-                df = _reorder_output_columns(df)
-                df.to_csv(csvFilename, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',
-                          index=False, na_rep='NULL')
-                print(f"  Saved data for {targetName} sample {sample_idx} ({sampled_count} kernels)")
-                continue
-
+            existing = pd.DataFrame()
             if df.shape[0] > 0:
                 if 'source' in df.columns and source_name and 'sample' in df.columns:
                     existing = df[(df['source'] == source_name) & (df['sample'] == sample_idx)]
@@ -1123,14 +956,27 @@ def execute_targets(targets, csvFilename, skipRuns=False, timeout_sec=120, sampl
                 else:
                     existing = df[df['targetName'] == targetName]
 
-                if not existing.empty:
-                    print(f"Reprofiling {targetName} sample {sample_idx} - incomplete kernel data detected")
-                    if 'source' in df.columns and source_name and 'sample' in df.columns:
-                        df = df[~((df['source'] == source_name) & (df['sample'] == sample_idx))]
-                    elif 'sample' in df.columns:
-                        df = df[~((df['targetName'] == targetName) & (df['sample'] == sample_idx))]
+            if not existing.empty and 'kernel_executed' in existing.columns:
+                statuses = existing['kernel_executed'].dropna().astype(str).str.lower().unique().tolist()
+                has_normal = any(status == 'normal' for status in statuses)
+                has_timeout = any(status == 'timeout' for status in statuses)
+                if statuses and not has_normal and report_path and os.path.exists(report_path):
+                    if has_timeout and rerun_timeouts:
+                        print(f"Reprofiling {targetName} sample {sample_idx} - rerun timeouts enabled")
                     else:
-                        df = df[df['targetName'] != targetName]
+                        print(
+                            f"Skipping {targetName} sample {sample_idx} - existing non-normal results with report"
+                        )
+                        continue
+
+            if df.shape[0] > 0 and not existing.empty:
+                print(f"Reprofiling {targetName} sample {sample_idx} - incomplete kernel data detected")
+                if 'source' in df.columns and source_name and 'sample' in df.columns:
+                    df = df[~((df['source'] == source_name) & (df['sample'] == sample_idx))]
+                elif 'sample' in df.columns:
+                    df = df[~((df['targetName'] == targetName) & (df['sample'] == sample_idx))]
+                else:
+                    df = df[df['targetName'] != targetName]
 
             kernel_map = {k.get('mangled'): k for k in kernels if k.get('mangled')}
             expected_kernels = list(kernel_map.keys())
@@ -1231,8 +1077,8 @@ def main():
                        help='Directory containing source files')
     parser.add_argument('--outfile', type=str, default=default_outfile,
                        help='Output CSV file for profiling data')
-    parser.add_argument('--skipRuns', action='store_true',
-                       help='Skip execution, only parse existing ncu-rep files')
+    parser.add_argument('--zipOnly', action='store_true',
+                       help='Skip profiling and only create the results zip archive')
     parser.add_argument('--timeout', type=int, default=120,
                        help='NCU profiling timeout in seconds (default: 120)')
     parser.add_argument('--cudaOnly', action='store_true',
@@ -1241,6 +1087,10 @@ def main():
                        help='Profile OpenMP targets only')
     parser.add_argument('--samples', type=int, default=3,
                        help='Number of repeat samples per target (default: 3)')
+    parser.add_argument('--rerunTimeouts', action='store_true',
+                       help='Re-run targets that timed out (default: skip if report exists)')
+    parser.add_argument('--skipConfirm', action='store_true',
+                       help='Skip confirmation prompt before profiling')
     
     args = parser.parse_args()
 
@@ -1249,6 +1099,11 @@ def main():
     
     # Setup directories
     setup_dirs(args.buildDir, args.srcDir)
+
+    if args.zipOnly:
+        results_dir = os.path.join(THIS_DIR, 'ncu-rep-results')
+        _zip_results(args.outfile, None, results_dir)
+        return 0
     
     # Load benchmarks metadata
     benchmarks = load_benchmarks_yaml()
@@ -1275,7 +1130,7 @@ def main():
     if not targets:
         print("ERROR: No executable targets found!")
         sys.exit(1)
-    
+
     # Get execution arguments from YAML
     targets = get_exe_args_from_yaml(targets, benchmarks)
     
@@ -1359,7 +1214,8 @@ def main():
             summary['omp_kernels']
         )
 
-    input("Press Enter to continue profiling...")
+    if not args.skipConfirm:
+        input("Press Enter to continue profiling...")
     
     # Initialize profiling log
     log_path = _init_profiling_log(args.outfile)
@@ -1368,11 +1224,11 @@ def main():
     results = execute_targets(
         targets,
         args.outfile,
-        args.skipRuns,
         args.timeout,
         args.samples,
         log_path,
         GPU_INFO,
+        rerun_timeouts=args.rerunTimeouts,
     )
 
     # Zip reports, log, and CSV

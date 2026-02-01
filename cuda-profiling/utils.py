@@ -11,6 +11,9 @@ import subprocess
 import shlex
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 
 MAKEFILE_CANDIDATES = ("Makefile", "makefile", "GNUmakefile")
 
@@ -442,6 +445,135 @@ def extract_exe_args_from_ncu_report(ncu_rep_file):
                 return None
             else:
                 raise RuntimeError(f'Cannot parse ncu command line from {ncu_rep_file}')
+
+
+def str_to_float(x):
+    """Convert string with commas to float"""
+    if pd.isna(x) or x == '':
+        return np.nan
+    return np.float64(str(x).replace(',', ''))
+
+
+def str_to_int(x):
+    """Convert string with commas to int"""
+    if pd.isna(x) or x == '':
+        return np.nan
+    return np.int64(str(x).replace(',', ''))
+
+
+def calc_roofline_data(df):
+    """
+    Calculate roofline metrics from raw NCU data.
+
+    Formulas:
+    - DP Performance: (DP_ADD + DP_MUL + DP_FMA*2) * cycles_per_sec
+    - SP Performance: (SP_ADD + SP_MUL + SP_FMA*2) * cycles_per_sec
+    - INT Performance: int_ops / xtime
+    - Traffic: DRAM bytes/sec
+    - Arithmetic Intensity: Performance / Traffic
+    """
+    kdf = df.copy(deep=True)
+
+    if kdf.shape[0] == 0:
+        return kdf
+
+    # Cycles per second (cycles/sec)
+    avgCyclesPerSecond = kdf['smsp__cycles_elapsed.avg.per_second'].apply(str_to_float)
+
+    # Double precision ops (operations per cycle)
+    # Resulting dpPerf is in OP/s
+    sumDPAddOps = kdf['smsp__sass_thread_inst_executed_op_dadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumDPMulOps = kdf['smsp__sass_thread_inst_executed_op_dmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumDPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_dfma_pred_on_x2'].apply(str_to_float)
+
+    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
+    kdf['dpPerf'] = (sumDPAddOps + sumDPMulOps + sumDPfmaOps) * avgCyclesPerSecond
+
+    # Single precision ops (operations per cycle)
+    # Resulting spPerf is in OP/s
+    sumSPAddOps = kdf['smsp__sass_thread_inst_executed_op_fadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumSPMulOps = kdf['smsp__sass_thread_inst_executed_op_fmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumSPfmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_ffma_pred_on_x2'].apply(str_to_float)
+
+    # this is in units of (ops/cycle + ops/cycle + ops/cycle) * (cycle/sec) = (ops/sec)
+    kdf['spPerf'] = (sumSPAddOps + sumSPMulOps + sumSPfmaOps) * avgCyclesPerSecond
+
+    sumHPAddInst = kdf['smsp__sass_thread_inst_executed_op_hadd_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    sumHPMulInst = kdf['smsp__sass_thread_inst_executed_op_hmul_pred_on.sum.per_cycle_elapsed'].apply(str_to_float)
+    # Already weighted to 4 ops per HFMA2 (2 lanes * 2 FLOPs/lane)
+    sumHPFmaOps = kdf['derived__smsp__sass_thread_inst_executed_op_hfma_pred_on_x4'].apply(str_to_float)
+
+    # Convert HADD2/HMUL2 instruction rate -> scalar FLOP rate by *2
+    kdf['hpPerf'] = ((2 * sumHPAddInst) + (2 * sumHPMulInst) + sumHPFmaOps) * avgCyclesPerSecond
+
+    kdf['bytesRead'] = kdf['dram__bytes_read.sum'].apply(str_to_int)
+    kdf['bytesWrite'] = kdf['dram__bytes_write.sum'].apply(str_to_int)
+    kdf['bytesTotal'] = kdf['bytesRead'] + kdf['bytesWrite']
+
+    # DRAM traffic (bytes/sec)
+    kdf['traffic'] = kdf['dram__bytes.sum.per_second'].apply(str_to_float)
+
+    # Arithmetic intensity (OP/byte)
+    kdf['dpAI'] = kdf['dpPerf'] / kdf['traffic']
+    kdf['spAI'] = kdf['spPerf'] / kdf['traffic']
+    kdf['hpAI'] = kdf['hpPerf'] / kdf['traffic']
+
+    # Execution time (ns)
+    kdf['xtime'] = kdf['gpu__time_duration.sum'].apply(str_to_float)
+    kdf['device'] = kdf['device__attribute_display_name']
+
+    # some of the ncu reports will have a kernel listed in them, but the
+    # kernel was not sampled for some reason. So it's values show up as NaN.
+    # Which can cause the apply(int) calls below to fail.
+
+    # Total floating-point operations (unitless count)
+    # spPerf/dpPerf/hpPerf are in OP/s and xtime is in ns
+    kdf['SP_FLOP'] = (kdf['spPerf'] * 1e-9 * kdf['xtime']).apply(int)
+    kdf['DP_FLOP'] = (kdf['dpPerf'] * 1e-9 * kdf['xtime']).apply(int)
+    kdf['HP_FLOP'] = (kdf['hpPerf'] * 1e-9 * kdf['xtime']).apply(int)
+
+    # Integer ops (unitless count)
+    kdf['INTOP'] = kdf['smsp__sass_thread_inst_executed_op_integer_pred_on.sum'].apply(str_to_float)
+    # Integer performance (OP/s), xtime in ns
+    kdf['intPerf'] = kdf['INTOP'] / (1e-9 * kdf['xtime'])  # xtime is in nanoseconds
+    # Integer arithmetic intensity (OP/byte)
+    kdf['intAI'] = kdf['intPerf'] / kdf['traffic']
+
+    return kdf
+
+
+def try_parse_ncu_report(report_basename, src_dir, stdout_str):
+    if stdout_str is None:
+        stdout_str = ''
+    rep_file = f'{report_basename}.ncu-rep'
+    if not os.path.exists(rep_file):
+        print('  No .ncu-rep file generated')
+        return None, 'missing .ncu-rep report'
+    if os.path.getsize(rep_file) == 0:
+        print('  .ncu-rep file is empty')
+        return None, 'empty .ncu-rep report'
+
+    try:
+        result = subprocess.run(
+            [
+                'ncu', '--import', rep_file,
+                '--csv', '--print-units', 'base', '--page', 'raw',
+                '--print-kernel-base', 'mangled'
+            ],
+            cwd=src_dir,
+            timeout=60,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+
+        if result.returncode != 0:
+            print('  Failed to parse ncu-rep file')
+            return None, f'ncu --import failed (code {result.returncode})'
+
+        return (stdout_str, result, True), None
+    except Exception as e:
+        print(f'  Error parsing ncu-rep: {e}')
+        return None, f'exception parsing ncu-rep: {e}'
 
 
 def demangle_kernel_name(mangled_name, prefer_tool='cu++filt'):

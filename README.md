@@ -217,20 +217,18 @@ echo 'deb [signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] http
 sudo apt-get update -y
 sudo apt-get install -y nvhpc-25-11
 
+sudo apt-get install -y liboffload-21-dev libomp-21-dev g++ gcc libstdc++-14-dev libboost-all-dev libgsl-dev
 
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
 sudo ./llvm.sh 21 all
 rm llvm.sh
 sudo apt-get clean
-sudo apt-get install liboffload-21-dev libomp-21-dev
 
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
 sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
 sudo update-alternatives --install /usr/bin/llvm-objdump llvm-objdump /usr/bin/llvm-objdump-21 100
 sudo update-alternatives --install /usr/bin/llvm-cxxfilt llvm-cxxfilt /usr/bin/llvm-cxxfilt-21 100
-
-sudo apt-get install -y g++ gcc libstdc++-14-dev libboost-all-dev
 
 sudo apt -y autoremove
 
@@ -245,17 +243,18 @@ conda activate gpuflopbench-updated
 cd ~/gpuFLOPBench-updated/
 pip install -r requirements.txt
 
+echo 'source ~/anaconda3/bin/activate' >> ~/.bashrc
+echo 'conda activate gpuflopbench-updated' >> ~/.bashrc
 
-export LD_LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+echo 'export LD_LIBRARY_PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/math_libs/lib64:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/lib:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/lib64:/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
 
-export PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/home/gbolet/.vscode-server/cli/servers/Stable-94e8ae2b28cb5cc932b86e1070569c4463565c37/server/bin/remote-cli:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/anaconda3/envs/gpuflopbench-updated/bin:/home/gbolet/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/gbolet/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:$PATH
+echo 'export PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/gbolet/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/home/gbolet/.vscode-server/cli/servers/Stable-94e8ae2b28cb5cc932b86e1070569c4463565c37/server/bin/remote-cli:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/13.0/bin:/usr/lib/llvm-21/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/extras/qd/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/mpi/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/compilers/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/cuda/bin:/usr/local/cuda/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nvshmem/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/comm_libs/nccl/bin:/opt/nvidia/hpc_sdk/Linux_x86_64/25.11/profilers/bin:/home/gbolet/anaconda3/envs/gpuflopbench-updated/bin:/home/gbolet/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/gbolet/.vscode-server/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:$PATH' >> ~/.bashrc
 
-export CUDA_HOME=/usr/local/cuda-13.0
+echo 'export CUDA_HOME=/usr/local/cuda-13.0' >> ~/.bashrc
 
-# need to add these lines to you cmake invocation in ./runBuild.sh
+echo 'cd ~/gpuFLOPBench-updated/' >> ~/.bashrc
 
-    -DCUDAToolkit_ROOT=$CUDA_HOME \
-    -DCMAKE_CUDA_COMPILER=$CUDA_HOME/bin/nvcc \
+source ~/.bashrc
 
 ./runBuild.sh
 ```
