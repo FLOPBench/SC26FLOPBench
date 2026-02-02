@@ -51,16 +51,16 @@ jobs:
     - name: Run build script in container
       run: |
         docker run --rm \
-          -v ${{ github.workspace }}:/workspace \
-          -w /workspace \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
           gpuflopbench-updated:latest \
           bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && ./runBuild.sh --clean"
     
     - name: List build artifacts
       run: |
         docker run --rm \
-          -v ${{ github.workspace }}:/workspace \
-          -w /workspace \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
           gpuflopbench-updated:latest \
           bash -c "
             echo '=== Build Directory Contents ===' && \
@@ -78,8 +78,8 @@ jobs:
     - name: Run unit tests (excluding GPU and slow tests)
       run: |
         docker run --rm \
-          -v ${{ github.workspace }}:/workspace \
-          -w /workspace \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
           gpuflopbench-updated:latest \
           bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && \
                    ./runTests.sh --noGPU"
