@@ -33,6 +33,7 @@ RUN apt-get update && \
     apt-get install -y \
     # Build essentials
     build-essential \
+    g++ gcc libstdc++-14-dev libboost-all-dev libgsl-dev \
     cmake \
     git \
     wget \
@@ -103,10 +104,10 @@ RUN source ~/anaconda3/bin/activate && \
     pip install --no-cache-dir pandas numpy pyyaml tqdm pytest pytest-xdist pytest-cov
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /gpuFLOPBench-updated
 
 # Copy repository contents
-COPY . /workspace/
+COPY . /gpuFLOPBench-updated/
 
 # Set executable permissions
 RUN chmod +x runBuild.sh runTests.sh
@@ -121,7 +122,7 @@ RUN echo 'source ~/anaconda3/bin/activate' >> ~/.bashrc && \
     echo 'conda activate gpuflopbench-updated' >> ~/.bashrc
 
 # Set environment variable for convenience
-ENV GPUFLOPBENCH_ROOT=/workspace
+ENV GPUFLOPBENCH_ROOT=/gpuFLOPBench-updated
 
 # Default command
 CMD ["/bin/bash"]
