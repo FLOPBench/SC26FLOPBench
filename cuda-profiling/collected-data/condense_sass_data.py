@@ -26,7 +26,9 @@ reportsA100 = sorted([ path.abspath(report) for report in glob.glob('./A100/*.nc
 reportsH100 = sorted([ path.abspath(report) for report in glob.glob('./H100/*.ncu-rep')])
 
 # markers we should ignore / drop kernels containing these from the dataset
-library_markers = [ 'cub::', 'thrust::', '__cuda_' ]
+#library_markers = [ 'cub::', 'thrust::', '__cuda_' ]
+
+library_markers = [ 'cub::', 'thrust::' ]
 
 def _parse_ncu_sass_report(report_path, src_dir='./'):
     if not report_path or not os.path.exists(report_path):
@@ -124,7 +126,7 @@ def parse_filename(fname: str):
 def _process_single_report(report):
     ncuResult = _parse_ncu_sass_report(report)
 
-    print(report, flush=True)
+    #print(report, flush=True)
     rawDF = sass_results_to_df(ncuResult)
 
     # drop the first row which is units
@@ -155,7 +157,7 @@ def _process_single_report(report):
 
     # drop any rows that contain library markers
     beforeRows = rawDF.shape[0]
-    roofDF = rawDF[~rawDF['Demangled Name'].str.contains('|'.join(library_markers))]
+    rawDF = rawDF[~rawDF['Demangled Name'].str.contains('|'.join(library_markers))]
     afterRows = rawDF.shape[0]
     dropped = beforeRows - afterRows
     if dropped > 0:
@@ -183,7 +185,7 @@ def load_ncu_reports(reportsList, max_workers=None, chunksize=1):
                       desc=f"Processing {len(reportsList)} reports")
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-num_threads = 4
+num_threads = 8
 
 df3080 = load_ncu_reports(reports3080, num_threads)
 print()
