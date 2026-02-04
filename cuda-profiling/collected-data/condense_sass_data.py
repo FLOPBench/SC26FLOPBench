@@ -156,16 +156,16 @@ def _process_single_report(report):
         raise ValueError(f'Incorrect model_type given: [{model_type}]')
 
     # drop any rows that contain library markers
-    beforeRows = rawDF.shape[0]
-    rawDF = rawDF[~rawDF['Demangled Name'].str.contains('|'.join(library_markers))]
-    afterRows = rawDF.shape[0]
-    dropped = beforeRows - afterRows
-    if dropped > 0:
-        print(f'\t  Dropped {dropped} library/kernel rows from {report}')
+    # beforeRows = rawDF.shape[0]
+    # rawDF = rawDF[~rawDF['Demangled Name'].str.contains('|'.join(library_markers))]
+    # afterRows = rawDF.shape[0]
+    # dropped = beforeRows - afterRows
+    # if dropped > 0:
+    #     print(f'\t  Dropped {dropped} library/kernel rows from {report}')
 
-        if rawDF.empty:
-            print(f'  No roofline data remaining after dropping library kernels from {report}')
-            return None
+    #     if rawDF.empty:
+    #         print(f'  No roofline data remaining after dropping library kernels from {report}')
+    #         return None
 
     # we need to extract the exeArgs from the og dataframes
     # NOTE: this will break if we execute a code more than once with diff exe args
