@@ -25,10 +25,61 @@ reportsA10 = sorted([ path.abspath(report) for report in glob.glob('./A10/*.ncu-
 reportsA100 = sorted([ path.abspath(report) for report in glob.glob('./A100/*.ncu-rep')])
 reportsH100 = sorted([ path.abspath(report) for report in glob.glob('./H100/*.ncu-rep')])
 
+rx = re.compile(
+    r'^'
+    r'(?P<device>.+?(?:A10|3080|40GB|HBM3))_'   # device ends at one of these tokens, then "_"
+    r'(?P<source>.+?)-'                        # source name (can include hyphens)
+    r'(?P<source_type>omp|cuda)-'              # source type
+    r's(?P<sample>\d+)-'                       # sample number digits
+    r'report\.ncu-rep'
+    r'$'
+)
+
+def parse_filename(fname: str):
+    m = rx.match(Path(fname).name)
+    if not m:
+        raise ValueError(f"Unmatched filename: {fname}")
+    d = m.groupdict()
+    d["sample"] = int(d["sample"])            # "1" -> 1
+    return d
+
+# filter out repeat samples -- so we don't have duplicate SASS instructions
+# if we already have 1 sample, we don't need another
+# compare the filesizes so we grab the largest one
+# def drop_duplicate_samples(reportsList):
+#     # group the reports by device/source/sample
+#     grouped_reports = {}
+#     for report in reportsList:
+#         filename = path.basename(report)
+#         parsed_name = parse_filename(filename)
+#         key = (parsed_name['device'], parsed_name['source'], parsed_name['source_type'])
+#         if key not in grouped_reports:
+#             grouped_reports[key] = []
+#         grouped_reports[key].append(report)
+# 
+#         for group, files in grouped_reports.items():
+#             if len(files) > 1:
+#                 # we have duplicates, keep the largest file
+#                 files.sort(key=lambda x: os.path.getsize(x), reverse=True)
+#                 # keep only the largest file
+#                 grouped_reports[group] = [files[0]]
+# 
+#     # flatten the grouped reports back into a single list
+#     deduped_reports = []
+#     for files in grouped_reports.values():
+#         deduped_reports.extend(files)
+# 
+#     return deduped_reports
+
+# reports3080 = drop_duplicate_samples(reports3080)
+# reportsA10 = drop_duplicate_samples(reportsA10)
+# reportsA100 = drop_duplicate_samples(reportsA100)
+# reportsH100 = drop_duplicate_samples(reportsH100)
+
 # markers we should ignore / drop kernels containing these from the dataset
 #library_markers = [ 'cub::', 'thrust::', '__cuda_' ]
 
-library_markers = [ 'cub::', 'thrust::' ]
+# library_markers = [ 'cub::', 'thrust::' ]
 
 def _parse_ncu_sass_report(report_path, src_dir='./'):
     if not report_path or not os.path.exists(report_path):
@@ -104,23 +155,6 @@ def get_device_type(deviceName):
         raise ValueError('Unknown GPU')
     
 
-rx = re.compile(
-    r'^'
-    r'(?P<device>.+?(?:A10|3080|40GB|HBM3))_'   # device ends at one of these tokens, then "_"
-    r'(?P<source>.+?)-'                        # source name (can include hyphens)
-    r'(?P<source_type>omp|cuda)-'              # source type
-    r's(?P<sample>\d+)-'                       # sample number digits
-    r'report\.ncu-rep'
-    r'$'
-)
-
-def parse_filename(fname: str):
-    m = rx.match(Path(fname).name)
-    if not m:
-        raise ValueError(f"Unmatched filename: {fname}")
-    d = m.groupdict()
-    d["sample"] = int(d["sample"])            # "1" -> 1
-    return d
 
 
 def _process_single_report(report):

@@ -40,7 +40,7 @@ log_metrics = ['traffic', 'xtime']
 all_cols = groupings + metrics + ['sample']
 
 # markers we should ignore / drop kernels containing these from the dataset
-library_markers = [ 'cub::', 'thrust::', '__cuda_' ]
+# library_markers = [ 'cub::', 'thrust::', '__cuda_' ]
 
 
 def _process_single_report(report):
@@ -93,16 +93,16 @@ def _process_single_report(report):
         roofDF['Demangled Name'] = roofDF['Kernel Name'].apply(lambda x: demangle_omp_offload_name(x))
 
     # drop any rows that contain library markers
-    beforeRows = roofDF.shape[0]
-    roofDF = roofDF[~roofDF['Demangled Name'].str.contains('|'.join(library_markers))]
-    afterRows = roofDF.shape[0]
-    dropped = beforeRows - afterRows
-    if dropped > 0:
-        print(f'\t  Dropped {dropped} library/kernel rows from {report}')
+    # beforeRows = roofDF.shape[0]
+    # roofDF = roofDF[~roofDF['Demangled Name'].str.contains('|'.join(library_markers))]
+    # afterRows = roofDF.shape[0]
+    # dropped = beforeRows - afterRows
+    # if dropped > 0:
+    #     print(f'\t  Dropped {dropped} library/kernel rows from {report}')
 
-        if roofDF.empty:
-            print(f'  No roofline data remaining after dropping library kernels from {report}')
-            return None
+    #     if roofDF.empty:
+    #         print(f'  No roofline data remaining after dropping library kernels from {report}')
+    #         return None
 
     # we need to extract the exeArgs from the og dataframes
     # NOTE: this will break if we execute a code more than once with diff exe args
