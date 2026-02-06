@@ -175,7 +175,7 @@ def _process_single_report(report):
 
     rawDF['device'] = get_device_type(parsed_name['device'])
 
-    rawDF['codenmae'] = parsed_name['source']
+    rawDF['codename'] = parsed_name['source']
     rawDF['source'] = parsed_name['source'] + '-' + parsed_name['source_type']
     rawDF['sample'] = parsed_name['sample']
 
