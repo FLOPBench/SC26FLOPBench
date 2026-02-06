@@ -136,9 +136,9 @@ cmake "$HECBENCH_DIR" \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_FLAGS="-DOPENMP_TARGET -DOMP_TARGET -DGPU" \
-    -DCMAKE_CXX_FLAGS="-DOPENMP_TARGET -DOMP_TARGET -DGPU" \
-    -DCMAKE_CUDA_FLAGS="-DGPU" \
+    -DCMAKE_C_FLAGS="-DOPENMP_TARGET -DOMP_TARGET -DGPU -save-temps -fopenmp-relocatable-target" \
+    -DCMAKE_CXX_FLAGS="-DOPENMP_TARGET -DOMP_TARGET -DGPU -save-temps -fopenmp-relocatable-target" \
+    -DCMAKE_CUDA_FLAGS="-DGPU -Xptxas=-preserve-relocs -Xnvlink=-preserve-relocs" \
     -DHECBENCH_ENABLE_CUDA=ON \
     -DHECBENCH_ENABLE_OPENMP=ON \
     -DHECBENCH_ENABLE_HIP=OFF \
