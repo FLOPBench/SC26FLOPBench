@@ -4,7 +4,7 @@
 
 
 import re
-from typing import Optional
+from typing import Optional, List
 
 # SASS opcode metadata for:
 # - Ampere + Ada (SM 80, 86, 89)
@@ -819,6 +819,22 @@ def detect_guard_pred_instruction(src_str: str) -> bool:
     return bool(_GUARD_RE.match(str(src_str)))
 
 
+
 # pandas usage:
 # df["opcode"] = df["Source"].apply(extract_opcode_from_line)
 # df["is_predicated"] = df["Source"].apply(detect_guard_pred_instruction)
+
+# "0x" followed by at least 8 hex digits (case-insensitive)
+_HEX_REF_RE = re.compile(r"\b0x[0-9a-fA-F]{8,}\b")
+
+def extract_hex_references(src_str: str) -> List[str]:
+    """
+    Return a list of hex addresses referenced in a SASS line.
+    Matches tokens like 0x7563ef27bf00 (0x + >= 8 hex digits).
+    Returns [] if none are found.
+    """
+    if src_str is None:
+        return []
+    refs = _HEX_REF_RE.findall(str(src_str))
+
+    return ':'.join(refs) if refs else ''
