@@ -6,3 +6,5 @@ NVIDIA_H100_80GB_HBM3_profiling-results-20260202-031513.zip filter=lfs diff=lfs 
 NVIDIA_GeForce_RTX_3080_profiling-results-20260130-232112.zip filter=lfs diff=lfs merge=lfs -text
 sass-data-new.zip filter=lfs diff=lfs merge=lfs -text
 all-NCU-GPU-Data-with-IMIX.csv filter=lfs diff=lfs merge=lfs -text
+all-NCU-SASS-Data.csv filter=lfs diff=lfs merge=lfs -text
+all-IMIX-Data.csv filter=lfs diff=lfs merge=lfs -text
