@@ -61,3 +61,6 @@ htmlcov/
 *.zip
 
 *.json
+
+# ignroe cubin files
+*.cubin
