@@ -174,6 +174,7 @@ add_group(
     {
         "F2F": "Floating Point To Floating Point Conversion",
         "F2I": "Floating Point To Integer Conversion",
+        "F2FP": "FP32 Convert and Pack to FP16/BF16",
         "I2F": "Integer To Floating Point Conversion",
         "I2I": "Integer To Integer Conversion",
         "I2IP": "Integer To Integer Conversion and Packing",
