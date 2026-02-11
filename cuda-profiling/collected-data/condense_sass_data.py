@@ -178,6 +178,10 @@ class SASSTextSection:
                     # Let's capture all references first
                     refs = ref_pattern.findall(line)
                     for r in refs:
+                        # Filter out data references (start with $) or expressions (start with ()
+                        if r.startswith('$') or r.startswith('('):
+                            continue
+
                         if not r.startswith(".L"):
                             self.num_references += 1
                             self.references.append(r)
