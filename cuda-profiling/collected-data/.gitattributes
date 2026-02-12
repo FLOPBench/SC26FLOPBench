@@ -10,3 +10,4 @@ all-NCU-SASS-Data.csv filter=lfs diff=lfs merge=lfs -text
 all-IMIX-Data.csv filter=lfs diff=lfs merge=lfs -text
 sass_files.zip filter=lfs diff=lfs merge=lfs -text
 scraped-sass/sass_files.zip filter=lfs diff=lfs merge=lfs -text
+imix_data.csv filter=lfs diff=lfs merge=lfs -text
