@@ -1,0 +1,175 @@
+[
+    {
+        "file": "compact.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 6,
+                "name": "cp_to_device",
+                "offset": 6,
+                "qualifiers": [],
+                "return_type": "char *",
+                "signature": "cp_to_device(char *from, size_t size)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 4,
+                "name": "cp_to_host",
+                "offset": 13,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "cp_to_host(char *to, char*from, size_t size)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 19,
+                "name": "ccc_loop1_2",
+                "offset": 60,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "ccc_loop1_2( const double * __restrict__ rho_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ V, double * __restrict__ rho_ave_compact, const int * __restrict__ mmc_index, const int mmc_cells, const int * __restrict__ mmc_i, const int * __restrict__ mmc_j, int sizex, int sizey)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 47,
+                "name": "ccc_loop2",
+                "offset": 80,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "ccc_loop2( const int * __restrict__ imaterial, const int * __restrict__ matids, const int * __restrict__ nextfrac, const double * __restrict__ rho_compact, const double * __restrict__ rho_compact_list, const double * __restrict__ t_compact, const double * __restrict__ t_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ n, double * __restrict__ p_compact, double * __restrict__ p_compact_list, int sizex, int sizey, int * __restrict__ mmc_index)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 15,
+                "name": "ccc_loop2_2",
+                "offset": 128,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "ccc_loop2_2( const int * __restrict__ matids, const double * __restrict__ rho_compact_list, const double * __restrict__ t_compact_list, const double * __restrict__ Vf_compact_list, const double * __restrict__ n, double * __restrict__ p_compact_list, int * __restrict__ mmc_index, int mmc_cells)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 154,
+                "name": "ccc_loop3",
+                "offset": 144,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "ccc_loop3( const int * __restrict__ imaterial, const int * __restrict__ nextfrac, const int * __restrict__ matids, const double * __restrict__ rho_compact, const double * __restrict__ rho_compact_list, double * __restrict__ rho_mat_ave_compact, double * __restrict__ rho_mat_ave_compact_list, const double * __restrict__ x, const double * __restrict__ y, int sizex, int sizey, int * __restrict__ mmc_index)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 80,
+                "name": "compact_cell_centric",
+                "offset": 345,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "compact_cell_centric(full_data cc, compact_data ccc, int argc, char** argv)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 58,
+                "name": "compact_check_results",
+                "offset": 426,
+                "qualifiers": [],
+                "return_type": "bool",
+                "signature": "compact_check_results(full_data cc, compact_data ccc)",
+                "templates": []
+            }
+        ]
+    },
+    {
+        "file": "full_matrix.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 148,
+                "name": "full_matrix_cell_centric",
+                "offset": 21,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "full_matrix_cell_centric(full_data cc)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 175,
+                "name": "full_matrix_material_centric",
+                "offset": 170,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "full_matrix_material_centric(full_data cc, full_data mc)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 40,
+                "name": "full_matrix_check_results",
+                "offset": 346,
+                "qualifiers": [],
+                "return_type": "bool",
+                "signature": "full_matrix_check_results(full_data cc, full_data mc)",
+                "templates": []
+            }
+        ]
+    },
+    {
+        "file": "multimat.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 45,
+                "name": "initialise_field_rand",
+                "offset": 104,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "initialise_field_rand(full_data cc, double prob2, double prob3, double prob4)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 123,
+                "name": "initialise_field_static",
+                "offset": 150,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "initialise_field_static(full_data cc)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 73,
+                "name": "initialise_field_file",
+                "offset": 274,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "initialise_field_file(full_data cc)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 395,
+                "name": "main",
+                "offset": 348,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char** argv)",
+                "templates": []
+            }
+        ]
+    }
+]

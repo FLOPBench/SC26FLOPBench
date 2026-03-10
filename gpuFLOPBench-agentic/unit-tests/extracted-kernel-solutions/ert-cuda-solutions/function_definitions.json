@@ -1,0 +1,134 @@
+[
+    {
+        "file": "kernel.h",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "initialize",
+                "offset": 18,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "initialize(uint64_t nsize, T *__restrict__ A, float value)",
+                "templates": [
+                    "template <typename T, typename std::enable_if<std::is_same<T, half2>::value, int>::type = 0>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "initialize",
+                "offset": 28,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "initialize(uint64_t nsize, T *__restrict__ A, float value)",
+                "templates": [
+                    "template <typename T, typename std::enable_if<!std::is_same<T, half2>::value, int>::type = 0>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 44,
+                "name": "block_stride",
+                "offset": 38,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "block_stride(uint32_t ntrials, uint32_t nsize, T *__restrict__ A)",
+                "templates": [
+                    "template <typename T, typename std::enable_if<std::is_same<T, half2>::value, int>::type = 0>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 44,
+                "name": "block_stride",
+                "offset": 84,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "block_stride(uint32_t ntrials, uint32_t nsize, T *__restrict__ A)",
+                "templates": [
+                    "template <typename T, typename std::enable_if<!std::is_same<T, half2>::value, int>::type = 0>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 7,
+                "name": "gpuKernel",
+                "offset": 129,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "gpuKernel(uint32_t nsize, uint32_t ntrials, T *__restrict__ A, int *bytes_per_elem, int *mem_accesses_per_elem)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            }
+        ]
+    },
+    {
+        "file": "main.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "getTime",
+                "offset": 15,
+                "qualifiers": [],
+                "return_type": "double",
+                "signature": "getTime()",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 10,
+                "name": "alloc",
+                "offset": 24,
+                "qualifiers": [],
+                "return_type": "T *",
+                "signature": "alloc(uint64_t psize)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 6,
+                "name": "launchKernel",
+                "offset": 35,
+                "qualifiers": [
+                    "inline"
+                ],
+                "return_type": "void",
+                "signature": "launchKernel(uint64_t n, uint64_t t, T *buf, T *d_buf, int *bytes_per_elem_ptr, int *mem_accesses_per_elem_ptr)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 50,
+                "name": "run",
+                "offset": 42,
+                "qualifiers": [],
+                "return_type": "void",
+                "signature": "run(uint64_t PSIZE, T *buf)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 56,
+                "name": "main",
+                "offset": 93,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char *argv[])",
+                "templates": []
+            }
+        ]
+    }
+]

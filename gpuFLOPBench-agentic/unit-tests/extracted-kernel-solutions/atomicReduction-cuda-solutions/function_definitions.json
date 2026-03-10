@@ -1,0 +1,82 @@
+[
+    {
+        "file": "kernels.h",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "atomic_reduction",
+                "offset": 1,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "atomic_reduction(int *in, int* out, int arrayLength)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "atomic_reduction_v2",
+                "offset": 10,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "atomic_reduction_v2(int *in, int* out, int arrayLength)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "atomic_reduction_v4",
+                "offset": 19,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "atomic_reduction_v4(int *in, int* out, int arrayLength)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 8,
+                "name": "atomic_reduction_v8",
+                "offset": 28,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "atomic_reduction_v8(int *in, int* out, int arrayLength)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 9,
+                "name": "atomic_reduction_v16",
+                "offset": 37,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "atomic_reduction_v16(int *in, int* out, int arrayLength)",
+                "templates": []
+            }
+        ]
+    },
+    {
+        "file": "reduction.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 81,
+                "name": "main",
+                "offset": 30,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char** argv)",
+                "templates": []
+            }
+        ]
+    }
+]

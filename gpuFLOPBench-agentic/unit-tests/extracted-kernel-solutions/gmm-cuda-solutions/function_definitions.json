@@ -1,0 +1,214 @@
+[
+    {
+        "file": "gaussian_kernel.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 15,
+                "name": "mvtmeans",
+                "offset": 19,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "mvtmeans(float* fcs_data, int num_dimensions, int num_events, float* means)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 28,
+                "name": "averageVariance",
+                "offset": 35,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "averageVariance(float* fcs_data, float* means, int num_dimensions, int num_events, float* avgvar)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 63,
+                "name": "invert",
+                "offset": 67,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "invert(float* data, int actualsize, float* log_determinant)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 22,
+                "name": "compute_pi",
+                "offset": 132,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "compute_pi(clusters_t* clusters, int num_clusters)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 48,
+                "name": "compute_constants",
+                "offset": 156,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "compute_constants(clusters_t* clusters, int num_clusters, int num_dimensions)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 77,
+                "name": "constants_kernel",
+                "offset": 210,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "constants_kernel(clusters_t* clusters, int num_clusters, int num_dimensions)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 95,
+                "name": "seed_clusters_kernel",
+                "offset": 294,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "seed_clusters_kernel( const float* fcs_data, clusters_t* clusters, const int num_dimensions, const int num_clusters, const int num_events)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 13,
+                "name": "parallelSum",
+                "offset": 390,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "float",
+                "signature": "parallelSum(float* data, const unsigned int ndata)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 15,
+                "name": "compute_indices",
+                "offset": 404,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "compute_indices(int num_events, int* start, int* stop)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 62,
+                "name": "estep1",
+                "offset": 420,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "estep1(float* data, clusters_t* clusters, int num_dimensions, int num_events)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 67,
+                "name": "estep2",
+                "offset": 483,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "estep2(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events, float* likelihood)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 32,
+                "name": "mstep_means",
+                "offset": 559,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "mstep_means(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 41,
+                "name": "mstep_N",
+                "offset": 596,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "mstep_N(clusters_t* clusters, int num_dimensions, int num_clusters, int num_events)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 13,
+                "name": "compute_row_col",
+                "offset": 645,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "void",
+                "signature": "compute_row_col(int n, int* row, int* col)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 63,
+                "name": "mstep_covariance1",
+                "offset": 664,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "mstep_covariance1(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 90,
+                "name": "mstep_covariance2",
+                "offset": 728,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "mstep_covariance2(float* fcs_data, clusters_t* clusters, int num_dimensions, int num_clusters, int num_events)",
+                "templates": []
+            }
+        ]
+    },
+    {
+        "file": "main.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 105,
+                "name": "main",
+                "offset": 36,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main( int argc, char** argv)",
+                "templates": []
+            }
+        ]
+    }
+]

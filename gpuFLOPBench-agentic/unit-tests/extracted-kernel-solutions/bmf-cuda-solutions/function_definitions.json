@@ -1,0 +1,149 @@
+[
+    {
+        "file": "src/bit_vector_kernels.cuh",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 7,
+                "name": "warpReduceSum",
+                "offset": 4,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "warpReduceSum(T val, const unsigned width = warpSize)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 15,
+                "name": "blockReduceSum",
+                "offset": 12,
+                "qualifiers": [
+                    "__device__"
+                ],
+                "return_type": "T",
+                "signature": "blockReduceSum(T val, T* reductionArray)",
+                "templates": [
+                    "template <typename T>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 25,
+                "name": "initFactor",
+                "offset": 30,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "initFactor( bit_vector_t * Ab, const index_t height, const uint8_t factorDim, const uint32_t seed, const float threshold)",
+                "templates": [
+                    "template <typename bit_vector_t, typename index_t>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 37,
+                "name": "computeDistanceRows",
+                "offset": 58,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "computeDistanceRows( const bit_factor_t * __restrict__ Ab, const bit_factor_t * __restrict__ Bb, const bit_matrix_t * __restrict__ Cb, const index_t height, const index_t width, const index_t padded_width, const uint8_t factorDim, const int weight, error_t *global_error)",
+                "templates": [
+                    "template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 57,
+                "name": "computeDistanceRowsShared",
+                "offset": 96,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "computeDistanceRowsShared( const bit_factor_t * __restrict__ Ab, const bit_factor_t * __restrict__ Bb, const bit_matrix_t * __restrict__ Cb, const index_t height, const index_t width, const index_t padded_width, const uint8_t factorDim, const error_t weight, error_t *global_error)",
+                "templates": [
+                    "template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 76,
+                "name": "vectorMatrixMultCompareRowWarpShared",
+                "offset": 157,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "vectorMatrixMultCompareRowWarpShared( bit_factor_t * __restrict__ A, const bit_factor_t * __restrict__ B, const bit_matrix_t * __restrict__ C, const index_t height, const index_t width, const index_t padded_width, const uint8_t factorDim, const index_t startrow, error_t *global_error, const uint32_t seed, const float temperature, const float flipManyChance, const uint32_t flipManyDepth, const error_t weight)",
+                "templates": [
+                    "template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t>"
+                ]
+            },
+            {
+                "kind": "defnt",
+                "lines": 78,
+                "name": "vectorMatrixMultCompareColWarpShared",
+                "offset": 235,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "vectorMatrixMultCompareColWarpShared( const bit_factor_t * __restrict__ A, bit_factor_t * __restrict__ B, const bit_matrix_t * __restrict__ C, const index_t height, const index_t width, const index_t padded_width, const uint8_t factorDim, const index_t startcol, error_t *global_error, const uint32_t seed, const float temperature, const float flipManyChance, const uint32_t flipManyDepth, const error_t weight)",
+                "templates": [
+                    "template <typename bit_factor_t, typename bit_matrix_t, typename index_t, typename error_t>"
+                ]
+            }
+        ]
+    },
+    {
+        "file": "src/float_kernels.cuh",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 20,
+                "name": "initFactor",
+                "offset": 5,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "initFactor( float * A, const int height, const uint8_t factorDim, const uint32_t seed, const float threshold)",
+                "templates": []
+            },
+            {
+                "kind": "defnt",
+                "lines": 69,
+                "name": "computeDistanceRowsShared",
+                "offset": 28,
+                "qualifiers": [
+                    "__global__"
+                ],
+                "return_type": "void",
+                "signature": "computeDistanceRowsShared( const float * __restrict__ A, const float * __restrict__ B, const uint32_t * __restrict__ Cb, const int height, const int width, const int padded_width, const uint8_t factorDim, const int inverse_density, int *__restrict__ global_error)",
+                "templates": []
+            }
+        ]
+    },
+    {
+        "file": "src/main.cu",
+        "functions": [
+            {
+                "kind": "defnt",
+                "lines": 97,
+                "name": "main",
+                "offset": 23,
+                "qualifiers": [],
+                "return_type": "int",
+                "signature": "main(int argc, char **argv)",
+                "templates": []
+            }
+        ]
+    }
+]
