@@ -18,7 +18,7 @@ _SOLUTIONS_DIR = (
     / "extracted-kernel-solutions"
     / "lulesh-cuda-solutions"
 )
-_LULESH_ROOT = REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-cuda"
+_LULESH_ROOT = REPO_ROOT / ".." / "HeCBench" / "src" / "lulesh-cuda"
 
 
 def _ensure_utils_module() -> None:

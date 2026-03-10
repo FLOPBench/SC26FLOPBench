@@ -169,7 +169,7 @@ def test_build_omp_region_helper(tmp_path: Path) -> None:
 
 def test_lulesh_cuda_launch_detection_real_code() -> None:
     cuda_file = (
-        REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-cuda" / "lulesh.cu"
+        REPO_ROOT / ".." / "HeCBench" / "src" / "lulesh-cuda" / "lulesh.cu"
     )
     text = cst_utils.read_text(cuda_file)
     line = next(
@@ -197,7 +197,7 @@ def test_lulesh_cuda_launch_detection_real_code() -> None:
 
 def test_find_cuda_launches_on_line_real_code() -> None:
     cuda_file = (
-        REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-cuda" / "lulesh.cu"
+        REPO_ROOT / ".." / "HeCBench" / "src" / "lulesh-cuda" / "lulesh.cu"
     )
     text = cst_utils.read_text(cuda_file)
     line = next(
@@ -214,7 +214,7 @@ def test_find_cuda_launches_on_line_real_code() -> None:
 
 
 def test_lulesh_omp_region_detection_real_code() -> None:
-    omp_file = REPO_ROOT / "gpuFLOPBench" / "src" / "lulesh-omp" / "lulesh.cc"
+    omp_file = REPO_ROOT / ".." / "HeCBench" / "src" / "lulesh-omp" / "lulesh.cc"
     text = cst_utils.read_text(omp_file)
     target_directive = "#pragma omp target teams distribute parallel for thread_limit(THREADS)"
     line = next(

@@ -1,13 +1,1 @@
-solution = [
-    r"""template <typename VectorType> 
-    __global__  void dyax_kernel(
-        const int n,
-        const typename VectorType::ScalarType alpha, 
-        const typename VectorType::ScalarType *xcoefs, 
-        typename VectorType::ScalarType *ycoefs) 
-    {
-
-      int idx=blockIdx.x*blockDim.x+threadIdx.x;
-      if (idx<n) ycoefs[idx] += alpha * xcoefs[idx];
-    }""".strip(),
-]
+solution = ['template <typename VectorType> \n    __global__  void dyax_kernel(\n        const int n,\n        const typename VectorType::ScalarType alpha, \n        const typename VectorType::ScalarType *xcoefs, \n        typename VectorType::ScalarType *ycoefs) \n    {\n\n      int idx=blockIdx.x*blockDim.x+threadIdx.x;\n      if (idx<n) ycoefs[idx] += alpha * xcoefs[idx];\n    }']

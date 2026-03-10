@@ -1,12 +1,1 @@
-solution = [
-    r"""template <typename VectorType> 
-    __global__  void yxby_kernel(
-        const int n,
-        const typename VectorType::ScalarType *xcoefs, 
-        const typename VectorType::ScalarType beta,
-        typename VectorType::ScalarType *ycoefs)
-    {
-      int idx=blockIdx.x*blockDim.x+threadIdx.x;
-      if (idx<n) ycoefs[idx] = xcoefs[idx] + beta * ycoefs[idx];
-    }""".strip(),
-]
+solution = ['template <typename VectorType> \n    __global__  void yxby_kernel(\n        const int n,\n        const typename VectorType::ScalarType *xcoefs, \n        const typename VectorType::ScalarType beta,\n        typename VectorType::ScalarType *ycoefs)\n    {\n      int idx=blockIdx.x*blockDim.x+threadIdx.x;\n      if (idx<n) ycoefs[idx] = xcoefs[idx] + beta * ycoefs[idx];\n    }']

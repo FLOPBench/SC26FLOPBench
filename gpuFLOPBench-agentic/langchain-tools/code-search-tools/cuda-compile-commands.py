@@ -38,7 +38,7 @@ _GPU_SRC_DIR = _utils.GPU_SRC_DIR
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPILE_COMMANDS_PATH = (
-    _REPO_ROOT / "gpuFLOPBench" / "cuda-profiling" / "compile_commands.json"
+    (_REPO_ROOT / ".." / "build" / "compile_commands.json").resolve()
 )
 
 

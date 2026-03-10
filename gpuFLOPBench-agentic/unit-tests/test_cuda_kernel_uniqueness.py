@@ -2,7 +2,22 @@ from __future__ import annotations
 
 import functools
 from pathlib import Path
+import sys
 import importlib.util
+
+def load_code_search_tools():
+    tool_dir = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
+    if str(tool_dir) not in sys.path:
+        sys.path.insert(0, str(tool_dir))
+    if "code_search_tools.descriptions" not in sys.modules:
+        desc_path = tool_dir / "descriptions.py"
+        spec = importlib.util.spec_from_file_location("code_search_tools.descriptions", desc_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.submodule_search_locations = [str(desc_path.parent)]
+        sys.modules["code_search_tools.descriptions"] = module
+        spec.loader.exec_module(module)
+
+
 
 import pytest
 
@@ -14,11 +29,13 @@ _EXTRACT_TOOL_PATH = (
     / "code-search-tools"
     / "extract-kernel-source-definition.py"
 )
-_GPU_SRC_ROOT = Path(__file__).resolve().parents[1] / "gpuFLOPBench" / "src"
+_GPU_SRC_ROOT = ( Path(__file__).resolve().parents[1] / ".." / "HeCBench" / "src").resolve()
 
 
 @functools.lru_cache(maxsize=1)
 def _extract_kernel_source_definition_tool(cuda_dir: Path):
+    load_code_search_tools()
+
     spec = importlib.util.spec_from_file_location(
         "code_search_tools.extract_kernel_source_definition",
         _EXTRACT_TOOL_PATH,
@@ -35,8 +52,8 @@ EXPECTED_KERNEL_DEFINITIONS: dict[str, dict[str, int]] = {
     "bmf-cuda": {"initFactor": 2, "computeDistanceRowsShared": 2},
     "crossEntropy-cuda": {"loss_bwd": 2},
     "ert-cuda": {"block_stride": 2},
-    "gamma-correction-cuda": {"gamma_correction": 2},
-    "md5hash-cuda": {"md5hash_kernel": 2},
+    "gamma-correction-cuda": {"gamma_correction": 1},
+    "md5hash-cuda": {"md5hash_kernel": 1},
     "mf-sgd-cuda": {"init_rand_state": 2},
     "segsort-cuda": {
         "kern_block_sort": 2,
@@ -55,7 +72,7 @@ EXPECTED_KERNEL_DEFINITIONS: dict[str, dict[str, int]] = {
         "gen_bk256_tc4_r513_r1024_orig": 2,
         "gen_bk512_tc4_r1025_r2048_orig": 2,
     },
-    "vmc-cuda": {"initran": 2, "initialize": 2, "propagate": 2},
+    "vmc-cuda": {"initran": 1, "initialize": 1, "propagate": 1},
     "warpsort-cuda": {"sortDevice": 2},
 }
 

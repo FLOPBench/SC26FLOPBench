@@ -1,93 +1,93 @@
 [
-    {
-        "file": "apply_forces.cu",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 45,
-                "name": "IntegrationKernel",
-                "offset": 41,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "IntegrationKernel( volatile float* __restrict__ points, // num_points * 2 volatile float* __restrict__ attr_forces, // num_points * 2 volatile float* __restrict__ rep_forces, // num_points * 2 volatile float* __restrict__ gains, // num_points * 2 volatile float* __restrict__ old_forces, // num_points * 2 const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 30,
-                "name": "tsne::ApplyForces",
-                "offset": 87,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "tsne::ApplyForces( thrust::device_vector<float>& points, thrust::device_vector<float>& attr_forces, thrust::device_vector<float>& rep_forces, thrust::device_vector<float>& gains, thrust::device_vector<float>& old_forces, const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points)",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "attr_forces.cu",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 29,
-                "name": "ComputePijxQijKernelV3",
-                "offset": 41,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "ComputePijxQijKernelV3( float* __restrict__ workspace_x, float* __restrict__ workspace_y, const float* __restrict__ pij, const int* __restrict__ pij_ind, const float* __restrict__ points, const int num_points, const int num_neighbors)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 25,
-                "name": "reduce_sum_kernel",
-                "offset": 71,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "reduce_sum_kernel( float* __restrict__ attractive_forces, const float* __restrict__ workspace_x, const float* __restrict__ workspace_y, const int num_points, const int num_neighbors)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 37,
-                "name": "tsne::ComputeAttractiveForcesV3",
-                "offset": 97,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "tsne::ComputeAttractiveForcesV3( thrust::device_vector<float>& attractive_forces, thrust::device_vector<float>& pij_device, thrust::device_vector<int>& pij_indices_device, thrust::device_vector<float>& pij_workspace_device, thrust::device_vector<float>& points_device, thrust::device_vector<float>& ones_vec, const int num_points, const int num_neighbors)",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "main.cu",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 79,
-                "name": "main",
-                "offset": 60,
-                "qualifiers": [],
-                "return_type": "int",
-                "signature": "main(int argc, char** argv)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 66,
-                "name": "TIMER_START",
-                "offset": 67,
-                "qualifiers": [],
-                "return_type": null,
-                "signature": "TIMER_START()",
-                "templates": []
-            }
-        ]
-    }
+  {
+    "file": "apply_forces.cu",
+    "functions": [
+      {
+        "name": "IntegrationKernel",
+        "kind": "defnt",
+        "offset": 41,
+        "lines": 45,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "IntegrationKernel( volatile float* __restrict__ points, // num_points * 2 volatile float* __restrict__ attr_forces, // num_points * 2 volatile float* __restrict__ rep_forces, // num_points * 2 volatile float* __restrict__ gains, // num_points * 2 volatile float* __restrict__ old_forces, // num_points * 2 const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points)"
+      },
+      {
+        "name": "tsne::ApplyForces",
+        "kind": "defnt",
+        "offset": 87,
+        "lines": 30,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "tsne::ApplyForces( thrust::device_vector<float>& points, thrust::device_vector<float>& attr_forces, thrust::device_vector<float>& rep_forces, thrust::device_vector<float>& gains, thrust::device_vector<float>& old_forces, const float eta, const float normalization, const float momentum, const float exaggeration, const int num_points)"
+      }
+    ]
+  },
+  {
+    "file": "attr_forces.cu",
+    "functions": [
+      {
+        "name": "ComputePijxQijKernelV3",
+        "kind": "defnt",
+        "offset": 41,
+        "lines": 29,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "ComputePijxQijKernelV3( float* __restrict__ workspace_x, float* __restrict__ workspace_y, const float* __restrict__ pij, const int* __restrict__ pij_ind, const float* __restrict__ points, const int num_points, const int num_neighbors)"
+      },
+      {
+        "name": "reduce_sum_kernel",
+        "kind": "defnt",
+        "offset": 71,
+        "lines": 25,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "reduce_sum_kernel( float* __restrict__ attractive_forces, const float* __restrict__ workspace_x, const float* __restrict__ workspace_y, const int num_points, const int num_neighbors)"
+      },
+      {
+        "name": "tsne::ComputeAttractiveForcesV3",
+        "kind": "defnt",
+        "offset": 97,
+        "lines": 37,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "tsne::ComputeAttractiveForcesV3( thrust::device_vector<float>& attractive_forces, thrust::device_vector<float>& pij_device, thrust::device_vector<int>& pij_indices_device, thrust::device_vector<float>& pij_workspace_device, thrust::device_vector<float>& points_device, thrust::device_vector<float>& ones_vec, const int num_points, const int num_neighbors)"
+      }
+    ]
+  },
+  {
+    "file": "main.cu",
+    "functions": [
+      {
+        "name": "main",
+        "kind": "defnt",
+        "offset": 60,
+        "lines": 79,
+        "return_type": "int",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "main(int argc, char** argv)"
+      },
+      {
+        "name": "TIMER_START",
+        "kind": "defnt",
+        "offset": 67,
+        "lines": 66,
+        "return_type": null,
+        "templates": [],
+        "qualifiers": [],
+        "signature": "TIMER_START()"
+      }
+    ]
+  }
 ]

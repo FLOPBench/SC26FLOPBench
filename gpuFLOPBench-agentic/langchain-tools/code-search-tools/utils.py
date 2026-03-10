@@ -7,7 +7,7 @@ from typing import Iterable, Iterator, Optional, Sequence, Tuple
 from pydantic import BaseModel, Field
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-GPU_SRC_DIR = _REPO_ROOT / "gpuFLOPBench" / "src"
+GPU_SRC_DIR = ( _REPO_ROOT / ".." / "HeCBench" / "src").resolve()
 
 GLOBAL_KEYWORD = "__global__"
 CUDA_SOURCE_EXTENSIONS = {".cu", ".cuh", ".cpp", ".cc", ".c", ".h", ".hpp"}

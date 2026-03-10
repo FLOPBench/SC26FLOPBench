@@ -1,225 +1,225 @@
 [
-    {
-        "file": "kernel_find_index.h",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 29,
-                "name": "kernel_find_index",
-                "offset": 1,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "kernel_find_index ( const float*__restrict__ arrayX, const float*__restrict__ arrayY, const float*__restrict__ CDF, const float*__restrict__ u, float*__restrict__ xj, float*__restrict__ yj, const int Nparticles)",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "kernel_likelihood.h",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 92,
-                "name": "kernel_likelihood",
-                "offset": 1,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "kernel_likelihood ( float*__restrict__ arrayX, float*__restrict__ arrayY, const float*__restrict__ xj, const float*__restrict__ yj, int*__restrict__ ind, const int*__restrict__ objxy, float*__restrict__ likelihood, const unsigned char*__restrict__ I, float*__restrict__ weights, int*__restrict__ seed, float*__restrict__ partial_sums, const int Nparticles, const int countOnes, const int IszY, const int Nfr, const int k, const int max_size)",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "kernel_normalize_weights.h",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 44,
-                "name": "kernel_normalize_weights",
-                "offset": 1,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "kernel_normalize_weights ( float* __restrict__ weights, const float* __restrict__ partial_sums, float* __restrict__ CDF, float* __restrict__ u, int* __restrict__ seed, const int Nparticles )",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "kernel_sum.h",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 11,
-                "name": "kernel_sum",
-                "offset": 1,
-                "qualifiers": [
-                    "__global__"
-                ],
-                "return_type": "void",
-                "signature": "kernel_sum (float* partial_sums, const int Nparticles)",
-                "templates": []
-            }
-        ]
-    },
-    {
-        "file": "main.cu",
-        "functions": [
-            {
-                "kind": "defnt",
-                "lines": 5,
-                "name": "get_time",
-                "offset": 39,
-                "qualifiers": [],
-                "return_type": "long long",
-                "signature": "get_time()",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 3,
-                "name": "elapsed_time",
-                "offset": 46,
-                "qualifiers": [],
-                "return_type": "float",
-                "signature": "elapsed_time(long long start_time, long long end_time)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 5,
-                "name": "randu",
-                "offset": 58,
-                "qualifiers": [],
-                "return_type": "float",
-                "signature": "randu(int * seed, int index)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 8,
-                "name": "randn",
-                "offset": 72,
-                "qualifiers": [],
-                "return_type": "float",
-                "signature": "randn(int * seed, int index)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 7,
-                "name": "roundFloat",
-                "offset": 85,
-                "qualifiers": [],
-                "return_type": "float",
-                "signature": "roundFloat(float value)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 11,
-                "name": "setIf",
-                "offset": 102,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "setIf(int testValue, int newValue, unsigned char * array3D, int * dimX, int * dimY, int * dimZ)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 10,
-                "name": "addNoise",
-                "offset": 122,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "addNoise(unsigned char * array3D, int * dimX, int * dimY, int * dimZ, int * seed)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 13,
-                "name": "strelDisk",
-                "offset": 138,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "strelDisk(int * disk, int radius)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 22,
-                "name": "dilate_matrix",
-                "offset": 163,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "dilate_matrix(unsigned char * matrix, int posX, int posY, int posZ, int dimX, int dimY, int dimZ, int error)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 12,
-                "name": "imdilate_disk",
-                "offset": 195,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "imdilate_disk(unsigned char * matrix, int dimX, int dimY, int dimZ, int error, unsigned char * newMatrix)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 15,
-                "name": "getneighbors",
-                "offset": 215,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "getneighbors(int * se, int numOnes, int * neighbors, int radius)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 39,
-                "name": "videoSequence",
-                "offset": 243,
-                "qualifiers": [],
-                "return_type": "void",
-                "signature": "videoSequence(unsigned char * I, int IszX, int IszY, int Nfr, int * seed)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 14,
-                "name": "findIndex",
-                "offset": 291,
-                "qualifiers": [],
-                "return_type": "int",
-                "signature": "findIndex(float * CDF, int lengthCDF, float value)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 206,
-                "name": "particleFilter",
-                "offset": 317,
-                "qualifiers": [],
-                "return_type": "int",
-                "signature": "particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, int Nparticles)",
-                "templates": []
-            },
-            {
-                "kind": "defnt",
-                "lines": 91,
-                "name": "main",
-                "offset": 524,
-                "qualifiers": [],
-                "return_type": "int",
-                "signature": "main(int argc, char * argv[])",
-                "templates": []
-            }
-        ]
-    }
+  {
+    "file": "kernel_find_index.h",
+    "functions": [
+      {
+        "name": "kernel_find_index",
+        "kind": "defnt",
+        "offset": 1,
+        "lines": 29,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "kernel_find_index ( const float*__restrict__ arrayX, const float*__restrict__ arrayY, const float*__restrict__ CDF, const float*__restrict__ u, float*__restrict__ xj, float*__restrict__ yj, const int Nparticles)"
+      }
+    ]
+  },
+  {
+    "file": "kernel_likelihood.h",
+    "functions": [
+      {
+        "name": "kernel_likelihood",
+        "kind": "defnt",
+        "offset": 1,
+        "lines": 92,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "kernel_likelihood ( float*__restrict__ arrayX, float*__restrict__ arrayY, const float*__restrict__ xj, const float*__restrict__ yj, int*__restrict__ ind, const int*__restrict__ objxy, float*__restrict__ likelihood, const unsigned char*__restrict__ I, float*__restrict__ weights, int*__restrict__ seed, float*__restrict__ partial_sums, const int Nparticles, const int countOnes, const int IszY, const int Nfr, const int k, const int max_size)"
+      }
+    ]
+  },
+  {
+    "file": "kernel_normalize_weights.h",
+    "functions": [
+      {
+        "name": "kernel_normalize_weights",
+        "kind": "defnt",
+        "offset": 1,
+        "lines": 44,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "kernel_normalize_weights ( float* __restrict__ weights, const float* __restrict__ partial_sums, float* __restrict__ CDF, float* __restrict__ u, int* __restrict__ seed, const int Nparticles )"
+      }
+    ]
+  },
+  {
+    "file": "kernel_sum.h",
+    "functions": [
+      {
+        "name": "kernel_sum",
+        "kind": "defnt",
+        "offset": 1,
+        "lines": 11,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [
+          "__global__"
+        ],
+        "signature": "kernel_sum (float* partial_sums, const int Nparticles)"
+      }
+    ]
+  },
+  {
+    "file": "main.cu",
+    "functions": [
+      {
+        "name": "get_time",
+        "kind": "defnt",
+        "offset": 39,
+        "lines": 5,
+        "return_type": "long long",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "get_time()"
+      },
+      {
+        "name": "elapsed_time",
+        "kind": "defnt",
+        "offset": 46,
+        "lines": 3,
+        "return_type": "float",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "elapsed_time(long long start_time, long long end_time)"
+      },
+      {
+        "name": "randu",
+        "kind": "defnt",
+        "offset": 58,
+        "lines": 5,
+        "return_type": "float",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "randu(int * seed, int index)"
+      },
+      {
+        "name": "randn",
+        "kind": "defnt",
+        "offset": 72,
+        "lines": 8,
+        "return_type": "float",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "randn(int * seed, int index)"
+      },
+      {
+        "name": "roundFloat",
+        "kind": "defnt",
+        "offset": 85,
+        "lines": 7,
+        "return_type": "float",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "roundFloat(float value)"
+      },
+      {
+        "name": "setIf",
+        "kind": "defnt",
+        "offset": 102,
+        "lines": 11,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "setIf(int testValue, int newValue, unsigned char * array3D, int * dimX, int * dimY, int * dimZ)"
+      },
+      {
+        "name": "addNoise",
+        "kind": "defnt",
+        "offset": 122,
+        "lines": 10,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "addNoise(unsigned char * array3D, int * dimX, int * dimY, int * dimZ, int * seed)"
+      },
+      {
+        "name": "strelDisk",
+        "kind": "defnt",
+        "offset": 138,
+        "lines": 13,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "strelDisk(int * disk, int radius)"
+      },
+      {
+        "name": "dilate_matrix",
+        "kind": "defnt",
+        "offset": 163,
+        "lines": 22,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "dilate_matrix(unsigned char * matrix, int posX, int posY, int posZ, int dimX, int dimY, int dimZ, int error)"
+      },
+      {
+        "name": "imdilate_disk",
+        "kind": "defnt",
+        "offset": 195,
+        "lines": 12,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "imdilate_disk(unsigned char * matrix, int dimX, int dimY, int dimZ, int error, unsigned char * newMatrix)"
+      },
+      {
+        "name": "getneighbors",
+        "kind": "defnt",
+        "offset": 215,
+        "lines": 15,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "getneighbors(int * se, int numOnes, int * neighbors, int radius)"
+      },
+      {
+        "name": "videoSequence",
+        "kind": "defnt",
+        "offset": 243,
+        "lines": 39,
+        "return_type": "void",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "videoSequence(unsigned char * I, int IszX, int IszY, int Nfr, int * seed)"
+      },
+      {
+        "name": "findIndex",
+        "kind": "defnt",
+        "offset": 291,
+        "lines": 14,
+        "return_type": "int",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "findIndex(float * CDF, int lengthCDF, float value)"
+      },
+      {
+        "name": "particleFilter",
+        "kind": "defnt",
+        "offset": 317,
+        "lines": 206,
+        "return_type": "int",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, int Nparticles)"
+      },
+      {
+        "name": "main",
+        "kind": "defnt",
+        "offset": 524,
+        "lines": 91,
+        "return_type": "int",
+        "templates": [],
+        "qualifiers": [],
+        "signature": "main(int argc, char * argv[])"
+      }
+    ]
+  }
 ]

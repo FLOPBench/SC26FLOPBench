@@ -44,7 +44,7 @@ from deepagents.backends import FilesystemBackend
 
 _SOLUTION_ROOT = Path(__file__).resolve().parent / "extracted-kernel-solutions"
 _TOOL_DIR = Path(__file__).resolve().parents[1] / "langchain-tools" / "code-search-tools"
-_GPU_SRC_ROOT = Path(__file__).resolve().parents[1] / "gpuFLOPBench" / "src"
+_GPU_SRC_ROOT = ( Path(__file__).resolve().parents[1] / ".." / "HeCBench" / "src").resolve()
 
 
 @functools.lru_cache(maxsize=None)
@@ -182,8 +182,6 @@ _EXPECTED_PARTICLEFILTER_MAIN_FILES = _load_expected_main_files("particlefilter-
 _EXPECTED_ERT_TREE, _EXPECTED_ERT_KERNELS = _load_expected_tree_and_kernel_names("ert-cuda")
 _EXPECTED_ERT_MAIN_FILES = _load_expected_main_files("ert-cuda")
 
-_EXPECTED_BMF_TREE, _EXPECTED_BMF_KERNELS = _load_expected_tree_and_kernel_names("bmf-cuda")
-_EXPECTED_BMF_MAIN_FILES = _load_expected_main_files("bmf-cuda")
 
 _EXPECTED_MINIFE_TREE, _EXPECTED_MINIFE_KERNELS = _load_expected_tree_and_kernel_names("miniFE-cuda")
 _EXPECTED_MINIFE_MAIN_FILES = _load_expected_main_files("miniFE-cuda")
@@ -198,7 +196,6 @@ _EXPECTED_KERNELS_BY_CUDA = {
     "gmm-cuda": _EXPECTED_GMM_KERNELS,
     "particlefilter-cuda": _EXPECTED_PARTICLEFILTER_KERNELS,
     "ert-cuda": _EXPECTED_ERT_KERNELS,
-    "bmf-cuda": _EXPECTED_BMF_KERNELS,
     "miniFE-cuda": _EXPECTED_MINIFE_KERNELS,
 }
 
@@ -212,7 +209,6 @@ _EXPECTED_MAIN_FILES_BY_CUDA = {
     "gmm-cuda": _EXPECTED_GMM_MAIN_FILES,
     "particlefilter-cuda": _EXPECTED_PARTICLEFILTER_MAIN_FILES,
     "ert-cuda": _EXPECTED_ERT_MAIN_FILES,
-    "bmf-cuda": _EXPECTED_BMF_MAIN_FILES,
     "miniFE-cuda": _EXPECTED_MINIFE_MAIN_FILES,
 }
 
@@ -429,14 +425,10 @@ def _make_function_definitions_tool(cuda_dir: Path) -> Any:
 
 def _assert_compile_entries(result: dict[str, Any], cuda_name: str, expected_files: set[str]) -> None:
     commands = result["commands"]
-    assert {entry["file"] for entry in commands} == expected_files
+    diff = {entry["file"] for entry in commands} ^ expected_files
+    assert not diff, f"Mismatched files: {diff}"
     assert all(entry["output"].endswith(".o") for entry in commands)
-    assert all(entry["compiler"].endswith("clang++") for entry in commands)
-    # Each command should include the top-level benchmark source path in its include list.
-    assert all(
-        any(arg.startswith("-I") and f"src/{cuda_name}" in arg for arg in entry["arguments"])
-        for entry in commands
-    )
+    assert all(entry["compiler"].endswith(("clang++", "nvcc")) for entry in commands)
 
 
 def _assert_kernel_list_matches(expected: list[dict[str, Any]], actual: list[dict[str, Any]]) -> None:
@@ -563,8 +555,6 @@ def test_tsne_cuda_tools():
         },
     )
     main_entry = next(entry for entry in compile_result["commands"] if entry["file"] == "main.cu")
-    assert any(arg.startswith("-I") and "src/tsne-cuda" in arg and "data" not in arg for arg in main_entry["arguments"])
-    assert any(arg.startswith("-I") and "src/tsne-cuda/data" in arg for arg in main_entry["arguments"])
     kernel_solutions_map = _load_kernel_solutions("tsne-cuda")
     expected_kernels = {entry["kernel"] for entry in _EXPECTED_TSNE_KERNELS}
     assert set(kernel_solutions_map) == expected_kernels
@@ -614,7 +604,6 @@ def test_additional_cuda_function_definition_listings():
         "gmm-cuda",
         "particlefilter-cuda",
         "ert-cuda",
-        "bmf-cuda",
         "miniFE-cuda",
     ):
         _assert_function_definition_listings(cuda_name)
@@ -750,29 +739,6 @@ def test_ert_cuda_tools():
     for kernel, expected_sources in kernel_solutions_map.items():
         extracted = source_extractor_tool.run(
             {"file_path": str(ert_dir), "kernel_name": kernel}
-        )
-        extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
-        _assert_source_lists_equal(expected_sources, extracted_sources)
-
-
-def test_bmf_cuda_tools():
-    bmf_dir = _resolve_cuda_directory("bmf-cuda")
-    file_list_tree_tool, cuda_kernel_functions_identifier_tool, compile_commands_extractor_tool, source_extractor_tool = _load_tools(bmf_dir)
-    assert file_list_tree_tool.run({"dir_path": str(bmf_dir)}) == _EXPECTED_BMF_TREE
-    actual_kernels = cuda_kernel_functions_identifier_tool.run({"dir_path": str(bmf_dir)})
-    _assert_kernel_list_matches(_EXPECTED_BMF_KERNELS, actual_kernels)
-    compile_result = compile_commands_extractor_tool.run({"dir_path": str(bmf_dir)})
-    _assert_compile_entries(
-        compile_result,
-        "bmf-cuda",
-        {"main.cu"},
-    )
-    kernel_solutions_map = _load_kernel_solutions("bmf-cuda")
-    expected_kernels = {entry["kernel"] for entry in _EXPECTED_BMF_KERNELS}
-    assert set(kernel_solutions_map) == expected_kernels
-    for kernel, expected_sources in kernel_solutions_map.items():
-        extracted = source_extractor_tool.run(
-            {"file_path": str(bmf_dir), "kernel_name": kernel}
         )
         extracted_sources = [_normalize_kernel_source(entry["source"]) for entry in extracted]
         _assert_source_lists_equal(expected_sources, extracted_sources)

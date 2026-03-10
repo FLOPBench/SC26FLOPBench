@@ -28,7 +28,7 @@ def _make_runtime() -> ToolRuntime:
 
 
 def _make_backend_factory() -> FilesystemBackend:
-    return FilesystemBackend(root_dir="/codex/gpuFLOPBench/src", virtual_mode=True)
+    return FilesystemBackend(root_dir="/gpuFLOPBench-updated/HeCBench/src", virtual_mode=True)
 
 
 def _parse_tool_output(raw: str) -> list[str]:
@@ -60,8 +60,8 @@ def test_ls_cuda_subdir_returns_entries() -> None:
 
     raw = ls_tool.func(runtime, "/lulesh-cuda")
     paths = _parse_tool_output(raw)
-    print("ls /gpuFLOPBench/src ->", paths[:5])
-    assert paths, "Expected ls /gpuFLOPBench/src to show files/directories"
+    print("ls /HeCBench/src ->", paths[:5])
+    assert paths, "Expected ls /HeCBench/src to show files/directories"
 
 
 @pytest.mark.parametrize("pattern", ["**/*.cu", "**/*.h"])

@@ -181,7 +181,7 @@ def test_backwards_slicing_agent_can_run():
         openrouter_settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
         llm = build_openrouter_llm(openrouter_settings)
 
-        backend_dir = "/codex/gpuFLOPBench/src/gmm-cuda/"
+        backend_dir = "/gpuFLOPBench-updated/HeCBench/src/gmm-cuda/"
 
         delete_tmp_dir(backend_dir)
 

@@ -8,7 +8,7 @@ import sys
 ALLOWED_EXT = {'.cu', '.cuh', '.cpp', '.cc', '.c', '.h', '.hpp', '.hh', '.cxx', '.ipp', '.inl', '.cu.h', '.cuhh'}
 NORMALIZE_RE = re.compile(r'\s+')
 
-root = Path('gpuFLOPBench/src')
+root = Path('HeCBench/src')
 if not root.exists():
     print('root not found', file=sys.stderr)
     sys.exit(1)

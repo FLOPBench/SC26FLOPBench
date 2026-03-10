@@ -1,1578 +1,1643 @@
-EXPECTED_TREE = (
-    "/\n"
-    "  data/\n"
-    "    cifar10_faissed/\n"
-    "      distances\n"
-    "      indices\n"
-    "    mnist_faissed/\n"
-    "      distances\n"
-    "      indices\n"
-    "  apply_forces.cu\n"
-    "  apply_forces.h\n"
-    "  attr_forces.cu\n"
-    "  attr_forces.h\n"
-    "  common.h\n"
-    "  cuda_utils.cu\n"
-    "  cuda_utils.h\n"
-    "  cxxopts.hpp\n"
-    "  debug_utils.cu\n"
-    "  debug_utils.h\n"
-    "  distance_utils.cu\n"
-    "  distance_utils.h\n"
-    "  fit_tsne.cu\n"
-    "  fit_tsne.h\n"
-    "  main.cu\n"
-    "  Makefile\n"
-    "  math_utils.cu\n"
-    "  math_utils.h\n"
-    "  matrix_broadcast_utils.cu\n"
-    "  matrix_broadcast_utils.h\n"
-    "  nbodyfft.cu\n"
-    "  nbodyfft.h\n"
-    "  options.h\n"
-    "  perplexity_search.cu\n"
-    "  perplexity_search.h\n"
-    "  rep_forces.cu\n"
-    "  rep_forces.h\n"
-    "  thrust_transform_functions.h"
-)
+EXPECTED_TREE = '/\n  data/\n    cifar10_faissed/\n      distances\n      indices\n    mnist_faissed/\n      distances\n      indices\n    points.txt\n  apply_forces.cu\n  apply_forces.h\n  attr_forces.cu\n  attr_forces.h\n  CMakeLists.txt\n  common.h\n  cuda_utils.cu\n  cuda_utils.h\n  cxxopts.hpp\n  debug_utils.cu\n  debug_utils.h\n  distance_utils.cu\n  distance_utils.h\n  fit_tsne.cu\n  fit_tsne.h\n  main.cu\n  Makefile\n  math_utils.cu\n  math_utils.h\n  matrix_broadcast_utils.cu\n  matrix_broadcast_utils.h\n  nbodyfft.cu\n  nbodyfft.h\n  options.h\n  perplexity_search.cu\n  perplexity_search.h\n  rep_forces.cu\n  rep_forces.h\n  thrust_transform_functions.h'
 
-EXPECTED_MAIN_FILES = ["main.cu"]
+EXPECTED_MAIN_FILES = ['main.cu']
 
-EXPECTED_INCLUDE_TREES = {
-    "main.cu": """main.cu
-  #include <time.h> (DNE)
-  #include <string> (DNE)
-  #include "fit_tsne.h"
-    #include "common.h"
-      #include <cuda_runtime.h> (DNE)
-      #include <thrust/host_vector.h> (DNE)
-      #include <thrust/device_vector.h> (DNE)
-      #include <thrust/generate.h> (DNE)
-      #include <thrust/reduce.h> (DNE)
-      #include <thrust/functional.h> (DNE)
-      #include <thrust/random.h> (DNE)
-      #include <thrust/sequence.h> (DNE)
-      #include <thrust/transform.h> (DNE)
-      #include <thrust/transform_reduce.h> (DNE)
-      #include <thrust/iterator/counting_iterator.h> (DNE)
-      #include <thrust/iterator/transform_iterator.h> (DNE)
-      #include <thrust/iterator/permutation_iterator.h> (DNE)
-      #include <thrust/iterator/constant_iterator.h> (DNE)
-      #include <thrust/functional.h> (DNE)
-      #include <thrust/fill.h> (DNE)
-      #include <thrust/gather.h> (DNE)
-      #include <thrust/sort.h> (DNE)
-      #include <stdlib.h> (DNE)
-      #include <stdio.h> (DNE)
-      #include <assert.h> (DNE)
-      #include <float.h> (DNE)
-      #include <string.h> (DNE)
-      #include <math.h> (DNE)
-      #include <time.h> (DNE)
-      #include <sys/time.h> (DNE)
-      #include <random> (DNE)
-      #include <stdexcept> (DNE)
-      #include <iostream> (DNE)
-      #include <fstream> (DNE)
-      #include <vector> (DNE)
-      #include <numeric> (DNE)
-      #include <algorithm> (DNE)
-      #include <iomanip> (DNE)
-      #include <cmath> (DNE)
-    #include "options.h"
-      #include <random> (DNE)
-      #include <time.h> (DNE)
-      #include <iostream> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-    #include "cuda_utils.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-    #include "debug_utils.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-    #include "math_utils.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "matrix_broadcast_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "thrust_transform_functions.h"
-    #include "matrix_broadcast_utils.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-    #include "distance_utils.h"
-      #include <stdint.h> (DNE)
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-      #include "math_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-        #include "options.h"
-          #include <random> (DNE)
-          #include <time.h> (DNE)
-          #include <iostream> (DNE)
-          #include "cuda_utils.h"
-            #include "common.h"
-              #include <cuda_runtime.h> (DNE)
-              #include <thrust/host_vector.h> (DNE)
-              #include <thrust/device_vector.h> (DNE)
-              #include <thrust/generate.h> (DNE)
-              #include <thrust/reduce.h> (DNE)
-              #include <thrust/functional.h> (DNE)
-              #include <thrust/random.h> (DNE)
-              #include <thrust/sequence.h> (DNE)
-              #include <thrust/transform.h> (DNE)
-              #include <thrust/transform_reduce.h> (DNE)
-              #include <thrust/iterator/counting_iterator.h> (DNE)
-              #include <thrust/iterator/transform_iterator.h> (DNE)
-              #include <thrust/iterator/permutation_iterator.h> (DNE)
-              #include <thrust/iterator/constant_iterator.h> (DNE)
-              #include <thrust/functional.h> (DNE)
-              #include <thrust/fill.h> (DNE)
-              #include <thrust/gather.h> (DNE)
-              #include <thrust/sort.h> (DNE)
-              #include <stdlib.h> (DNE)
-              #include <stdio.h> (DNE)
-              #include <assert.h> (DNE)
-              #include <float.h> (DNE)
-              #include <string.h> (DNE)
-              #include <math.h> (DNE)
-              #include <time.h> (DNE)
-              #include <sys/time.h> (DNE)
-              #include <random> (DNE)
-              #include <stdexcept> (DNE)
-              #include <iostream> (DNE)
-              #include <fstream> (DNE)
-              #include <vector> (DNE)
-              #include <numeric> (DNE)
-              #include <algorithm> (DNE)
-              #include <iomanip> (DNE)
-              #include <cmath> (DNE)
-        #include "matrix_broadcast_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-          #include "cuda_utils.h"
-            #include "common.h"
-              #include <cuda_runtime.h> (DNE)
-              #include <thrust/host_vector.h> (DNE)
-              #include <thrust/device_vector.h> (DNE)
-              #include <thrust/generate.h> (DNE)
-              #include <thrust/reduce.h> (DNE)
-              #include <thrust/functional.h> (DNE)
-              #include <thrust/random.h> (DNE)
-              #include <thrust/sequence.h> (DNE)
-              #include <thrust/transform.h> (DNE)
-              #include <thrust/transform_reduce.h> (DNE)
-              #include <thrust/iterator/counting_iterator.h> (DNE)
-              #include <thrust/iterator/transform_iterator.h> (DNE)
-              #include <thrust/iterator/permutation_iterator.h> (DNE)
-              #include <thrust/iterator/constant_iterator.h> (DNE)
-              #include <thrust/functional.h> (DNE)
-              #include <thrust/fill.h> (DNE)
-              #include <thrust/gather.h> (DNE)
-              #include <thrust/sort.h> (DNE)
-              #include <stdlib.h> (DNE)
-              #include <stdio.h> (DNE)
-              #include <assert.h> (DNE)
-              #include <float.h> (DNE)
-              #include <string.h> (DNE)
-              #include <math.h> (DNE)
-              #include <time.h> (DNE)
-              #include <sys/time.h> (DNE)
-              #include <random> (DNE)
-              #include <stdexcept> (DNE)
-              #include <iostream> (DNE)
-              #include <fstream> (DNE)
-              #include <vector> (DNE)
-              #include <numeric> (DNE)
-              #include <algorithm> (DNE)
-              #include <iomanip> (DNE)
-              #include <cmath> (DNE)
-        #include "thrust_transform_functions.h"
-    #include "apply_forces.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-    #include "attr_forces.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-      #include "debug_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-    #include "perplexity_search.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-      #include "matrix_broadcast_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "thrust_transform_functions.h"
-    #include "nbodyfft.h"
-      #include <chrono> (DNE)
-      #include <complex> (DNE)
-      #include <thrust/complex.h> (DNE)
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-      #include "debug_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-      #include "matrix_broadcast_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-    #include "rep_forces.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-      #include "options.h"
-        #include <random> (DNE)
-        #include <time.h> (DNE)
-        #include <iostream> (DNE)
-        #include "cuda_utils.h"
-          #include "common.h"
-            #include <cuda_runtime.h> (DNE)
-            #include <thrust/host_vector.h> (DNE)
-            #include <thrust/device_vector.h> (DNE)
-            #include <thrust/generate.h> (DNE)
-            #include <thrust/reduce.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/random.h> (DNE)
-            #include <thrust/sequence.h> (DNE)
-            #include <thrust/transform.h> (DNE)
-            #include <thrust/transform_reduce.h> (DNE)
-            #include <thrust/iterator/counting_iterator.h> (DNE)
-            #include <thrust/iterator/transform_iterator.h> (DNE)
-            #include <thrust/iterator/permutation_iterator.h> (DNE)
-            #include <thrust/iterator/constant_iterator.h> (DNE)
-            #include <thrust/functional.h> (DNE)
-            #include <thrust/fill.h> (DNE)
-            #include <thrust/gather.h> (DNE)
-            #include <thrust/sort.h> (DNE)
-            #include <stdlib.h> (DNE)
-            #include <stdio.h> (DNE)
-            #include <assert.h> (DNE)
-            #include <float.h> (DNE)
-            #include <string.h> (DNE)
-            #include <math.h> (DNE)
-            #include <time.h> (DNE)
-            #include <sys/time.h> (DNE)
-            #include <random> (DNE)
-            #include <stdexcept> (DNE)
-            #include <iostream> (DNE)
-            #include <fstream> (DNE)
-            #include <vector> (DNE)
-            #include <numeric> (DNE)
-            #include <algorithm> (DNE)
-            #include <iomanip> (DNE)
-            #include <cmath> (DNE)
-      #include "cuda_utils.h"
-        #include "common.h"
-          #include <cuda_runtime.h> (DNE)
-          #include <thrust/host_vector.h> (DNE)
-          #include <thrust/device_vector.h> (DNE)
-          #include <thrust/generate.h> (DNE)
-          #include <thrust/reduce.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/random.h> (DNE)
-          #include <thrust/sequence.h> (DNE)
-          #include <thrust/transform.h> (DNE)
-          #include <thrust/transform_reduce.h> (DNE)
-          #include <thrust/iterator/counting_iterator.h> (DNE)
-          #include <thrust/iterator/transform_iterator.h> (DNE)
-          #include <thrust/iterator/permutation_iterator.h> (DNE)
-          #include <thrust/iterator/constant_iterator.h> (DNE)
-          #include <thrust/functional.h> (DNE)
-          #include <thrust/fill.h> (DNE)
-          #include <thrust/gather.h> (DNE)
-          #include <thrust/sort.h> (DNE)
-          #include <stdlib.h> (DNE)
-          #include <stdio.h> (DNE)
-          #include <assert.h> (DNE)
-          #include <float.h> (DNE)
-          #include <string.h> (DNE)
-          #include <math.h> (DNE)
-          #include <time.h> (DNE)
-          #include <sys/time.h> (DNE)
-          #include <random> (DNE)
-          #include <stdexcept> (DNE)
-          #include <iostream> (DNE)
-          #include <fstream> (DNE)
-          #include <vector> (DNE)
-          #include <numeric> (DNE)
-          #include <algorithm> (DNE)
-          #include <iomanip> (DNE)
-          #include <cmath> (DNE)
-  #include "options.h"
-    #include <random> (DNE)
-    #include <time.h> (DNE)
-    #include <iostream> (DNE)
-    #include "cuda_utils.h"
-      #include "common.h"
-        #include <cuda_runtime.h> (DNE)
-        #include <thrust/host_vector.h> (DNE)
-        #include <thrust/device_vector.h> (DNE)
-        #include <thrust/generate.h> (DNE)
-        #include <thrust/reduce.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/random.h> (DNE)
-        #include <thrust/sequence.h> (DNE)
-        #include <thrust/transform.h> (DNE)
-        #include <thrust/transform_reduce.h> (DNE)
-        #include <thrust/iterator/counting_iterator.h> (DNE)
-        #include <thrust/iterator/transform_iterator.h> (DNE)
-        #include <thrust/iterator/permutation_iterator.h> (DNE)
-        #include <thrust/iterator/constant_iterator.h> (DNE)
-        #include <thrust/functional.h> (DNE)
-        #include <thrust/fill.h> (DNE)
-        #include <thrust/gather.h> (DNE)
-        #include <thrust/sort.h> (DNE)
-        #include <stdlib.h> (DNE)
-        #include <stdio.h> (DNE)
-        #include <assert.h> (DNE)
-        #include <float.h> (DNE)
-        #include <string.h> (DNE)
-        #include <math.h> (DNE)
-        #include <time.h> (DNE)
-        #include <sys/time.h> (DNE)
-        #include <random> (DNE)
-        #include <stdexcept> (DNE)
-        #include <iostream> (DNE)
-        #include <fstream> (DNE)
-        #include <vector> (DNE)
-        #include <numeric> (DNE)
-        #include <algorithm> (DNE)
-        #include <iomanip> (DNE)
-        #include <cmath> (DNE)
-  #include "cxxopts.hpp"
-    #include <cctype> (DNE)
-    #include <cstring> (DNE)
-    #include <exception> (DNE)
-    #include <iostream> (DNE)
-    #include <limits> (DNE)
-    #include <list> (DNE)
-    #include <map> (DNE)
-    #include <memory> (DNE)
-    #include <sstream> (DNE)
-    #include <string> (DNE)
-    #include <unordered_map> (DNE)
-    #include <unordered_set> (DNE)
-    #include <utility> (DNE)
-    #include <vector> (DNE)
-    #include <algorithm> (DNE)
-    #include <regex> (DNE)
-    #include <optional> (DNE)
-    #include <unicode/unistr.h> (DNE)
+EXPECTED_INCLUDE_TREES = {'main.cu': 'main.cu\n'
+            '  #include <time.h> (DNE)\n'
+            '  #include <string> (DNE)\n'
+            '  #include "fit_tsne.h"\n'
+            '    #include "common.h"\n'
+            '      #include <cuda_runtime.h> (DNE)\n'
+            '      #include <thrust/host_vector.h> (DNE)\n'
+            '      #include <thrust/device_vector.h> (DNE)\n'
+            '      #include <thrust/generate.h> (DNE)\n'
+            '      #include <thrust/reduce.h> (DNE)\n'
+            '      #include <thrust/functional.h> (DNE)\n'
+            '      #include <thrust/random.h> (DNE)\n'
+            '      #include <thrust/sequence.h> (DNE)\n'
+            '      #include <thrust/transform.h> (DNE)\n'
+            '      #include <thrust/transform_reduce.h> (DNE)\n'
+            '      #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '      #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '      #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '      #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '      #include <thrust/functional.h> (DNE)\n'
+            '      #include <thrust/fill.h> (DNE)\n'
+            '      #include <thrust/gather.h> (DNE)\n'
+            '      #include <thrust/sort.h> (DNE)\n'
+            '      #include <stdlib.h> (DNE)\n'
+            '      #include <stdio.h> (DNE)\n'
+            '      #include <assert.h> (DNE)\n'
+            '      #include <float.h> (DNE)\n'
+            '      #include <string.h> (DNE)\n'
+            '      #include <math.h> (DNE)\n'
+            '      #include <time.h> (DNE)\n'
+            '      #include <sys/time.h> (DNE)\n'
+            '      #include <random> (DNE)\n'
+            '      #include <stdexcept> (DNE)\n'
+            '      #include <iostream> (DNE)\n'
+            '      #include <fstream> (DNE)\n'
+            '      #include <vector> (DNE)\n'
+            '      #include <numeric> (DNE)\n'
+            '      #include <algorithm> (DNE)\n'
+            '      #include <iomanip> (DNE)\n'
+            '      #include <cmath> (DNE)\n'
+            '    #include "options.h"\n'
+            '      #include <random> (DNE)\n'
+            '      #include <time.h> (DNE)\n'
+            '      #include <iostream> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '    #include "cuda_utils.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '    #include "debug_utils.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '    #include "math_utils.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "matrix_broadcast_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "thrust_transform_functions.h"\n'
+            '    #include "matrix_broadcast_utils.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '    #include "distance_utils.h"\n'
+            '      #include <stdint.h> (DNE)\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '      #include "math_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '        #include "options.h"\n'
+            '          #include <random> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include "cuda_utils.h"\n'
+            '            #include "common.h"\n'
+            '              #include <cuda_runtime.h> (DNE)\n'
+            '              #include <thrust/host_vector.h> (DNE)\n'
+            '              #include <thrust/device_vector.h> (DNE)\n'
+            '              #include <thrust/generate.h> (DNE)\n'
+            '              #include <thrust/reduce.h> (DNE)\n'
+            '              #include <thrust/functional.h> (DNE)\n'
+            '              #include <thrust/random.h> (DNE)\n'
+            '              #include <thrust/sequence.h> (DNE)\n'
+            '              #include <thrust/transform.h> (DNE)\n'
+            '              #include <thrust/transform_reduce.h> (DNE)\n'
+            '              #include <thrust/iterator/counting_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/constant_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/functional.h> (DNE)\n'
+            '              #include <thrust/fill.h> (DNE)\n'
+            '              #include <thrust/gather.h> (DNE)\n'
+            '              #include <thrust/sort.h> (DNE)\n'
+            '              #include <stdlib.h> (DNE)\n'
+            '              #include <stdio.h> (DNE)\n'
+            '              #include <assert.h> (DNE)\n'
+            '              #include <float.h> (DNE)\n'
+            '              #include <string.h> (DNE)\n'
+            '              #include <math.h> (DNE)\n'
+            '              #include <time.h> (DNE)\n'
+            '              #include <sys/time.h> (DNE)\n'
+            '              #include <random> (DNE)\n'
+            '              #include <stdexcept> (DNE)\n'
+            '              #include <iostream> (DNE)\n'
+            '              #include <fstream> (DNE)\n'
+            '              #include <vector> (DNE)\n'
+            '              #include <numeric> (DNE)\n'
+            '              #include <algorithm> (DNE)\n'
+            '              #include <iomanip> (DNE)\n'
+            '              #include <cmath> (DNE)\n'
+            '        #include "matrix_broadcast_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '          #include "cuda_utils.h"\n'
+            '            #include "common.h"\n'
+            '              #include <cuda_runtime.h> (DNE)\n'
+            '              #include <thrust/host_vector.h> (DNE)\n'
+            '              #include <thrust/device_vector.h> (DNE)\n'
+            '              #include <thrust/generate.h> (DNE)\n'
+            '              #include <thrust/reduce.h> (DNE)\n'
+            '              #include <thrust/functional.h> (DNE)\n'
+            '              #include <thrust/random.h> (DNE)\n'
+            '              #include <thrust/sequence.h> (DNE)\n'
+            '              #include <thrust/transform.h> (DNE)\n'
+            '              #include <thrust/transform_reduce.h> (DNE)\n'
+            '              #include <thrust/iterator/counting_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/iterator/constant_iterator.h> '
+            '(DNE)\n'
+            '              #include <thrust/functional.h> (DNE)\n'
+            '              #include <thrust/fill.h> (DNE)\n'
+            '              #include <thrust/gather.h> (DNE)\n'
+            '              #include <thrust/sort.h> (DNE)\n'
+            '              #include <stdlib.h> (DNE)\n'
+            '              #include <stdio.h> (DNE)\n'
+            '              #include <assert.h> (DNE)\n'
+            '              #include <float.h> (DNE)\n'
+            '              #include <string.h> (DNE)\n'
+            '              #include <math.h> (DNE)\n'
+            '              #include <time.h> (DNE)\n'
+            '              #include <sys/time.h> (DNE)\n'
+            '              #include <random> (DNE)\n'
+            '              #include <stdexcept> (DNE)\n'
+            '              #include <iostream> (DNE)\n'
+            '              #include <fstream> (DNE)\n'
+            '              #include <vector> (DNE)\n'
+            '              #include <numeric> (DNE)\n'
+            '              #include <algorithm> (DNE)\n'
+            '              #include <iomanip> (DNE)\n'
+            '              #include <cmath> (DNE)\n'
+            '        #include "thrust_transform_functions.h"\n'
+            '    #include "apply_forces.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '    #include "attr_forces.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '      #include "debug_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '    #include "perplexity_search.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '      #include "matrix_broadcast_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "thrust_transform_functions.h"\n'
+            '    #include "nbodyfft.h"\n'
+            '      #include <chrono> (DNE)\n'
+            '      #include <complex> (DNE)\n'
+            '      #include <thrust/complex.h> (DNE)\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '      #include "debug_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '      #include "matrix_broadcast_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '    #include "rep_forces.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '      #include "options.h"\n'
+            '        #include <random> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include "cuda_utils.h"\n'
+            '          #include "common.h"\n'
+            '            #include <cuda_runtime.h> (DNE)\n'
+            '            #include <thrust/host_vector.h> (DNE)\n'
+            '            #include <thrust/device_vector.h> (DNE)\n'
+            '            #include <thrust/generate.h> (DNE)\n'
+            '            #include <thrust/reduce.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/random.h> (DNE)\n'
+            '            #include <thrust/sequence.h> (DNE)\n'
+            '            #include <thrust/transform.h> (DNE)\n'
+            '            #include <thrust/transform_reduce.h> (DNE)\n'
+            '            #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '            #include <thrust/iterator/transform_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '            #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '            #include <thrust/functional.h> (DNE)\n'
+            '            #include <thrust/fill.h> (DNE)\n'
+            '            #include <thrust/gather.h> (DNE)\n'
+            '            #include <thrust/sort.h> (DNE)\n'
+            '            #include <stdlib.h> (DNE)\n'
+            '            #include <stdio.h> (DNE)\n'
+            '            #include <assert.h> (DNE)\n'
+            '            #include <float.h> (DNE)\n'
+            '            #include <string.h> (DNE)\n'
+            '            #include <math.h> (DNE)\n'
+            '            #include <time.h> (DNE)\n'
+            '            #include <sys/time.h> (DNE)\n'
+            '            #include <random> (DNE)\n'
+            '            #include <stdexcept> (DNE)\n'
+            '            #include <iostream> (DNE)\n'
+            '            #include <fstream> (DNE)\n'
+            '            #include <vector> (DNE)\n'
+            '            #include <numeric> (DNE)\n'
+            '            #include <algorithm> (DNE)\n'
+            '            #include <iomanip> (DNE)\n'
+            '            #include <cmath> (DNE)\n'
+            '      #include "cuda_utils.h"\n'
+            '        #include "common.h"\n'
+            '          #include <cuda_runtime.h> (DNE)\n'
+            '          #include <thrust/host_vector.h> (DNE)\n'
+            '          #include <thrust/device_vector.h> (DNE)\n'
+            '          #include <thrust/generate.h> (DNE)\n'
+            '          #include <thrust/reduce.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/random.h> (DNE)\n'
+            '          #include <thrust/sequence.h> (DNE)\n'
+            '          #include <thrust/transform.h> (DNE)\n'
+            '          #include <thrust/transform_reduce.h> (DNE)\n'
+            '          #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '          #include <thrust/iterator/permutation_iterator.h> '
+            '(DNE)\n'
+            '          #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '          #include <thrust/functional.h> (DNE)\n'
+            '          #include <thrust/fill.h> (DNE)\n'
+            '          #include <thrust/gather.h> (DNE)\n'
+            '          #include <thrust/sort.h> (DNE)\n'
+            '          #include <stdlib.h> (DNE)\n'
+            '          #include <stdio.h> (DNE)\n'
+            '          #include <assert.h> (DNE)\n'
+            '          #include <float.h> (DNE)\n'
+            '          #include <string.h> (DNE)\n'
+            '          #include <math.h> (DNE)\n'
+            '          #include <time.h> (DNE)\n'
+            '          #include <sys/time.h> (DNE)\n'
+            '          #include <random> (DNE)\n'
+            '          #include <stdexcept> (DNE)\n'
+            '          #include <iostream> (DNE)\n'
+            '          #include <fstream> (DNE)\n'
+            '          #include <vector> (DNE)\n'
+            '          #include <numeric> (DNE)\n'
+            '          #include <algorithm> (DNE)\n'
+            '          #include <iomanip> (DNE)\n'
+            '          #include <cmath> (DNE)\n'
+            '  #include "options.h"\n'
+            '    #include <random> (DNE)\n'
+            '    #include <time.h> (DNE)\n'
+            '    #include <iostream> (DNE)\n'
+            '    #include "cuda_utils.h"\n'
+            '      #include "common.h"\n'
+            '        #include <cuda_runtime.h> (DNE)\n'
+            '        #include <thrust/host_vector.h> (DNE)\n'
+            '        #include <thrust/device_vector.h> (DNE)\n'
+            '        #include <thrust/generate.h> (DNE)\n'
+            '        #include <thrust/reduce.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/random.h> (DNE)\n'
+            '        #include <thrust/sequence.h> (DNE)\n'
+            '        #include <thrust/transform.h> (DNE)\n'
+            '        #include <thrust/transform_reduce.h> (DNE)\n'
+            '        #include <thrust/iterator/counting_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/transform_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/permutation_iterator.h> (DNE)\n'
+            '        #include <thrust/iterator/constant_iterator.h> (DNE)\n'
+            '        #include <thrust/functional.h> (DNE)\n'
+            '        #include <thrust/fill.h> (DNE)\n'
+            '        #include <thrust/gather.h> (DNE)\n'
+            '        #include <thrust/sort.h> (DNE)\n'
+            '        #include <stdlib.h> (DNE)\n'
+            '        #include <stdio.h> (DNE)\n'
+            '        #include <assert.h> (DNE)\n'
+            '        #include <float.h> (DNE)\n'
+            '        #include <string.h> (DNE)\n'
+            '        #include <math.h> (DNE)\n'
+            '        #include <time.h> (DNE)\n'
+            '        #include <sys/time.h> (DNE)\n'
+            '        #include <random> (DNE)\n'
+            '        #include <stdexcept> (DNE)\n'
+            '        #include <iostream> (DNE)\n'
+            '        #include <fstream> (DNE)\n'
+            '        #include <vector> (DNE)\n'
+            '        #include <numeric> (DNE)\n'
+            '        #include <algorithm> (DNE)\n'
+            '        #include <iomanip> (DNE)\n'
+            '        #include <cmath> (DNE)\n'
+            '  #include "cxxopts.hpp"\n'
+            '    #include <cctype> (DNE)\n'
+            '    #include <cstring> (DNE)\n'
+            '    #include <exception> (DNE)\n'
+            '    #include <iostream> (DNE)\n'
+            '    #include <limits> (DNE)\n'
+            '    #include <list> (DNE)\n'
+            '    #include <map> (DNE)\n'
+            '    #include <memory> (DNE)\n'
+            '    #include <sstream> (DNE)\n'
+            '    #include <string> (DNE)\n'
+            '    #include <unordered_map> (DNE)\n'
+            '    #include <unordered_set> (DNE)\n'
+            '    #include <utility> (DNE)\n'
+            '    #include <vector> (DNE)\n'
+            '    #include <algorithm> (DNE)\n'
+            '    #include <regex> (DNE)\n'
+            '    #include <optional> (DNE)\n'
+            '    #include <unicode/unistr.h> (DNE)'}
 
-""",
-}
-
-EXPECTED_KERNELS = [
-    {"file": "apply_forces.cu", "kernel": "IntegrationKernel", "line": 41},
-    {"file": "attr_forces.cu", "kernel": "ComputePijxQijKernelV3", "line": 41},
-    {"file": "attr_forces.cu", "kernel": "reduce_sum_kernel", "line": 71},
-    {
-        "file": "distance_utils.cu",
-        "kernel": "PostprocessNeighborIndicesKernel",
-        "line": 94,
-    },
-    {"file": "math_utils.cu", "kernel": "syv2k", "line": 62},
-    {
-        "file": "matrix_broadcast_utils.cu",
-        "kernel": "BroadcastRowVector",
-        "line": 46,
-    },
-    {
-        "file": "matrix_broadcast_utils.cu",
-        "kernel": "BroadcastColumnVector",
-        "line": 65,
-    },
-    {"file": "nbodyfft.cu", "kernel": "copy_to_fft_input", "line": 50},
-    {"file": "nbodyfft.cu", "kernel": "copy_from_fft_output", "line": 72},
-    {"file": "nbodyfft.cu", "kernel": "compute_point_box_idx", "line": 94},
-    {"file": "nbodyfft.cu", "kernel": "interpolate_device", "line": 128},
-    {
-        "file": "nbodyfft.cu",
-        "kernel": "compute_interpolated_indices",
-        "line": 159,
-    },
-    {"file": "nbodyfft.cu", "kernel": "compute_potential_indices", "line": 193},
-    {"file": "nbodyfft.cu", "kernel": "compute_kernel_tilde", "line": 233},
-    {
-        "file": "nbodyfft.cu",
-        "kernel": "compute_upper_and_lower_bounds",
-        "line": 259,
-    },
-    {"file": "nbodyfft.cu", "kernel": "DFT2D1gpu", "line": 285},
-    {"file": "nbodyfft.cu", "kernel": "DFT2D2gpu", "line": 307},
-    {"file": "nbodyfft.cu", "kernel": "iDFT2D1gpu", "line": 331},
-    {"file": "nbodyfft.cu", "kernel": "iDFT2D2gpu", "line": 359},
-    {"file": "perplexity_search.cu", "kernel": "ComputePijKernel", "line": 40},
-    {"file": "perplexity_search.cu", "kernel": "RowSumKernel", "line": 66},
-    {"file": "perplexity_search.cu", "kernel": "NegEntropyKernel", "line": 86},
-    {
-        "file": "perplexity_search.cu",
-        "kernel": "PerplexitySearchKernel",
-        "line": 107,
-    },
-    {
-        "file": "rep_forces.cu",
-        "kernel": "compute_repulsive_forces_kernel",
-        "line": 33,
-    },
-    {
-        "file": "rep_forces.cu",
-        "kernel": "compute_chargesQij_kernel",
-        "line": 90,
-    },
-]
-
-
+EXPECTED_KERNELS = [{'file': 'apply_forces.cu',
+  'kernel': 'IntegrationKernel',
+  'line': 41,
+  'lines': 45,
+  'offset': 41},
+ {'file': 'attr_forces.cu',
+  'kernel': 'ComputePijxQijKernelV3',
+  'line': 41,
+  'lines': 29,
+  'offset': 41},
+ {'file': 'attr_forces.cu',
+  'kernel': 'reduce_sum_kernel',
+  'line': 71,
+  'lines': 25,
+  'offset': 71},
+ {'file': 'distance_utils.cu',
+  'kernel': 'PostprocessNeighborIndicesKernel',
+  'line': 94,
+  'lines': 12,
+  'offset': 94},
+ {'file': 'math_utils.cu',
+  'kernel': 'syv2k',
+  'line': 62,
+  'lines': 26,
+  'offset': 62},
+ {'file': 'matrix_broadcast_utils.cu',
+  'kernel': 'BroadcastRowVector',
+  'line': 46,
+  'lines': 16,
+  'offset': 45},
+ {'file': 'matrix_broadcast_utils.cu',
+  'kernel': 'BroadcastColumnVector',
+  'line': 65,
+  'lines': 17,
+  'offset': 64},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'copy_to_fft_input',
+  'line': 42,
+  'lines': 21,
+  'offset': 42},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'copy_from_fft_output',
+  'line': 64,
+  'lines': 21,
+  'offset': 64},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'compute_point_box_idx',
+  'line': 86,
+  'lines': 33,
+  'offset': 86},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'interpolate_device',
+  'line': 120,
+  'lines': 30,
+  'offset': 120},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'compute_interpolated_indices',
+  'line': 151,
+  'lines': 33,
+  'offset': 151},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'compute_potential_indices',
+  'line': 185,
+  'lines': 33,
+  'offset': 185},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'compute_kernel_tilde',
+  'line': 225,
+  'lines': 25,
+  'offset': 225},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'compute_upper_and_lower_bounds',
+  'line': 251,
+  'lines': 24,
+  'offset': 251},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'DFT2D1gpu',
+  'line': 277,
+  'lines': 20,
+  'offset': 277},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'DFT2D2gpu',
+  'line': 299,
+  'lines': 22,
+  'offset': 299},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'iDFT2D1gpu',
+  'line': 323,
+  'lines': 26,
+  'offset': 323},
+ {'file': 'nbodyfft.cu',
+  'kernel': 'iDFT2D2gpu',
+  'line': 351,
+  'lines': 22,
+  'offset': 351},
+ {'file': 'perplexity_search.cu',
+  'kernel': 'ComputePijKernel',
+  'line': 40,
+  'lines': 25,
+  'offset': 40},
+ {'file': 'perplexity_search.cu',
+  'kernel': 'RowSumKernel',
+  'line': 66,
+  'lines': 19,
+  'offset': 66},
+ {'file': 'perplexity_search.cu',
+  'kernel': 'NegEntropyKernel',
+  'line': 86,
+  'lines': 20,
+  'offset': 86},
+ {'file': 'perplexity_search.cu',
+  'kernel': 'PerplexitySearchKernel',
+  'line': 107,
+  'lines': 46,
+  'offset': 107},
+ {'file': 'rep_forces.cu',
+  'kernel': 'compute_repulsive_forces_kernel',
+  'line': 33,
+  'lines': 28,
+  'offset': 33},
+ {'file': 'rep_forces.cu',
+  'kernel': 'compute_chargesQij_kernel',
+  'line': 90,
+  'lines': 20,
+  'offset': 90}]

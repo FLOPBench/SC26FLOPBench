@@ -1,18 +1,1 @@
-solution = [
-r"""__global__ void calcPositionForNodes (
-    Real_t *__restrict__ x,
-    Real_t *__restrict__ y,
-    Real_t *__restrict__ z,
-    const Real_t *__restrict__ xd,
-    const Real_t *__restrict__ yd,
-    const Real_t *__restrict__ zd,
-    const Real_t deltaTime,
-    const Index_t numNode) 
-{
-  Index_t i = blockDim.x*blockIdx.x+threadIdx.x;
-  if (i >= numNode) return;
-  x[i] += xd[i] * deltaTime;
-  y[i] += yd[i] * deltaTime;
-  z[i] += zd[i] * deltaTime;
-}""".strip()
-]
+solution = ['__global__ void calcPositionForNodes (\n    Real_t *__restrict__ x,\n    Real_t *__restrict__ y,\n    Real_t *__restrict__ z,\n    const Real_t *__restrict__ xd,\n    const Real_t *__restrict__ yd,\n    const Real_t *__restrict__ zd,\n    const Real_t deltaTime,\n    const Index_t numNode) \n{\n  Index_t i = blockDim.x*blockIdx.x+threadIdx.x;\n  if (i >= numNode) return;\n  x[i] += xd[i] * deltaTime;\n  y[i] += yd[i] * deltaTime;\n  z[i] += zd[i] * deltaTime;\n}']
