@@ -1,3 +1,0 @@
-[submodule "gpuFLOPBench"]
-	path = gpuFLOPBench
-	url = https://github.com/Scientific-Computing-Lab/gpuFLOPBench.git
