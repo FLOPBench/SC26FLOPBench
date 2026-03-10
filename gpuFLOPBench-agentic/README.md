@@ -16,10 +16,10 @@ docker run -ti --network=host --gpus all --name codex-container --runtime=nvidia
 
 ## Container on Macbook (Apple Silicon M1/2/3/4) -- no NVIDIA GPU
 ```
-git clone git@github.com:gregbolet/gpuFLOPBench-agentic.git ./gpuFLOPBench-agentic
+git clone git@github.com:gregbolet/gpuFLOPBench-updated.git ./gpuFLOPBench-updated
 
 # we only really need the Dockerfile from the repo
-cd ./gpuFLOPBench-agentic
+cd ./gpuFLOPBench-updated/gpuFLOPBench-agentic
 
 # this takes about 10 minutes on my Macbook Air M4
 docker build --platform=linux/amd64 --progress=plain -t 'codex-env' .

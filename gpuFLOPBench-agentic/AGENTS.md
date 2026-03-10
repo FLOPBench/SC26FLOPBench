@@ -4,7 +4,7 @@
 - Document the code-search tools and unit-test conventions so future contributors can quickly understand what is available and how to extend it.
 - Treat `langchain-tools/code-search-tools` as the single source of truth for CUDA tooling and `unit-tests/` as the verification batch for those tools plus some ancillary checks; anybody touching either area should update this file as part of new work.
 - Whenever you describe a tool or a test, mention both the intent (what it is supposed to do) and the concrete module/path so readers can immediately find the implementation.
-- The repository layout is deliberate: `gpuFLOPBench/` holds the `*-cuda` benchmarks under `src/`, `langchain-tools/` exposes LangChain agents (including `code-search-tools`) and shared helpers, `langchain-tools/treesitter-tools/` houses the `cst_utils.py` helpers that agents import via short shell-launched Python scripts for CUDA/OpenMP parsing, `unit-tests/` houses the regression suite plus the extracted-kernel-solution data, and higher-level helpers like `agents/` and `helper-scripts/` sit alongside `run_tests.sh` for project-wide operations.
+- The repository layout is deliberate: `HeCBench/` holds the `*-cuda` benchmarks under `src/`, `langchain-tools/` exposes LangChain agents (including `code-search-tools`) and shared helpers, `langchain-tools/treesitter-tools/` houses the `cst_utils.py` helpers that agents import via short shell-launched Python scripts for CUDA/OpenMP parsing, `unit-tests/` houses the regression suite plus the extracted-kernel-solution data, and higher-level helpers like `agents/` and `helper-scripts/` sit alongside `run_tests.sh` for project-wide operations.
 - Agents generally mount the sandbox via a `FilesystemBackend` rooted at one of the CUDA benchmark directories (e.g., `/gpuFLOPBench-updated/HeCBench/src/lulesh-cuda/`) and run it with `virtual_mode=True`. Within that view the benchmark tree entirely lives at `/`, so any tool output, prompt example, or metadata string should refer to `/`-rooted paths instead of exposing the host directory name.
 
 ## 1.1) Agent guidance
@@ -20,7 +20,7 @@
 - Current tools:
   - `cuda_file_tree` (`cuda-file-tree.py`): Builds a sorted, indented tree for a directory (absolute or FilesystemBackend virtual path such as `/lulesh-cuda`) so callers know the layout before inspecting files.
   - `cuda_global_functions` (`cuda-global-functions.py`): Scans CUDA/CPP/HEADER files for `__global__` definitions and emits kernel names with file/line coordinates plus `offset`/`lines` so callers can locate the full definition span in each source file.
-  - `cuda_compile_commands` (`cuda-compile-commands.py`): Reads `gpuFLOPBench/cuda-profiling/compile_commands.json`, filters the compile database for the requested directory, and reports compiler/arguments/output pairs for every source mentioned.
+  - `cuda_compile_commands` (`cuda-compile-commands.py`): Reads `build/compile_commands.json`, filters the compile database for the requested directory, and reports compiler/arguments/output pairs for every source mentioned.
   - `cuda_main_files` (`cuda-main-files.py`): Searches for free-function `main()` definitions in the benchmark tree and returns entries with the file path plus the `offset`/`lines` span of the `main()` definition so agents know where each entry point lives.
   - `extract_kernel_source_definition` (`extract-kernel-source-definition.py`): Replays the `__global__` definitions (including template headers and qualifiers) for a particular kernel name, letting consumers compare against known source snapshots by pointing the tool at either a directory or the specific source file that owns the kernel.
   - `function_definition_lister` (`function-definition-lister.py`): Enumerates every declaration/definition found by `tree_sitter` in a single CUDA/C++/header file and emits structured JSON per file where each function entry includes the name, qualifiers, signature, `kind` ((decl)/(defnt)), the canonical `line`, and the `offset`/`lines` span so tools can load precise source slices. Callers pass a `file_path` (absolute or FilesystemBackend virtual path such as `/lulesh-cuda/lulesh.cu`) instead of a `cuda_name`, letting agents rooted at `/` reach the right source.
@@ -70,7 +70,7 @@
 
 
 ## 5) Project Files Description
-- `gpuFLOPBench/`
+- `HeCBench/`
   - `src/`: hosts the benchmark sources; each `cuda_name` under here takes the form `*-cuda` and corresponds to one CUDA program we train and test.
 - `agents/`
   - `backwards_slicing_agent.py`: LangChain agent wiring that orchestrates the script-driven slicing pipeline, exposes `default_backwards_slicing_system_prompt`/`make_backwards_slicing_agent`, and relies on middleware (logging, call limits, checkpointer) plus the builtin filesystem/execute tools rather than new LangChain helpers.

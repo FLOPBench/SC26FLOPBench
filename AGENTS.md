@@ -31,6 +31,7 @@ gpuFLOPBench-updated/
 ├── unit-tests/                # Test suite
 │   ├── AGENTS.md              # Test documentation
 │   └── test_*.py              # Test files
+├── gpuFLOPBench-agentic/      # LLM agents and tools for benchmark exploration
 ├── Dockerfile                 # Container for building and profiling
 └── AGENTS.md                  # This file
 

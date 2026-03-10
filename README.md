@@ -334,6 +334,7 @@ pytest -v
 │       ├── cuda/          # CUDA executables (450+ expected)
 │       └── omp/           # OpenMP executables (300+ expected)
 ├── unit-tests/            # Test suite
+├── gpuFLOPBench-agentic/  # LLM agents and tools for benchmark exploration
 ├── Dockerfile             # Container definition
 └── AGENTS.md              # Full documentation
 ```
