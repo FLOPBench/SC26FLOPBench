@@ -35,7 +35,7 @@ RUN apt-get update && \
     build-essential \
     g++ gcc libstdc++-14-dev libboost-all-dev libgsl-dev \
     cmake \
-    git \
+    git git-lfs \
     wget \
     curl \
     unzip \
