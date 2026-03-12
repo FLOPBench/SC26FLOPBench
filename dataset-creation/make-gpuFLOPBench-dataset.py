@@ -57,7 +57,8 @@ def rename_devices(x):
         return 'A10'
     elif 'H100' in x_str:
         return 'H100'
-    return x_str
+    else:
+        raise ValueError(f'Unknown device name in {x_str}')
 
 def get_program_name(row):
     pname = str(row['Process Name'])
@@ -67,32 +68,42 @@ def get_program_name(row):
     else:
         return f"{pname}-cuda"
 
+
 def build_metrics_db(csv_path):
     print("Loading CSV Data...")
     
     # Only load the columns we actually need to save memory
-    needed_cols = ['Process Name', 'Program Name', 'Kernel Name', 'Device', 'Block Size', 'Grid Size', 'exeArgs', 'xtime', 'bytesRead', 'bytesWrite', 'HP_FLOP', 'SP_FLOP', 'DP_FLOP']
+    needed_cols = ['Process Name', 'Program Name', 'Kernel Name', 'device', 'Block Size', 'Grid Size', 'exeArgs', 'xtime', 'bytesRead', 'bytesWrite', 'HP_FLOP', 'SP_FLOP', 'DP_FLOP']
     df = pd.read_csv(csv_path, low_memory=False, usecols=lambda x: x in needed_cols)
-    
-    print("Demangling kernels...")
-    unique_kernels = df['Kernel Name'].dropna().unique()
-    demangled_map = {}
-    for k in tqdm(unique_kernels, desc="Demangling kernels", total=len(unique_kernels)):
-        if '__omp_offloading' in str(k):
-            demangled_map[k] = get_demangled_omp_name(k)
-        else:
-            demangled_map[k] = demangle_kernel_name(k)
-            
-    df['Demangled Name'] = df['Kernel Name'].map(demangled_map)
-    df['Fixed Kernel Name'] = df['Kernel Name'].apply(fix_omp_kernel_name)
-    df['Device'] = df['Device'].apply(rename_devices)
-    df['Program Name'] = df.apply(get_program_name, axis=1)
 
-    cols_to_keep = ['Program Name', 'Kernel Name', 'Fixed Kernel Name', 'Demangled Name', 'Device', 'Block Size', 'Grid Size', 'exeArgs', 'xtime', 'bytesRead', 'bytesWrite', 'HP_FLOP', 'SP_FLOP', 'DP_FLOP']
+    # First determine program name (needs raw Kernel Name to check for __omp_offloading)
+    df['Program Name'] = df.apply(get_program_name, axis=1)
+    
+    # Now fix the OpenMP kernel names to drop the hash, grouping them properly
+    df['Kernel Name'] = df['Kernel Name'].apply(fix_omp_kernel_name)
+    df['Fixed Kernel Name'] = df['Kernel Name']
+
+    print("Demangling kernels...")
+    unique_kernels = df[['Program Name', 'Kernel Name']].dropna().drop_duplicates()
+    demangled_map = {}
+    for _, row in tqdm(unique_kernels.iterrows(), desc="Demangling kernels", total=len(unique_kernels)):
+        p = row['Program Name']
+        k = row['Kernel Name']
+        if pd.isna(k): continue
+        if '-omp' in p:
+            demangled_map[(p, k)] = get_demangled_omp_name(k)
+        else:
+            demangled_map[(p, k)] = demangle_kernel_name(k)
+            
+    df['Demangled Name'] = df.apply(lambda r: demangled_map.get((r['Program Name'], r['Kernel Name']), r['Kernel Name']), axis=1)
+    
+    df['device'] = df['device'].apply(rename_devices)
+
+    cols_to_keep = ['Program Name', 'Kernel Name', 'Fixed Kernel Name', 'Demangled Name', 'device', 'Block Size', 'Grid Size', 'exeArgs', 'xtime', 'bytesRead', 'bytesWrite', 'HP_FLOP', 'SP_FLOP', 'DP_FLOP']
     existing_cols = [c for c in cols_to_keep if c in df.columns]
     df = df[existing_cols]
 
-    groupby_cols = ['Program Name', 'Kernel Name', 'Fixed Kernel Name', 'Demangled Name', 'Device', 'Block Size', 'Grid Size', 'exeArgs']
+    groupby_cols = ['Program Name', 'Kernel Name', 'Fixed Kernel Name', 'Demangled Name', 'device', 'Block Size', 'Grid Size', 'exeArgs']
     groupby_cols_existing = [c for c in groupby_cols if c in df.columns]
 
     agg_dict = {}
@@ -130,21 +141,37 @@ def get_sass_and_imix(program_name, sm_version, sass_dir, kernel_mangled):
             
         imix_data, _ = parser.getIMIXForKernel(matched_key)
         
-        raw_sass_text = ""
+        sass_sections = []
         visited = set()
         
         def traverse_sass(k_name):
-            nonlocal raw_sass_text
             if k_name in visited or k_name not in parser.text_sections:
                 return
             visited.add(k_name)
             sec = parser.text_sections[k_name]
-            raw_sass_text += f"// {k_name}\n{sec.raw_text}\n\n"
+            
+            # Clean up the trailing non-SASS sections
+            clean_lines = []
+            
+            # Since we now include the header, skip the first line during the inner 
+            # cleanup loop so we don't accidentally break on its own `//---` tag
+            lines = sec.raw_text.split('\n')
+            if lines:
+                clean_lines.append(lines[0])
+                for line in lines[1:]:
+                    if line.startswith('//---------------------'):
+                        break
+                    clean_lines.append(line)
+            
+            clean_text = '\n'.join(clean_lines).strip()
+            sass_sections.append(clean_text)
+            
             for ref in sec.references:
                 traverse_sass(ref)
                 
         traverse_sass(matched_key)
-        return dict(imix_data), raw_sass_text.strip()
+        sorted_imix = dict(sorted(imix_data.items(), key=lambda item: item[1], reverse=True))
+        return sorted_imix, sass_sections
     except Exception as e:
         print(f"Error parsing SASS {sass_file}: {e}")
         return None, None
@@ -152,19 +179,77 @@ def get_sass_and_imix(program_name, sm_version, sass_dir, kernel_mangled):
 def extract_source_mapping(program_name, kernel_mangled, demangled_name, sources_dict):
     mapped_files = []
     
-    if '-omp' in program_name:
-        match = re.search(r'(.+)_l(\d+)$', fix_omp_kernel_name(kernel_mangled))
-        if match:
-            func_name, line_no = match.group(1), int(match.group(2))
-            for f_path, content in sources_dict.items():
-                if func_name in content:
-                    mapped_files.append(f_path)
-    else:
-        base_name = demangled_name.split('(')[0].split('<')[0].replace("void ", "").strip()
-        base_name_clean = base_name.split('::')[-1]
-        for f_path, content in sources_dict.items():
-            if base_name_clean in content:
-                mapped_files.append(f_path)
+    # Remove OpenMP line tag e.g. ":l25" or ":l57"
+    line_no = None
+    line_match = re.search(r':l(\d+)$', demangled_name)
+    if line_match:
+        line_no = int(line_match.group(1))
+    elif '-omp' in program_name:
+        omp_match = re.search(r'_l(\d+)$', fix_omp_kernel_name(kernel_mangled))
+        if omp_match:
+            line_no = int(omp_match.group(1))
+
+    clean_demangled = re.sub(r':l\d+$', '', demangled_name)
+    
+    # Strip return types, templates, and parameters to get just the function base name
+    base_name = clean_demangled.split('(')[0].split('<')[0]
+    for prefix in ["void ", "virtual ", "static ", "inline "]:
+        base_name = base_name.replace(prefix, "")
+    base_name = base_name.strip()
+    
+    base_name_clean = base_name.split('::')[-1]
+    
+    # Fallback to old heuristic if demangling yielded empty
+    if not base_name_clean:
+        if '-omp' in program_name:
+            match = re.search(r'(.+)_l(\d+)$', fix_omp_kernel_name(kernel_mangled))
+            if match:
+                base_name_clean = match.group(1)
+            else:
+                base_name_clean = fix_omp_kernel_name(kernel_mangled)
+        else:
+            base_name_clean = kernel_mangled
+
+    for f_path, content in sources_dict.items():
+        # Ensure it's a whole word match before doing anything
+        matches = list(re.finditer(r'\b' + re.escape(base_name_clean) + r'\b', content))
+        if not matches:
+            continue
+
+        if '-omp' in program_name:
+            # Stricter cross-referencing for OpenMP kernels
+            if line_no:
+                lines = content.split('\n')
+                # Check if the file is even long enough to support this line tag
+                if line_no > len(lines):
+                    continue
+                    
+                # Look in a window around the target line for standard OpenMP/Function hints
+                start = max(0, line_no - 15)
+                end = min(len(lines), line_no + 15)
+                window = "\n".join(lines[start:end]).lower()
+                
+                # If OpenMP directives aren't near the line, this file is a false positive 
+                if 'omp' not in window:
+                    continue
+            else:
+                if 'omp' not in content.lower():
+                    continue
+        else:
+            # For CUDA, cleanly distinguish calls/declarations versus actual kernel definitions
+            launch_or_decl_count = 0
+            for m in matches:
+                tail = content[m.start():]
+                # A match denotes a launch if followed by <<<, or a declaration if followed by ; 
+                # before ever encountering { which starts a function body
+                if re.match(r'\b' + re.escape(base_name_clean) + r'\b[^{;]*<<<|\b' + re.escape(base_name_clean) + r'\b[^{]*;', tail):
+                    launch_or_decl_count += 1
+                    
+            if len(matches) == launch_or_decl_count:
+                # If every occurrence is merely calling or declaring the kernel, skip the file
+                continue
+
+        mapped_files.append(f_path)
     
     return list(set(mapped_files))
 
@@ -246,7 +331,7 @@ def main():
                     dataset[prog]["kernels"][kmangled]["imix"][sm] = imix
                     dataset[prog]["kernels"][kmangled]["sass_code"][sm] = sass_text
         
-        gpu_device = row['Device']
+        gpu_device = row['device']
         metrics = {
             "xtime_ns": int(row.get('xtime', 0)) if pd.notna(row.get('xtime')) else 0,
             "bytesRead": int(row.get('bytesRead', 0)) if pd.notna(row.get('bytesRead')) else 0,

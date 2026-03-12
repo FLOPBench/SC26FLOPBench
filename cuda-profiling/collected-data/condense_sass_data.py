@@ -244,8 +244,8 @@ class SASSFileParser:
                 # Start new section
                 current_mangled_name = match.group(1)
                 current_start_line = i + 1  # 1-based line number points to the header line
-                current_section_lines = []
-                # We skip adding the header line to the section content to keep it clean
+                current_section_lines = [line]
+                # We add the header line to the section content to keep it clean
             
             else:
                 if current_mangled_name:
