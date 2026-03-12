@@ -141,7 +141,7 @@ def get_sass_and_imix(program_name, sm_version, sass_dir, kernel_mangled):
             
         imix_data, _ = parser.getIMIXForKernel(matched_key)
         
-        sass_sections = []
+        sass_sections = {}
         visited = set()
         
         def traverse_sass(k_name):
@@ -164,7 +164,7 @@ def get_sass_and_imix(program_name, sm_version, sass_dir, kernel_mangled):
                     clean_lines.append(line)
             
             clean_text = '\n'.join(clean_lines).strip()
-            sass_sections.append(clean_text)
+            sass_sections[k_name] = clean_text
             
             for ref in sec.references:
                 traverse_sass(ref)
@@ -253,6 +253,11 @@ def extract_source_mapping(program_name, kernel_mangled, demangled_name, sources
     
     return list(set(mapped_files))
 
+def normalize_path(path):
+    if "HeCBench/" in path:
+        return "HeCBench/" + path.split("HeCBench/", 1)[-1]
+    return path
+
 def build_compile_commands(program_name, gpu="3080"):
     base_file = ROOT_DIR / "cuda-profiling" / "collected-data" / gpu / "compile_commands.json"
     if not base_file.exists():
@@ -265,8 +270,9 @@ def build_compile_commands(program_name, gpu="3080"):
         filtered = []
         for cmd in cmds:
             if program_name in cmd.get('directory', '') or program_name in cmd.get('file', ''):
+                file_path = str(cmd.get("file", ""))
                 filtered.append({
-                    "file": cmd.get("file"),
+                    "file": normalize_path(file_path),
                     "command": cmd.get("command")
                 })
         return filtered
@@ -287,7 +293,11 @@ def main():
     scraped_sources = {}
     if sources_json_path.exists():
         with open(sources_json_path, 'r') as f:
-            scraped_sources = json.load(f)
+            raw_sources = json.load(f)
+            for prog, srcs in raw_sources.items():
+                scraped_sources[prog] = {}
+                for path, content in srcs.items():
+                    scraped_sources[prog][normalize_path(path)] = content
         
     dataset = {}
     

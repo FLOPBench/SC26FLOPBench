@@ -42,12 +42,12 @@ The script `make-gpuFLOPBench-dataset.py` operates as the ultimate join operatio
 4. It consolidates build logs retaining the precise compiler flags used per GPU benchmark instance.
 
 ### Output JSON Schema 
-The final dictionary generated at `gpuFLOPBench.json` maintains the following structured grouping logically isolating properties for better parseability:
+The final dictionary generated at `gpuFLOPBench.json` maintains the following structured grouping logically isolating properties for better parseability. Un-profiled device entries are omitted naturally, compiled paths are flattened uniformly (starting from `HeCBench/...`), and `sass_code` tracks mapped string blocks per resolved child kernel directly nested by mangled section name:
 ```json
 {
   "program-name-cuda": {
     "exeArgs": "100 100",
-    "source_to_kernels": { "main.cu": ["_Z15mangled_kernel1"] },
+    "source_to_kernels": { "HeCBench/src/program-name-cuda/main.cu": ["_Z15mangled_kernel1"] },
     "kernels": {
       "_Z15mangled_kernel1": {
         "demangledName": "mangled_kernel1(int, int)",
@@ -58,14 +58,16 @@ The final dictionary generated at `gpuFLOPBench.json` maintains the following st
           "A10": { "xtime_ns": 47000, "bytesRead": 1024, "HP_FLOP": 0, "SP_FLOP": 256, "DP_FLOP": 0 }
         },
         "imix": { "sm_80": {"FADD": 10, "MOV": 2}, "sm_86": {"FADD": 10, "MOV": 2} },
-        "sass_code": { "sm_80": [
-          "//--------------------- .text._Z15mangled_kernel1 --------------------------\n/* ... */",
-          "//--------------------- .text.some_nested_reference --------------------------\n/* ... */"
-        ] }
+        "sass_code": { 
+          "sm_80": {
+            "_Z15mangled_kernel1": "//--------------------- .text._Z15mangled_kernel1 --------------------------\n/* ... */",
+            "some_nested_reference": "//--------------------- .text.some_nested_reference --------------------------\n/* ... */"
+          }
+        }
       }
     },
-    "compile_commands": { "3080": [ {"file": "...", "command": "..."} ] },
-    "sources": { "path/to/source.cu": "/* full source code ... */" }
+    "compile_commands": { "3080": [ {"file": "HeCBench/src/program-name-cuda/main.cu", "command": "..."} ] },
+    "sources": { "HeCBench/src/program-name-cuda/main.cu": "/* full source code ... */" }
   }
 }
 ```
