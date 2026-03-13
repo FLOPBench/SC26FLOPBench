@@ -55,6 +55,7 @@ RUN apt-get update && \
     vim \
     less \
     htop \
+    postgresql \
     && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM/Clang 21
@@ -101,7 +102,7 @@ RUN source ~/anaconda3/bin/activate && \
 # Install Python dependencies in conda environment
 RUN source ~/anaconda3/bin/activate && \
     conda activate gpuflopbench-updated && \
-    pip install --no-cache-dir pandas numpy pyyaml tqdm pytest pytest-xdist pytest-cov
+    pip install --no-cache-dir pandas numpy pyyaml tqdm pytest pytest-xdist pytest-cov langchain langgraph==1.1.1 langgraph-checkpoint-postgres langchain-openai
 
 # Set working directory
 WORKDIR /gpuFLOPBench-updated
