@@ -33,6 +33,11 @@ gpuFLOPBench-updated/
 │   └── test_*.py              # Test files
 ├── gpuFLOPBench-agentic/      # LLM agents and tools for benchmark exploration
 ├── Dockerfile                 # Container for building and profiling
+├── experiments/               # Direct testing and prompting experiments
+│   └── direct-prompting/      # Predict precision/DRAM stats via LLM graphs
+│       ├── prompts.py         # Prompt generator and Pydantic targets
+│       ├── graph.py           # LangGraph StateGraph nodes and LLM query definitions
+│       └── db_parser.py       # Extract checkpointer DB summary statistics
 └── AGENTS.md                  # This file
 
 ```
@@ -359,6 +364,13 @@ docker run --gpus all \
 
 # 3. Results available in ./results/gpuData.csv (plus logs and NCU reports)
 ```
+
+## Experiments
+
+The `experiments/direct-prompting` directory contains LangGraph pipelines designed to automatically query large language models for target source files and compilation artifacts to predict FLOP counts and DRAM usages:
+- `prompts.py`: Pydantic structured output models and dynamic prompt generators (XML format).
+- `graph.py`: The `StateGraph` definition combining queries, validation logic, token counting, and integration with `PostgresSaver`.
+- `db_parser.py`: PostgreSQL parser that retrieves queries executed via the `PostgresSaver` Checkpointer to calculate total token statistics and elapsed execution time.
 
 ## Testing
 
