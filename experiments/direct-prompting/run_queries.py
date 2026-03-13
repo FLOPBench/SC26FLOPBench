@@ -39,8 +39,10 @@ if db_manager_spec and db_manager_spec.loader:
 CheckpointDBParser = db_manager_mod.CheckpointDBParser
 setup_default_database = db_manager_mod.setup_default_database
 
-def print_run_result(db_entry: dict):
-    state = db_entry.get("checkpoint", {}).get("channel_values", {})
+def print_run_result(state: dict):
+    # Support both raw dictionary states (from app.invoke) and DB checkpoint parsings
+    if "checkpoint" in state:
+        state = state.get("checkpoint", {}).get("channel_values", {})
     
     print("\n" + "="*70)
     print(" RUN COMPLETE ")
@@ -51,7 +53,9 @@ def print_run_result(db_entry: dict):
     print(f"GPU Target: {state.get('gpu_roofline_specs', {}).get('gpu_target')}")
     print(f"Architecture: {state.get('gpu_roofline_specs', {}).get('arch')}")
     
-    predicted = state.get("predicted_metrics", {})
+    predicted = state.get("prediction", {})
+    if not isinstance(predicted, dict):
+        predicted = vars(predicted) if hasattr(predicted, '__dict__') else {}
     diff = state.get("metrics_pct_diff", {})
     
     def get_diff(name_hints):
@@ -76,8 +80,9 @@ def print_run_result(db_entry: dict):
         pred_str = str(pred) if pred is not None else "N/A"
         print(f"{name:<15} | {exp_str:<15} | {pred_str:<15} | {pct:>10}")
         
-    print(f"\nPredicted Block Size: {predicted.get('blockSz')}")
-    print(f"Predicted Grid Size:  {predicted.get('gridSz')}")
+    print(f"\n--- Dimension Results ---")
+    print(f"Block Size      | Expected: {str(state.get('expected_block_size')):<20} | Predicted: {str(predicted.get('blockSz'))}")
+    print(f"Grid Size       | Expected: {str(state.get('expected_grid_size')):<20} | Predicted: {str(predicted.get('gridSz'))}")
 
     print("\n--- LLM Query Performance ---")
     print(f"Total Tokens: {state.get('total_tokens')}")
@@ -101,7 +106,7 @@ def load_dataset(path: str):
     with open(path, "r") as f:
         return json.load(f)
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False):
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -116,26 +121,31 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         if single_dry_run and program_name != "adam-cuda":
             continue
             
-        kernels = prog_data.get("kernels", {})
-        sources = prog_data.get("sources", {})
-        compile_commands = prog_data.get("compile_commands", [])
-        exe_args = prog_data.get("exeArgs", "")
+        kernels = prog_data["kernels"]
+        sources = prog_data["sources"]
+        compile_commands = prog_data["compile_commands"]
+        exe_args = prog_data["exeArgs"]
         
         for mangled_kernel, kernel_data in kernels.items():
-            demangled_name = kernel_data.get("demangledName", mangled_kernel)
-            metrics = kernel_data.get("metrics", {})
+            demangled_name = kernel_data["demangledName"]
+            metrics = kernel_data["metrics"]
             
             for gpu_name, gpu_metrics in metrics.items():
                 if single_dry_run and gpu_name != "H100":
                     continue
                     
                 arch = get_architecture(gpu_name)
-                sass_data = kernel_data.get("sass_code", {}).get(arch)
-                imix_data = kernel_data.get("imix", {}).get(arch)
+                sass_data = kernel_data["sass_code"][arch]
+                imix_data = kernel_data["imix"][arch]
+                gpu_compile_commands = compile_commands[gpu_name] if isinstance(compile_commands, dict) else compile_commands
                 
                 # Make sass/imix as dict with dummy key or just string parsing
-                sass_dict = {mangled_kernel: sass_data} if sass_data else None
-                imix_dict = imix_data if isinstance(imix_data, dict) else None
+                if use_sass:
+                    sass_dict = {mangled_kernel: sass_data}
+                    imix_dict = imix_data
+                else:
+                    sass_dict = None
+                    imix_dict = None
                 
                 # We identify a task uniquely by program + kernel + gpu
                 # Ensure no invalid characters in thread_id
@@ -150,15 +160,17 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     "kernel_demangled_name": demangled_name,
                     "source_code_files": sources,
                     "gpu_roofline_specs": {"gpu_target": gpu_name, "arch": arch},
-                    "compile_commands": compile_commands,
+                    "compile_commands": gpu_compile_commands,
                     "exe_args": exe_args,
                     "sass_dict": sass_dict,
                     "imix_dict": imix_dict,
-                    "expected_fp16": gpu_metrics.get("HP_FLOP", 0),
-                    "expected_fp32": gpu_metrics.get("SP_FLOP", 0),
-                    "expected_fp64": gpu_metrics.get("DP_FLOP", 0),
-                    "expected_read_bytes": gpu_metrics.get("bytesRead", 0),
-                    "expected_write_bytes": gpu_metrics.get("bytesWritten", 0),
+                    "expected_fp16": gpu_metrics["HP_FLOP"],
+                    "expected_fp32": gpu_metrics["SP_FLOP"],
+                    "expected_fp64": gpu_metrics["DP_FLOP"],
+                    "expected_read_bytes": gpu_metrics["bytesRead"],
+                    "expected_write_bytes": gpu_metrics["bytesWritten"],
+                    "expected_grid_size": kernel_data["gridSz"],
+                    "expected_block_size": kernel_data["blockSz"],
                 }
                 
                 for trial in range(trials):
@@ -192,14 +204,20 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
     parser.close()
     
     completed_threads = set()
+    completed_checkpoints = []
     for cp in checkpoints:
         # If Validator node executed, we consider it completed
         state_data = cp.get("checkpoint", {})
         if "channel_values" in state_data:
             if "total_tokens" in state_data["channel_values"]:
                 completed_threads.add(cp["thread_id"])
+                completed_checkpoints.append(cp)
                 
-    queries_to_run = [q for q in queries if q["thread_id"] not in completed_threads]
+    # If in dry-run mode, we always run it, ignoring past completion
+    if single_dry_run:
+        queries_to_run = queries
+    else:
+        queries_to_run = [q for q in queries if q["thread_id"] not in completed_threads]
     
     print(f"\n--- Query Execution Summary ---")
     print(f"Total defined queries:       {len(queries)}")
@@ -208,6 +226,12 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
     
     if len(queries_to_run) == 0:
         print("All queries have been successfully completed! Exiting.")
+        if verbose:
+            print("\nPrinting previously completed queries:")
+            for cp in completed_checkpoints:
+                if single_dry_run and "_DRYRUN" not in cp["thread_id"]:
+                    continue
+                print_run_result(cp)
         return
         
     if not single_dry_run:
@@ -231,16 +255,10 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         }
         try:
             # We execute the graph directly. State starts with user outputs.
-            app.invoke(query["state"], config=config)
+            final_state = app.invoke(query["state"], config=config)
             
             if single_dry_run or verbose:
-                parser_tmp = CheckpointDBParser(db_uri)
-                cps = parser_tmp.fetch_all_checkpoints()
-                parser_tmp.close()
-                for cp in cps:
-                    if cp.get("thread_id") == query["thread_id"]:
-                        print_run_result(cp)
-                        break
+                print_run_result(final_state)
         except Exception as e:
             print(f"\nError running query {query['thread_id']}: {e}")
             raise  # Fail hard as requested so user can intervene
@@ -251,9 +269,10 @@ if __name__ == "__main__":
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
+    parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
     args = parser.parse_args()
 
     DB_URI = setup_default_database()
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
     
-    run_queries(DB_URI, DATASET_PATH, args.model_name, args.trials, args.singleDryRun, args.verbose)
+    run_queries(DB_URI, DATASET_PATH, args.model_name, args.trials, args.singleDryRun, args.verbose, args.useSASS)

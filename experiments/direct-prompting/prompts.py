@@ -4,8 +4,17 @@ import json
 
 SYSTEM_PROMPT = """You are an expert GPU performance engineer and compiler developer.
 Your task is to analyze a GPU kernel and accurately predict its precision operations and DRAM accesses during its FIRST invocation.
-The benchmark is executed with specific command-line execution arguments (exe_args). You must perform forward constant propagation of these command-line input arguments through the host code up to the first invocation of the target kernel.
-Based on this analysis, the provided source code, hardware specifications, compile commands, and optionally SASS/IMIX profiles, first deduce the grid and block sizes of this first invocation, and then estimate the following metrics for the target kernel:
+
+You will be provided with the following information in XML tags:
+- <program_name>: The name of the benchmark program.
+- <kernel_mangled_name> and <kernel_demangled_name>: The target GPU kernel to analyze.
+- <command_line_input_args>: The benchmark execution arguments (exe_args). You must perform forward constant propagation of these command-line input arguments through the host code up to the first invocation of the target kernel.
+- <gpu_roofline_specs>: Hardware specifications for the target GPU architecture.
+- <compile_commands>: The compilation commands used, which define macros and include paths.
+- <source_code>: The source code files required for analysis.
+- In the event that <sass> and <imix> tags are provided, you should also utilize the hardware SASS instructions and dynamic execution counts (IMIX) to guide your metric calculations.
+
+Based on this analysis, first deduce the grid and block sizes of this first invocation, and then estimate the following metrics for the target kernel:
 - CUDA Grid Size (gridSz) as a 3-tuple of integers
 - CUDA Block Size (blockSz) as a 3-tuple of integers
 - Half-precision (FP16) FLOP count
@@ -14,24 +23,38 @@ Based on this analysis, the provided source code, hardware specifications, compi
 - DRAM bytes read
 - DRAM bytes written
 
-For each estimation, provide a step-by-step reasoning explaining how you arrived at the count before providing the final result.
+When counting FLOPs and DRAM accesses, be sure to remember the following:
+ - unary negation of a float/double (e.g., -x) DOES count as a floating point operation.
+ - code comments may incorrectly state the number of FLOPs, do not trust them, instead calculate them yourself
+ - other floating point datatypes like FP8 should not be counted as FP16, FP32, or FP64 FLOPs
+ - commandline input arguments may not be used directly in the kernel function call, they may be passed through other functions or used to compute other values
+ - if the target kernel is templated, be sure to only report on the execution of its FIRST instantiation
+ - it is okay to give a best estimate if exact counts cannot be determined, but be sure to clearly state any assumptions or simplifications you make in your explanations
+
+For each estimation, provide a detailed step-by-step explanation of how you arrived at the count before providing the final result, including the reasoning behind the number of operations performed in the kernel, relevant loop iterations, warp divergence region executions, assumptions, or simplifications you made during your analysis.
 """
 
 class KernelMetricsPrediction(BaseModel):
     gridSz_explanation: str = Field(description="Explanation for the estimated CUDA Grid Size (gridSz).")
-    gridSz: tuple[int, int, int] = Field(description="Estimated CUDA Grid Size as a 3-tuple of integers (x, y, z).")
+    gridSz: list[int] = Field(description="Estimated CUDA Grid Size as a list of 3 integers [x, y, z].")
+    
     blockSz_explanation: str = Field(description="Explanation for the estimated CUDA Block Size (blockSz).")
-    blockSz: tuple[int, int, int] = Field(description="Estimated CUDA Block Size as a 3-tuple of integers (x, y, z).")
-    fp32_flop_explanation: str = Field(description="Explanation for the single-precision (FP32) FLOP count estimate.")
-    fp32_flop_count: int = Field(description="Estimated single-precision (FP32) FLOP count.")
-    fp64_flop_explanation: str = Field(description="Explanation for the double-precision (FP64) FLOP count estimate.")
-    fp64_flop_count: int = Field(description="Estimated double-precision (FP64) FLOP count.")
-    fp16_flop_explanation: str = Field(description="Explanation for the half-precision (FP16) FLOP count estimate.")
-    fp16_flop_count: int = Field(description="Estimated half-precision (FP16) FLOP count.")
-    dram_bytes_read_explanation: str = Field(description="Explanation for the DRAM bytes read estimate.")
-    dram_bytes_read_count: int = Field(description="Estimated DRAM bytes read count.")
-    dram_bytes_written_explanation: str = Field(description="Explanation for the DRAM bytes written estimate.")
-    dram_bytes_written_count: int = Field(description="Estimated DRAM bytes written count.")
+    blockSz: list[int] = Field(description="Estimated CUDA Block Size as a list of 3 integers [x, y, z].")
+    
+    fp32_flop_explanation: str = Field(description="Explanation of how the single-precision (FP32) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp32_flop_count: int = Field(description="Total number of single-precision (FP32) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
+    
+    fp64_flop_explanation: str = Field(description="Explanation of how the double-precision (FP64) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp64_flop_count: int = Field(description="Total number of double-precision (FP64) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
+    
+    fp16_flop_explanation: str = Field(description="Explanation of how the half-precision (FP16) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp16_flop_count: int = Field(description="Total number of half-precision (FP16) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
+    
+    dram_bytes_read_explanation: str = Field(description="Explanation of how the DRAM bytes read count was calculated. This should include the reasoning behind the number of memory read accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
+    dram_bytes_read_count: int = Field(description="Total number of DRAM bytes read by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
+    
+    dram_bytes_written_explanation: str = Field(description="Explanation of how the DRAM bytes written count was calculated. This should include the reasoning behind the number of memory write accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
+    dram_bytes_written_count: int = Field(description="Total number of DRAM bytes written by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
 
 
 class DirectPromptGenerator:

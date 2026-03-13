@@ -55,6 +55,8 @@ class GraphState(TypedDict):
     expected_fp64: int
     expected_read_bytes: int
     expected_write_bytes: int
+    expected_grid_size: str
+    expected_block_size: str
 
     # Outputs
     raw_response: Optional[Dict[str, Any]]
@@ -70,7 +72,9 @@ class GraphState(TypedDict):
     metrics_pct_diff: Optional[Dict[str, float]]
 
 
-def query_node(state: GraphState, config: Dict[str, Any]) -> Dict[str, Any]:
+from langchain_core.runnables import RunnableConfig
+
+def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     
     # Initialize PromptGenerator
     generator = DirectPromptGenerator(
