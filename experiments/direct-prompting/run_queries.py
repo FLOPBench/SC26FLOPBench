@@ -177,7 +177,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     target_thread_id = f"{base_thread_id}_trial{trial}"
                     # Append dry run identifier to thread_id so it doesn't pollute real runs
                     if single_dry_run:
-                        target_thread_id += "_DRYRUN"
+                        target_thread_id += "_DRYRUN_V2"
                         
                     queries.append({
                         "thread_id": target_thread_id,
@@ -250,7 +250,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         config = {
             "configurable": {
                 "thread_id": query["thread_id"],
-                "llm": configurable_llm
+                "llm": configurable_llm,
+                "verbose": verbose,
             }
         }
         try:

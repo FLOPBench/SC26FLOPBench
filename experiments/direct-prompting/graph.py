@@ -60,7 +60,7 @@ class GraphState(TypedDict):
 
     # Outputs
     raw_response: Optional[Dict[str, Any]]
-    prediction: Optional[KernelMetricsPrediction]
+    prediction: Optional[Dict[str, Any]]
     
     # Metadata
     query_time: Optional[float]
@@ -96,22 +96,41 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(content=human_prompt)
     ]
+
+    if config["configurable"].get("verbose", False):
+        print("\n" + "=" * 70)
+        print(" QUERY PROMPT ")
+        print("=" * 70)
+        print("--- System Prompt ---")
+        print(SYSTEM_PROMPT)
+        print("\n--- Human Prompt ---")
+        print(human_prompt)
+        print("=" * 70 + "\n")
     
     # Retrieve LLM from configurable context setup globally in compilation
     llm = config["configurable"]["llm"]
-
-    # Invoke LLM (we use the non-structured output as well to get metadata, or we can use structured and then access metadata)
-    # Wait, with_structured_output usually strips metadata unless we use include_raw=True.
     
-    llm_with_structure_raw = llm.with_structured_output(KernelMetricsPrediction, include_raw=True)
+    llm_with_structure_raw = llm.with_structured_output(
+        KernelMetricsPrediction,
+        method="function_calling",
+        include_raw=True,
+    )
 
     start_time = time.time()
     response = llm_with_structure_raw.invoke(messages)
     end_time = time.time()
+
+    parsing_error = response.get("parsing_error")
+    if parsing_error is not None:
+        raise parsing_error
+
+    parsed = response.get("parsed")
+    if parsed is None:
+        raise ValueError("Structured output did not contain a parsed response.")
     
     return {
-        "prediction": response["parsed"],
-        "raw_response": response["raw"].dict(),
+        "prediction": parsed.model_dump(),
+        "raw_response": response["raw"].model_dump(),
         "query_time": end_time - start_time
     }
 
@@ -127,15 +146,12 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
     metrics_pct_diff = {}
     
     if prediction:
-        # Pydantic models might be dicts when re-loaded from state
-        is_dict = isinstance(prediction, dict)
-        
         predicted = {
-            "fp16": prediction.get("fp16_flop_count", 0) if is_dict else getattr(prediction, "fp16_flop_count", 0),
-            "fp32": prediction.get("fp32_flop_count", 0) if is_dict else getattr(prediction, "fp32_flop_count", 0),
-            "fp64": prediction.get("fp64_flop_count", 0) if is_dict else getattr(prediction, "fp64_flop_count", 0),
-            "read_bytes": prediction.get("dram_bytes_read_count", 0) if is_dict else getattr(prediction, "dram_bytes_read_count", 0),
-            "write_bytes": prediction.get("dram_bytes_written_count", 0) if is_dict else getattr(prediction, "dram_bytes_written_count", 0),
+            "fp16": prediction.get("fp16_flop_count", 0),
+            "fp32": prediction.get("fp32_flop_count", 0),
+            "fp64": prediction.get("fp64_flop_count", 0),
+            "read_bytes": prediction.get("dram_bytes_read_count", 0),
+            "write_bytes": prediction.get("dram_bytes_written_count", 0),
         }
         
         expected = {

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 import json
 
 SYSTEM_PROMPT = """You are an expert GPU performance engineer and compiler developer.
-Your task is to analyze a GPU kernel and accurately predict its precision operations and DRAM accesses during its FIRST invocation.
+Your task is to analyze a GPU kernel and accurately estimate its FLOP operations and DRAM accesses during its FIRST invocation.
 
 You will be provided with the following information in XML tags:
 - <program_name>: The name of the benchmark program.
@@ -12,7 +12,7 @@ You will be provided with the following information in XML tags:
 - <gpu_roofline_specs>: Hardware specifications for the target GPU architecture.
 - <compile_commands>: The compilation commands used, which define macros and include paths.
 - <source_code>: The source code files required for analysis.
-- In the event that <sass> and <imix> tags are provided, you should also utilize the hardware SASS instructions and dynamic execution counts (IMIX) to guide your metric calculations.
+- In the event that <sass> and <imix> tags are provided, you should also utilize the hardware SASS instructions and dynamic execution counts (IMIX) to guide your metric calculations. If you are reporting a particular FLOP count, consider whether the corresponding SASS/IMIX data supports that count.
 
 Based on this analysis, first deduce the grid and block sizes of this first invocation, and then estimate the following metrics for the target kernel:
 - CUDA Grid Size (gridSz) as a 3-tuple of integers
@@ -31,29 +31,30 @@ When counting FLOPs and DRAM accesses, be sure to remember the following:
  - if the target kernel is templated, be sure to only report on the execution of its FIRST instantiation
  - it is okay to give a best estimate if exact counts cannot be determined, but be sure to clearly state any assumptions or simplifications you make in your explanations
 
-For each estimation, provide a detailed step-by-step explanation of how you arrived at the count before providing the final result, including the reasoning behind the number of operations performed in the kernel, relevant loop iterations, warp divergence region executions, assumptions, or simplifications you made during your analysis.
+For each estimation, provide a two-sentence explanation of how you arrived at the final count for each FLOP precision, including the reasoning behind the total number of operations performed in the first kernel invocation, assumptions, or simplifications you made during your analysis.
+Keep this explanations short and concise for each metric.
 """
 
 class KernelMetricsPrediction(BaseModel):
-    gridSz_explanation: str = Field(description="Explanation for the estimated CUDA Grid Size (gridSz).")
+    gridSz_explanation: str = Field(description="Brief explanation for the estimated CUDA Grid Size (gridSz).")
     gridSz: list[int] = Field(description="Estimated CUDA Grid Size as a list of 3 integers [x, y, z].")
     
-    blockSz_explanation: str = Field(description="Explanation for the estimated CUDA Block Size (blockSz).")
+    blockSz_explanation: str = Field(description="Brief explanation for the estimated CUDA Block Size (blockSz).")
     blockSz: list[int] = Field(description="Estimated CUDA Block Size as a list of 3 integers [x, y, z].")
     
-    fp32_flop_explanation: str = Field(description="Explanation of how the single-precision (FP32) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp32_flop_explanation: str = Field(description="Brief explanation of how the single-precision (FP32) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
     fp32_flop_count: int = Field(description="Total number of single-precision (FP32) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
     
-    fp64_flop_explanation: str = Field(description="Explanation of how the double-precision (FP64) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp64_flop_explanation: str = Field(description="Brief explanation of how the double-precision (FP64) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
     fp64_flop_count: int = Field(description="Total number of double-precision (FP64) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
     
-    fp16_flop_explanation: str = Field(description="Explanation of how the half-precision (FP16) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
+    fp16_flop_explanation: str = Field(description="Brief explanation of how the half-precision (FP16) floating point operations count was calculated. This should include the reasoning behind the number of operations performed in the kernel, including any relevant loop iterations and warp divergence region executions.")
     fp16_flop_count: int = Field(description="Total number of half-precision (FP16) floating point operations performed by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
     
-    dram_bytes_read_explanation: str = Field(description="Explanation of how the DRAM bytes read count was calculated. This should include the reasoning behind the number of memory read accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
+    dram_bytes_read_explanation: str = Field(description="Brief explanation of how the DRAM bytes read count was calculated. This should include the reasoning behind the number of memory read accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
     dram_bytes_read_count: int = Field(description="Total number of DRAM bytes read by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
     
-    dram_bytes_written_explanation: str = Field(description="Explanation of how the DRAM bytes written count was calculated. This should include the reasoning behind the number of memory write accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
+    dram_bytes_written_explanation: str = Field(description="Brief explanation of how the DRAM bytes written count was calculated. This should include the reasoning behind the number of memory write accesses, including memory coalescing, relevant loop iterations, and warp divergence region executions.")
     dram_bytes_written_count: int = Field(description="Total number of DRAM bytes written by the kernel. Accounting for the number of threads, loop iterations, and warp divergence region executions.")
 
 
