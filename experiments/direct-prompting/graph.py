@@ -61,7 +61,7 @@ class GraphState(TypedDict):
     prediction: Optional[KernelMetricsPrediction]
     
     # Metadata
-    execution_time: Optional[float]
+    query_time: Optional[float]
     total_tokens: Optional[int]
     cost_usd: Optional[float]
     
@@ -70,8 +70,7 @@ class GraphState(TypedDict):
     metrics_pct_diff: Optional[Dict[str, float]]
 
 
-def query_node(state: GraphState) -> Dict[str, Any]:
-    start_time = time.time()
+def query_node(state: GraphState, config: Dict[str, Any]) -> Dict[str, Any]:
     
     # Initialize PromptGenerator
     generator = DirectPromptGenerator(
@@ -94,24 +93,22 @@ def query_node(state: GraphState) -> Dict[str, Any]:
         HumanMessage(content=human_prompt)
     ]
     
-    # Build LLM
-    settings = OpenRouterLLMSettings(model_name="openai/gpt-5.1-codex-mini")
-    llm = build_openrouter_llm(settings)
-    
-    llm_with_structure = llm.with_structured_output(KernelMetricsPrediction)
-    
+    # Retrieve LLM from configurable context setup globally in compilation
+    llm = config["configurable"]["llm"]
+
     # Invoke LLM (we use the non-structured output as well to get metadata, or we can use structured and then access metadata)
     # Wait, with_structured_output usually strips metadata unless we use include_raw=True.
     
     llm_with_structure_raw = llm.with_structured_output(KernelMetricsPrediction, include_raw=True)
+
+    start_time = time.time()
     response = llm_with_structure_raw.invoke(messages)
-    
     end_time = time.time()
     
     return {
         "prediction": response["parsed"],
         "raw_response": response["raw"].dict(),
-        "execution_time": end_time - start_time
+        "query_time": end_time - start_time
     }
 
 def validator_node(state: GraphState) -> Dict[str, Any]:

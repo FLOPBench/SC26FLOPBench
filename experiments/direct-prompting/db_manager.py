@@ -1,6 +1,36 @@
 import psycopg
+from psycopg.errors import DuplicateDatabase
 import json
 from typing import Dict, Any, List
+
+def setup_default_database(
+    db_name: str = "gpuflops_db",
+    user: str = "postgres",
+    password: str = "postgres",
+    host: str = "localhost",
+    port: int = 5432
+) -> str:
+    """
+    Attempts to connect to the default postgres server and create the target database if it doesn't exist.
+    Returns the constructed DB_URI for the target database.
+    """
+    base_uri = f"postgresql://{user}:{password}@{host}:{port}/postgres"
+    target_uri = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+
+    try:
+        # Connect to default 'postgres' database to create the new one
+        with psycopg.connect(base_uri, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(f"CREATE DATABASE {db_name};")
+                    print(f"Created default database '{db_name}'.")
+                except DuplicateDatabase:
+                    # Database already exists, this is fine
+                    pass
+    except Exception as e:
+        print(f"Note: Could not automatically setup database (ensure PostgreSQL is running at {host}:{port}): {e}")
+
+    return target_uri
 
 class CheckpointDBParser:
     def __init__(self, db_uri: str):
@@ -50,11 +80,11 @@ class CheckpointDBParser:
             channel_values = state["channel_values"]
             
             # Identify ending state where validator properties exist
-            if "execution_time" in channel_values and "total_tokens" in channel_values:
+            if "query_time" in channel_values and "total_tokens" in channel_values:
                 total_runs += 1
                 total_tokens += channel_values.get("total_tokens", 0)
                 total_cost += channel_values.get("cost_usd", 0.0)
-                total_time += channel_values.get("execution_time", 0.0)
+                total_time += channel_values.get("query_time", 0.0)
                 
         if total_runs == 0:
             return {"status": "No completed runs found"}
@@ -73,7 +103,7 @@ class CheckpointDBParser:
         self.conn.close()
 
 if __name__ == "__main__":
-    db_uri = "postgresql://user:password@localhost:5432/mydb"
+    db_uri = setup_default_database()
     parser = CheckpointDBParser(db_uri)
     try:
         stats = parser.calculate_summary_statistics()
