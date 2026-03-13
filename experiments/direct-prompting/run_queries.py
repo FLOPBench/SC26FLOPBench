@@ -85,12 +85,17 @@ def print_run_result(state: dict):
     print(f"Grid Size       | Expected: {str(state.get('expected_grid_size')):<20} | Predicted: {str(predicted.get('gridSz'))}")
 
     print("\n--- LLM Query Performance ---")
+    print(f"Model: {state.get('llm_model_name')}")
+    print(f"Provider: {state.get('llm_provider')}")
+    print(f"Response ID: {state.get('llm_response_id')}")
+    print(f"Input Tokens: {state.get('input_tokens')}")
+    print(f"Output Tokens: {state.get('output_tokens')}")
     print(f"Total Tokens: {state.get('total_tokens')}")
     print(f"Query Time (s): {state.get('query_time')}")
-    cost = state.get("query_cost")
+    cost = state.get("cost_usd")
     if cost is not None:
-        print(f"Estimated Cost ($): {cost}")
-        
+        print(f"Estimated Cost ($): {cost:.8f}")
+
     print("="*70 + "\n")
 
 def get_architecture(gpu: str) -> str:

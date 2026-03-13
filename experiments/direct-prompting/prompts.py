@@ -14,7 +14,7 @@ You will be provided with the following information in XML tags:
 - <source_code>: The source code files required for analysis.
 - In the event that <sass> and <imix> tags are provided, you should also utilize the hardware SASS instructions and dynamic execution counts (IMIX) to guide your metric calculations. If you are reporting a particular FLOP count, consider whether the corresponding SASS/IMIX data supports that count.
 
-Based on this analysis, first deduce the grid and block sizes of this first invocation, and then estimate the following metrics for the target kernel:
+Based on this analysis, first deduce the grid and block sizes of this first invocation of the target kernel, and then estimate the following metrics for the target kernel:
 - CUDA Grid Size (gridSz) as a 3-tuple of integers
 - CUDA Block Size (blockSz) as a 3-tuple of integers
 - Half-precision (FP16) FLOP count

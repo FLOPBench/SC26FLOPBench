@@ -1,7 +1,12 @@
 import os
 import sys
 import time
+import json
+from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from typing import Dict, Any, Optional
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from langgraph.graph import StateGraph, START, END
 from typing_extensions import TypedDict
@@ -64,8 +69,14 @@ class GraphState(TypedDict):
     
     # Metadata
     query_time: Optional[float]
+    input_tokens: Optional[int]
+    output_tokens: Optional[int]
     total_tokens: Optional[int]
     cost_usd: Optional[float]
+    llm_model_name: Optional[str]
+    llm_provider: Optional[str]
+    llm_response_id: Optional[str]
+    llm_response_metadata: Optional[Dict[str, Any]]
     
     # Validation results
     metrics_diff: Optional[Dict[str, int]]
@@ -73,6 +84,67 @@ class GraphState(TypedDict):
 
 
 from langchain_core.runnables import RunnableConfig
+
+
+@lru_cache(maxsize=1)
+def _openrouter_model_pricing() -> Dict[str, Dict[str, Decimal]]:
+    with urlopen("https://openrouter.ai/api/v1/models", timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    pricing_by_model: Dict[str, Dict[str, Decimal]] = {}
+    for model_data in payload.get("data", []):
+        raw_pricing = model_data.get("pricing") or {}
+        parsed_pricing: Dict[str, Decimal] = {}
+        for key in ("prompt", "completion", "input_cache_read"):
+            value = raw_pricing.get(key)
+            if value is None:
+                continue
+            try:
+                parsed_pricing[key] = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+
+        if not parsed_pricing:
+            continue
+
+        model_id = model_data.get("id")
+        canonical_slug = model_data.get("canonical_slug")
+        if model_id:
+            pricing_by_model[model_id] = parsed_pricing
+        if canonical_slug:
+            pricing_by_model[canonical_slug] = parsed_pricing
+
+    return pricing_by_model
+
+
+def _calculate_cost_usd(response_metadata: Dict[str, Any], usage: Dict[str, Any]) -> Optional[float]:
+    model_name = response_metadata.get("model_name") or response_metadata.get("model")
+    if not model_name:
+        return None
+
+    try:
+        pricing = _openrouter_model_pricing().get(model_name)
+    except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        return None
+
+    if not pricing:
+        return None
+
+    input_tokens = int(usage.get("input_tokens", 0) or 0)
+    output_tokens = int(usage.get("output_tokens", 0) or 0)
+    cache_read_tokens = int((usage.get("input_token_details") or {}).get("cache_read", 0) or 0)
+    uncached_input_tokens = max(input_tokens - cache_read_tokens, 0)
+
+    prompt_price = pricing.get("prompt", Decimal("0"))
+    completion_price = pricing.get("completion", Decimal("0"))
+    cache_read_price = pricing.get("input_cache_read", prompt_price)
+
+    cost = (
+        Decimal(uncached_input_tokens) * prompt_price
+        + Decimal(output_tokens) * completion_price
+        + Decimal(cache_read_tokens) * cache_read_price
+    )
+    return float(cost)
 
 def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     
@@ -137,9 +209,12 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
 def validator_node(state: GraphState) -> Dict[str, Any]:
     raw = state.get("raw_response", {})
     usage = raw.get("usage_metadata", {})
-    
+    response_metadata = raw.get("response_metadata", {})
+
+    input_tokens = usage.get("input_tokens", 0)
+    output_tokens = usage.get("output_tokens", 0)
     total_tokens = usage.get("total_tokens", 0)
-    cost_usd = getattr(raw, "cost_usd", None) or 0.0
+    cost_usd = _calculate_cost_usd(response_metadata, usage)
     
     prediction = state.get("prediction")
     metrics_diff = {}
@@ -172,8 +247,14 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
                 metrics_pct_diff[k] = (abs(diff) / expected[k]) * 100.0
 
     return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
         "total_tokens": total_tokens,
         "cost_usd": cost_usd,
+        "llm_model_name": response_metadata.get("model_name") or response_metadata.get("model"),
+        "llm_provider": response_metadata.get("model_provider"),
+        "llm_response_id": response_metadata.get("id") or raw.get("id"),
+        "llm_response_metadata": response_metadata,
         "metrics_diff": metrics_diff,
         "metrics_pct_diff": metrics_pct_diff
     }
