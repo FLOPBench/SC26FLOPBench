@@ -44,7 +44,8 @@ class GraphState(TypedDict):
     kernel_demangled_name: str
     source_code_files: Dict[str, str]
     gpu_roofline_specs: Dict[str, Any]
-    compile_commands: str
+    compile_commands: list
+    exe_args: str
     sass_dict: Optional[Dict[str, str]]
     imix_dict: Optional[Dict[str, str]]
     
@@ -80,6 +81,7 @@ def query_node(state: GraphState) -> Dict[str, Any]:
         source_code_files=state["source_code_files"],
         gpu_roofline_specs=state["gpu_roofline_specs"],
         compile_commands=state["compile_commands"],
+        exe_args=state["exe_args"],
         sass_dict=state.get("sass_dict"),
         imix_dict=state.get("imix_dict")
     )

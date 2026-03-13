@@ -3,8 +3,9 @@ from pydantic import BaseModel, Field
 import json
 
 SYSTEM_PROMPT = """You are an expert GPU performance engineer and compiler developer.
-Your task is to analyze a GPU kernel and accurately predict its precision operations and DRAM accesses.
-Based on the provided source code, hardware specifications, compile commands, and optionally SASS/IMIX profiles, estimate the following metrics for the target kernel:
+Your task is to analyze a GPU kernel and accurately predict its precision operations and DRAM accesses during its FIRST invocation.
+The benchmark is executed with specific command-line execution arguments (exe_args). You must perform forward constant propagation of these command-line input arguments through the host code up to the first invocation of the target kernel.
+Based on this analysis, the provided source code, hardware specifications, compile commands, and optionally SASS/IMIX profiles, first deduce the grid and block sizes of this first invocation, and then estimate the following metrics for the target kernel:
 - CUDA Grid Size (gridSz) as a 3-tuple of integers
 - CUDA Block Size (blockSz) as a 3-tuple of integers
 - Half-precision (FP16) FLOP count
@@ -41,7 +42,8 @@ class DirectPromptGenerator:
         kernel_demangled_name: str,
         source_code_files: Dict[str, str],
         gpu_roofline_specs: Dict[str, str],
-        compile_commands: str,
+        compile_commands: list,
+        exe_args: str,
         sass_dict: Optional[Dict[str, str]] = None,
         imix_dict: Optional[Dict[str, str]] = None
     ):
@@ -51,6 +53,7 @@ class DirectPromptGenerator:
         self.source_code_files = source_code_files
         self.gpu_roofline_specs = gpu_roofline_specs
         self.compile_commands = compile_commands
+        self.exe_args = exe_args
         self.sass_dict = sass_dict
         self.imix_dict = imix_dict
 
@@ -58,26 +61,33 @@ class DirectPromptGenerator:
         prompt = f"<program_name>{self.program_name}</program_name>\n"
         prompt += f"<kernel_mangled_name>{self.kernel_mangled_name}</kernel_mangled_name>\n"
         prompt += f"<kernel_demangled_name>{self.kernel_demangled_name}</kernel_demangled_name>\n"
-        
-        prompt += "<source_code>\n"
-        for file, code in self.source_code_files.items():
-            prompt += f"<file name=\"{file}\">\n{code}\n</file>\n"
-        prompt += "</source_code>\n"
+        prompt += f"<command_line_input_args>{self.exe_args}</command_line_input_args>\n"
 
         prompt += "<gpu_roofline_specs>\n"
         prompt += json.dumps(self.gpu_roofline_specs, indent=2) + "\n"
         prompt += "</gpu_roofline_specs>\n"
 
-        prompt += f"<compile_commands>\n{self.compile_commands}\n</compile_commands>\n"
+        prompt += "<compile_commands>\n"
+        for cmd_entry in self.compile_commands:
+            filename = cmd_entry["file"]
+            command = cmd_entry["command"]
+            prompt += f"<compile_command filename=\"{filename}\">\n{command}\n</compile_command>\n"
+        prompt += "</compile_commands>\n"
 
         if self.sass_dict:
             prompt += "<sass>\n"
-            prompt += json.dumps(self.sass_dict, indent=2) + "\n"
+            for section_name, sass_code in self.sass_dict.items():
+                prompt += f"<section name=\"{section_name}\">\n{sass_code}\n</section>\n"
             prompt += "</sass>\n"
             
         if self.imix_dict:
             prompt += "<imix>\n"
             prompt += json.dumps(self.imix_dict, indent=2) + "\n"
             prompt += "</imix>\n"
+
+        prompt += "<source_code>\n"
+        for file, code in self.source_code_files.items():
+            prompt += f"<file name=\"{file}\">\n{code}\n</file>\n"
+        prompt += "</source_code>\n"
 
         return prompt

@@ -50,7 +50,8 @@ def run_queries(db_uri: str, dataset_path: str):
     for program_name, prog_data in data.items():
         kernels = prog_data.get("kernels", {})
         sources = prog_data.get("sources", {})
-        compile_commands = str(prog_data.get("compile_commands", []))
+        compile_commands = prog_data.get("compile_commands", [])
+        exe_args = prog_data.get("exeArgs", "")
         
         for mangled_kernel, kernel_data in kernels.items():
             demangled_name = kernel_data.get("demangledName", mangled_kernel)
@@ -79,6 +80,7 @@ def run_queries(db_uri: str, dataset_path: str):
                     "source_code_files": sources,
                     "gpu_roofline_specs": {"gpu_target": gpu_name, "arch": arch},
                     "compile_commands": compile_commands,
+                    "exe_args": exe_args,
                     "sass_dict": sass_dict,
                     "imix_dict": imix_dict,
                     "expected_fp16": gpu_metrics.get("HP_FLOP", 0),
