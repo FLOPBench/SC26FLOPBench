@@ -2,6 +2,8 @@ import json
 import os
 import sys
 import argparse
+import signal
+from contextlib import contextmanager
 from tqdm import tqdm
 from psycopg_pool import ConnectionPool
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -37,8 +39,28 @@ db_manager_mod = importlib.util.module_from_spec(db_manager_spec)
 if db_manager_spec and db_manager_spec.loader:
     db_manager_spec.loader.exec_module(db_manager_mod)
 CheckpointDBParser = db_manager_mod.CheckpointDBParser
+QueryAttemptTracker = db_manager_mod.QueryAttemptTracker
 setup_default_database = db_manager_mod.setup_default_database
 ensure_postgres_running = db_manager_mod.ensure_postgres_running
+
+
+@contextmanager
+def _query_timeout(timeout_seconds: int):
+    if timeout_seconds <= 0:
+        yield
+        return
+
+    def _handle_timeout(signum, frame):
+        raise TimeoutError(f"Query exceeded max timeout of {timeout_seconds} seconds")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 def print_run_result(state: dict):
     # Support both raw dictionary states (from app.invoke) and DB checkpoint parsings
@@ -112,7 +134,17 @@ def load_dataset(path: str):
     with open(path, "r") as f:
         return json.load(f)
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False):
+
+def _sanitize_thread_part(value: str) -> str:
+    return value.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
+
+
+def _format_ratio(count: int, total: int) -> str:
+    if total <= 0:
+        return "0/0 (0.00%)"
+    return f"{count}/{total} ({(count / total) * 100.0:.2f}%)"
+
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -155,10 +187,11 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 
                 # We identify a task uniquely by program + kernel + gpu
                 # Ensure no invalid characters in thread_id
-                safe_prog = program_name.replace("/", "_").replace("\\", "_")
-                safe_kernel = mangled_kernel.replace("/", "_").replace("\\", "_")
-                safe_gpu = gpu_name.replace("/", "_").replace("\\", "_")
-                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}"
+                safe_prog = _sanitize_thread_part(program_name)
+                safe_kernel = _sanitize_thread_part(mangled_kernel)
+                safe_gpu = _sanitize_thread_part(gpu_name)
+                safe_model = _sanitize_thread_part(model_name)
+                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}"
                 
                 state_inputs = {
                     "program_name": program_name,
@@ -202,78 +235,152 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
     # Determine already completed queries by checking the DB
     print("Checking database for completed queries...")
     parser = CheckpointDBParser(db_uri)
+    attempt_tracker = QueryAttemptTracker(db_uri)
     try:
-        checkpoints = parser.fetch_all_checkpoints()
-    except Exception as e:
-        print(f"Warning: could not fetch checkpoints. Proceeding as if starting fresh. Err: {e}")
-        checkpoints = []
-    parser.close()
-    
-    completed_threads = set()
-    completed_checkpoints = []
-    for cp in checkpoints:
-        # If Validator node executed, we consider it completed
-        state_data = cp.get("checkpoint", {})
-        if "channel_values" in state_data:
-            if "total_tokens" in state_data["channel_values"]:
-                completed_threads.add(cp["thread_id"])
-                completed_checkpoints.append(cp)
-                
-    # If in dry-run mode, we always run it, ignoring past completion
-    if single_dry_run:
-        queries_to_run = queries
-    else:
-        queries_to_run = [q for q in queries if q["thread_id"] not in completed_threads]
-    
-    print(f"\n--- Query Execution Summary ---")
-    print(f"Total defined queries:       {len(queries)}")
-    print(f"Already completed queries:   {len(completed_threads)}")
-    print(f"Queries remaining to execute:{len(queries_to_run)}")
-    
-    if len(queries_to_run) == 0:
-        print("All queries have been successfully completed! Exiting.")
-        if verbose:
-            print("\nPrinting previously completed queries:")
-            for cp in completed_checkpoints:
-                if single_dry_run and "_DRYRUN" not in cp["thread_id"]:
-                    continue
-                print_run_result(cp)
-        return
-        
-    if not single_dry_run:
-        input("Press 'Enter' to continue and run the remaining queries...")
-    
-    # Configure and run LangGraph
-    pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
-    checkpointer = PostgresSaver(pool)
-    checkpointer.setup()
-    
-    graph_builder = build_graph()
-    app = graph_builder.compile(checkpointer=checkpointer)
-    
-    # Run the remaining configurations
-    for query in tqdm(queries_to_run, desc="Running Queries"):
-        config = {
-            "configurable": {
-                "thread_id": query["thread_id"],
-                "llm": configurable_llm,
-                "verbose": verbose,
-            }
-        }
         try:
-            # We execute the graph directly. State starts with user outputs.
-            final_state = app.invoke(query["state"], config=config)
-            
-            if single_dry_run or verbose:
-                print_run_result(final_state)
+            checkpoints = parser.fetch_all_checkpoints()
+            db_stats = parser.calculate_database_run_statistics(trials)
         except Exception as e:
-            print(f"\nError running query {query['thread_id']}: {e}")
-            raise  # Fail hard as requested so user can intervene
+            print(f"Warning: could not fetch checkpoints. Proceeding as if starting fresh. Err: {e}")
+            checkpoints = []
+            db_stats = {
+                "total_checkpoint_entries": 0,
+                "completed_threads": 0,
+                "runs_with_all_trials_completed": 0,
+            }
+        parser.close()
+
+        completed_threads = set()
+        checkpoint_threads = set()
+        for cp in checkpoints:
+            checkpoint_threads.add(cp["thread_id"])
+            # If Validator node executed, we consider it completed
+            state_data = cp.get("checkpoint", {})
+            if "channel_values" in state_data:
+                if "total_tokens" in state_data["channel_values"]:
+                    completed_threads.add(cp["thread_id"])
+
+        query_thread_ids = {query["thread_id"] for query in queries}
+        attempt_data = attempt_tracker.fetch_attempts(list(query_thread_ids))
+        all_attempt_data = attempt_tracker.fetch_all_attempts()
+        completed_for_run = completed_threads.intersection(query_thread_ids)
+        failed_for_run = (checkpoint_threads.intersection(query_thread_ids) - completed_for_run)
+        total_failed_runs_db = sum(
+            1
+            for info in all_attempt_data.values()
+            if info.get("failed_attempts", 0) > 0 or info.get("last_status") == "failed"
+        )
+
+        skipped_thread_ids = {
+            thread_id
+            for thread_id, info in attempt_data.items()
+            if thread_id not in completed_for_run and info.get("failed_attempts", 0) >= max_failed_attempts
+        }
+
+        # If in dry-run mode, we always run it, ignoring past completion
+        if single_dry_run:
+            remaining_queries = queries
+        else:
+            remaining_queries = [q for q in queries if q["thread_id"] not in completed_threads]
+
+        remaining_queries = [q for q in remaining_queries if q["thread_id"] not in skipped_thread_ids]
+
+        if max_queries is not None and max_queries >= 0:
+            queries_to_run = remaining_queries[:max_queries]
+        else:
+            queries_to_run = remaining_queries
+
+        total_queries = len(queries)
+        completed_count = len(completed_for_run)
+        failed_count = len(failed_for_run)
+        skipped_count = len(skipped_thread_ids)
+        remaining_count = total_queries - completed_count - skipped_count
+        selected_count = len(queries_to_run)
+
+        print(f"\n--- Query Execution Summary ---")
+        print(f"Model Name:                 {model_name}")
+        print(f"Trial Count:                {trials}")
+        print(f"Max Timeout:                {max_timeout} seconds")
+        print(f"Max Queries Per Run:        {max_queries if max_queries is not None else 'unlimited'}")
+        print(f"Max Failed Attempts:        {max_failed_attempts}")
+        print(f"Single Dry Run Enabled:     {single_dry_run}")
+        print(f"Verbose Output Enabled:     {verbose}")
+        print(f"Use SASS Enabled:           {use_sass}")
+        print(f"----------------------------------------------------------------")
+        print(f"Database checkpoint entries: {db_stats['total_checkpoint_entries']}")
+        print(f"Database completed threads:  {db_stats['completed_threads']}")
+        print(f"DB runs with all trials done: {db_stats['runs_with_all_trials_completed']}")
+        print(f"DB runs with failures:       {total_failed_runs_db}")
+        print(f"----------------------------------------------------------------")
+        print(f"Total defined queries:       {total_queries}")
+        print(f"Completed progress:          {_format_ratio(completed_count, total_queries)}")
+        print(f"Remaining progress:          {_format_ratio(remaining_count, total_queries)}")
+        print(f"Failed runs in database:     {failed_count}")
+        print(f"Skipped after failures:      {skipped_count}")
+        print(f"Queries selected this run:   {selected_count}")
+        if max_queries is not None:
+            print(f"Run cap (--maxQueries):      {max_queries}")
+        print(f"Failure retry limit:         {max_failed_attempts}")
+        print(f"----------------------------------------------------------------")
+
+        if skipped_thread_ids:
+            print("\n--- Skipped Queries ---")
+            for thread_id in sorted(skipped_thread_ids):
+                failed_attempts = attempt_data.get(thread_id, {}).get("failed_attempts", 0)
+                print(f"Skipping {thread_id}: reached {failed_attempts} failed attempts.")
+            print(f"----------------------------------------------------------------")
+
+        if len(queries_to_run) == 0:
+            if skipped_count > 0 and remaining_count == 0:
+                print("No runnable queries remain. Some queries were skipped after repeated failures.")
+            else:
+                print("All queries have been successfully completed! Exiting.")
+            return
+
+        if not single_dry_run:
+            input("Press 'Enter' to continue and run the remaining queries...")
+
+        # Configure and run LangGraph
+        pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
+        checkpointer = PostgresSaver(pool)
+        checkpointer.setup()
+
+        graph_builder = build_graph()
+        app = graph_builder.compile(checkpointer=checkpointer)
+
+        # Run the remaining configurations
+        for query in tqdm(queries_to_run, desc="Running Queries"):
+            attempt_tracker.mark_attempt_started(query["thread_id"])
+            config = {
+                "configurable": {
+                    "thread_id": query["thread_id"],
+                    "llm": configurable_llm,
+                    "verbose": verbose,
+                }
+            }
+            try:
+                # We execute the graph directly. State starts with user outputs.
+                with _query_timeout(max_timeout):
+                    final_state = app.invoke(query["state"], config=config)
+
+                attempt_tracker.mark_attempt_success(query["thread_id"])
+
+                if single_dry_run or verbose:
+                    print_run_result(final_state)
+            except Exception as e:
+                attempt_tracker.mark_attempt_failure(query["thread_id"], str(e))
+                print(f"\nError running query {query['thread_id']}: {e}")
+                raise  # Fail hard as requested so user can intervene
+    finally:
+        attempt_tracker.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run FLOP prediction LLM queries")
     parser.add_argument("--modelName", type=str, default="openai/gpt-5.1-codex-mini", help="OpenRouter model identifier")
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
+    parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
+    parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
+    parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
@@ -283,4 +390,4 @@ if __name__ == "__main__":
     DB_URI = setup_default_database()
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
     
-    run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS)
+    run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts)

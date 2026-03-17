@@ -1,6 +1,7 @@
 import psycopg
 import subprocess
 import time
+import re
 from psycopg.errors import DuplicateDatabase
 import json
 from typing import Dict, Any, List
@@ -182,6 +183,157 @@ class CheckpointDBParser:
             "avg_cost_per_run": total_cost / total_runs,
             "avg_time_per_run": total_time / total_runs
         }
+
+    def calculate_database_run_statistics(self, trials_per_run: int) -> Dict[str, Any]:
+        checkpoints = self.fetch_all_checkpoints()
+        total_checkpoint_entries = len(checkpoints)
+
+        completed_threads = set()
+        for cp in checkpoints:
+            state = cp.get("checkpoint", {})
+            channel_values = state.get("channel_values", {})
+            if "total_tokens" in channel_values:
+                completed_threads.add(cp["thread_id"])
+
+        runs_with_all_trials_completed = 0
+        if trials_per_run > 0:
+            completed_trials_by_run: Dict[str, set[int]] = {}
+            for thread_id in completed_threads:
+                match = re.search(r"_trial(\d+)(?:_DRYRUN_V\d+)?$", thread_id)
+                if not match:
+                    continue
+
+                trial_index = int(match.group(1))
+                base_thread_id = thread_id[:match.start()]
+                completed_trials_by_run.setdefault(base_thread_id, set()).add(trial_index)
+
+            runs_with_all_trials_completed = sum(
+                1
+                for completed_trial_indices in completed_trials_by_run.values()
+                if all(trial_index in completed_trial_indices for trial_index in range(trials_per_run))
+            )
+
+        return {
+            "total_checkpoint_entries": total_checkpoint_entries,
+            "completed_threads": len(completed_threads),
+            "runs_with_all_trials_completed": runs_with_all_trials_completed,
+        }
+
+    def close(self):
+        self.conn.close()
+
+
+class QueryAttemptTracker:
+    def __init__(self, db_uri: str):
+        self.db_uri = db_uri
+        self.conn = psycopg.connect(self.db_uri, autocommit=True)
+        self.setup()
+
+    def setup(self):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS query_attempts (
+                    thread_id TEXT PRIMARY KEY,
+                    total_attempts INTEGER NOT NULL DEFAULT 0,
+                    failed_attempts INTEGER NOT NULL DEFAULT 0,
+                    last_status TEXT NOT NULL DEFAULT 'never-run',
+                    last_error TEXT,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+
+    def fetch_attempts(self, thread_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        if not thread_ids:
+            return {}
+
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT thread_id, total_attempts, failed_attempts, last_status, last_error, updated_at
+                FROM query_attempts
+                WHERE thread_id = ANY(%s)
+                """,
+                (thread_ids,),
+            )
+            rows = cur.fetchall()
+
+        return {
+            thread_id: {
+                "total_attempts": total_attempts,
+                "failed_attempts": failed_attempts,
+                "last_status": last_status,
+                "last_error": last_error,
+                "updated_at": updated_at,
+            }
+            for thread_id, total_attempts, failed_attempts, last_status, last_error, updated_at in rows
+        }
+
+    def fetch_all_attempts(self) -> Dict[str, Dict[str, Any]]:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT thread_id, total_attempts, failed_attempts, last_status, last_error, updated_at
+                FROM query_attempts
+                """
+            )
+            rows = cur.fetchall()
+
+        return {
+            thread_id: {
+                "total_attempts": total_attempts,
+                "failed_attempts": failed_attempts,
+                "last_status": last_status,
+                "last_error": last_error,
+                "updated_at": updated_at,
+            }
+            for thread_id, total_attempts, failed_attempts, last_status, last_error, updated_at in rows
+        }
+
+    def mark_attempt_started(self, thread_id: str):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO query_attempts (thread_id, total_attempts, failed_attempts, last_status, last_error)
+                VALUES (%s, 1, 0, 'running', NULL)
+                ON CONFLICT (thread_id) DO UPDATE
+                SET total_attempts = query_attempts.total_attempts + 1,
+                    last_status = 'running',
+                    last_error = NULL,
+                    updated_at = NOW()
+                """,
+                (thread_id,),
+            )
+
+    def mark_attempt_success(self, thread_id: str):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO query_attempts (thread_id, total_attempts, failed_attempts, last_status, last_error)
+                VALUES (%s, 1, 0, 'completed', NULL)
+                ON CONFLICT (thread_id) DO UPDATE
+                SET last_status = 'completed',
+                    last_error = NULL,
+                    updated_at = NOW()
+                """,
+                (thread_id,),
+            )
+
+    def mark_attempt_failure(self, thread_id: str, error_message: str):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO query_attempts (thread_id, total_attempts, failed_attempts, last_status, last_error)
+                VALUES (%s, 1, 1, 'failed', %s)
+                ON CONFLICT (thread_id) DO UPDATE
+                SET failed_attempts = query_attempts.failed_attempts + 1,
+                    last_status = 'failed',
+                    last_error = EXCLUDED.last_error,
+                    updated_at = NOW()
+                """,
+                (thread_id, error_message[:4000]),
+            )
 
     def close(self):
         self.conn.close()

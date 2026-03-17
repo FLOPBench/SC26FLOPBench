@@ -15,18 +15,18 @@ You will be provided with the following information in XML tags:
 - In the event that <sass> and <static-imix> tags are provided, you should also utilize the hardware SASS instructions and static instruction mix (IMIX) to guide your metric calculations. If you are reporting a particular FLOP count, consider whether the corresponding SASS/IMIX data supports that count.
 
 Below are the metrics that we should estimate for the FIRST invocation of the target kernel:
-- CUDA Grid Size (gridSz) as a 3-tuple of integers
-- CUDA Block Size (blockSz) as a 3-tuple of integers
-- Half-precision (FP16) FLOP count
-- Single-precision (FP32) FLOP count
-- Double-precision (FP64) FLOP count
-- DRAM bytes read
-- DRAM bytes written
+- CUDA Grid Size (gridSz) as a 3-tuple of integers (gridSz_explanation, gridSz)
+- CUDA Block Size (blockSz) as a 3-tuple of integers (blockSz_explanation, blockSz)
+- Half-precision (FP16) FLOP count (fp16_flop_explanation, fp16_flop_count)
+- Single-precision (FP32) FLOP count (fp32_flop_explanation, fp32_flop_count)
+- Double-precision (FP64) FLOP count (fp64_flop_explanation, fp64_flop_count)
+- DRAM bytes read (dram_bytes_read_explanation, dram_bytes_read_count)
+- DRAM bytes written (dram_bytes_written_explanation, dram_bytes_written_count)
 
 Here are some general steps and guidelines to follow when performing your analysis:
 1. Start by analyzing the command-line input arguments and perform forward constant propagation through the host code to determine the actual values used in the first kernel invocation. This may involve parsing the source code and tracking variable assignments and function calls. You can ignore all the code after the first target kernel invocation for the purpose of this analysis, as we are only interested in the metrics for the first execution of the target kernel. If a kernel is executed in a loop, only analyze the first iteration of that loop that calls said function.
 2. Post constant-propagation up to the first kernel invocaiton, analyze the kernel source code to identify all floating point operations and DRAM memory accesses. Be sure to account for the number of threads launched in the kernel, as well as any relevant loop iterations and warp divergence regions that may affect the total counts.
-3. If SASS and IMIX data are provided, use them to validate your analysis. For example, if you estimate a certain number of FP32 FLOPs, check the SASS instructions to see if they correspond to FP32 operations and if the static IMIX counts align with your estimated number of operations.
+3. If SASS and IMIX data are provided, use them to validate your analysis. For example, if you estimate a certain number of FP32 FLOPs, check the SASS instructions to see if they correspond to FP32 operations and if the static IMIX counts align with your estimated number of operations. When it comes to counting the number of bytes read, consider the global load and store operations in the SASS. 
 4. If SASS is provided, it can be helpful to map the SASS instructions back to the source code to identify any hidden FLOP counts that may not be immediately apparent from the source code alone. This will help to ensure that your estimates are as accurate as possible and account for any compiler optimizations or transformations that may have occurred. 
 
 The following operations incur hidden FLOP counts that are easy to overlook, so be sure to account for them in your analysis:
@@ -44,6 +44,7 @@ When counting FLOPs and DRAM accesses, here are some points to keep in mind:
  - other floating point datatypes like FP8 should not be counted as FP16, FP32, or FP64 FLOPs
  - commandline input arguments may not be used directly in the kernel function call, they may be passed through other functions or used to compute other values
  - if the target kernel is templated, be sure to only report on the execution of its FIRST instantiation
+ - although the target kernel appears to have many read / write operations, the compiler may optimize some of these away or combine them, so be sure to use the SASS instructions (if they are provided) to identify the actual number of global memory (DRAM) accesses that occur during execution, via the global load (LDG) and store (STG) instructions in the SASS.
  - it is okay to give a best estimate if exact counts cannot be determined, but be sure to clearly state any assumptions or simplifications you make in your explanations
 
 For each estimation, provide a two-sentence explanation of how you arrived at the final count, including the reasoning behind the total number of operations performed in the first kernel invocation, assumptions, or simplifications you made during your analysis.
