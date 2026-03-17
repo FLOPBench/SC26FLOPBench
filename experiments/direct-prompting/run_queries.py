@@ -42,6 +42,9 @@ CheckpointDBParser = db_manager_mod.CheckpointDBParser
 QueryAttemptTracker = db_manager_mod.QueryAttemptTracker
 setup_default_database = db_manager_mod.setup_default_database
 ensure_postgres_running = db_manager_mod.ensure_postgres_running
+wipe_database = db_manager_mod.wipe_database
+restore_database_from_dump = db_manager_mod.restore_database_from_dump
+dump_database = db_manager_mod.dump_database
 
 
 @contextmanager
@@ -139,12 +142,16 @@ def _sanitize_thread_part(value: str) -> str:
     return value.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
 
 
+def _sass_thread_part(use_sass: bool) -> str:
+    return "withsass" if use_sass else "nosass"
+
+
 def _format_ratio(count: int, total: int) -> str:
     if total <= 0:
         return "0/0 (0.00%)"
     return f"{count}/{total} ({(count / total) * 100.0:.2f}%)"
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3):
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -191,7 +198,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 safe_kernel = _sanitize_thread_part(mangled_kernel)
                 safe_gpu = _sanitize_thread_part(gpu_name)
                 safe_model = _sanitize_thread_part(model_name)
-                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}"
+                safe_sass_config = _sass_thread_part(use_sass)
+                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}_{safe_sass_config}"
                 
                 state_inputs = {
                     "program_name": program_name,
@@ -216,7 +224,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     target_thread_id = f"{base_thread_id}_trial{trial}"
                     # Append dry run identifier to thread_id so it doesn't pollute real runs
                     if single_dry_run:
-                        target_thread_id += "_DRYRUN_V2"
+                        target_thread_id += "_DRYRUN"
                         
                     queries.append({
                         "thread_id": target_thread_id,
@@ -237,17 +245,26 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
     parser = CheckpointDBParser(db_uri)
     attempt_tracker = QueryAttemptTracker(db_uri)
     try:
-        try:
-            checkpoints = parser.fetch_all_checkpoints()
-            db_stats = parser.calculate_database_run_statistics(trials)
-        except Exception as e:
-            print(f"Warning: could not fetch checkpoints. Proceeding as if starting fresh. Err: {e}")
+        query_thread_ids = {query["thread_id"] for query in queries}
+        if skip_completed_check:
             checkpoints = []
             db_stats = {
                 "total_checkpoint_entries": 0,
                 "completed_threads": 0,
                 "runs_with_all_trials_completed": 0,
             }
+        else:
+            try:
+                checkpoints = parser.fetch_all_checkpoints()
+                db_stats = parser.calculate_database_run_statistics(trials, list(query_thread_ids))
+            except Exception as e:
+                print(f"Warning: could not fetch checkpoints. Proceeding as if starting fresh. Err: {e}")
+                checkpoints = []
+                db_stats = {
+                    "total_checkpoint_entries": 0,
+                    "completed_threads": 0,
+                    "runs_with_all_trials_completed": 0,
+                }
         parser.close()
 
         completed_threads = set()
@@ -260,14 +277,12 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 if "total_tokens" in state_data["channel_values"]:
                     completed_threads.add(cp["thread_id"])
 
-        query_thread_ids = {query["thread_id"] for query in queries}
         attempt_data = attempt_tracker.fetch_attempts(list(query_thread_ids))
-        all_attempt_data = attempt_tracker.fetch_all_attempts()
         completed_for_run = completed_threads.intersection(query_thread_ids)
         failed_for_run = (checkpoint_threads.intersection(query_thread_ids) - completed_for_run)
         total_failed_runs_db = sum(
             1
-            for info in all_attempt_data.values()
+            for info in attempt_data.values()
             if info.get("failed_attempts", 0) > 0 or info.get("last_status") == "failed"
         )
 
@@ -381,13 +396,34 @@ if __name__ == "__main__":
     parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
     parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
     parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
+    parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file before resuming execution")
+    parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop the PostgreSQL database before execution for a clean start")
+    parser.add_argument("--dumpDBOnFinish", action="store_true", help="Dump the PostgreSQL database to gpuflops_db.dump after the run finishes")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
     args = parser.parse_args()
 
     ensure_postgres_running()
-    DB_URI = setup_default_database()
+    default_dump_file = os.path.join(WORKSPACE_ROOT, "gpuflops_db.dump")
+
+    if args.deleteDBFreshStart:
+        print("Deleting PostgreSQL database for a fresh start...")
+        wipe_database()
+
+    if args.importDBDumpFile:
+        print(f"Restoring PostgreSQL database from dump: {args.importDBDumpFile}")
+        DB_URI = restore_database_from_dump(args.importDBDumpFile)
+    else:
+        DB_URI = setup_default_database()
+
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
-    
-    run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts)
+
+    run_succeeded = False
+    try:
+        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, args.deleteDBFreshStart)
+        run_succeeded = True
+    finally:
+        if args.dumpDBOnFinish and run_succeeded:
+            dump_path = dump_database(default_dump_file)
+            print(f"Database dump written to: {dump_path}")

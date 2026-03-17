@@ -81,6 +81,7 @@ class GraphState(TypedDict):
     # Validation results
     metrics_diff: Optional[Dict[str, int]]
     metrics_pct_diff: Optional[Dict[str, float]]
+    metrics_explanations: Optional[Dict[str, str]]
 
 
 from langchain_core.runnables import RunnableConfig
@@ -219,6 +220,7 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
     prediction = state.get("prediction")
     metrics_diff = {}
     metrics_pct_diff = {}
+    metrics_explanations = {}
     
     if prediction:
         predicted = {
@@ -246,6 +248,16 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
             else:
                 metrics_pct_diff[k] = (abs(diff) / expected[k]) * 100.0
 
+        metrics_explanations = {
+            "gridSz_explanation": prediction.get("gridSz_explanation", ""),
+            "blockSz_explanation": prediction.get("blockSz_explanation", ""),
+            "fp32_flop_explanation": prediction.get("fp32_flop_explanation", ""),
+            "fp64_flop_explanation": prediction.get("fp64_flop_explanation", ""),
+            "fp16_flop_explanation": prediction.get("fp16_flop_explanation", ""),
+            "dram_bytes_read_explanation": prediction.get("dram_bytes_read_explanation", ""),
+            "dram_bytes_written_explanation": prediction.get("dram_bytes_written_explanation", ""),
+        }
+
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
@@ -256,7 +268,8 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
         "llm_response_id": response_metadata.get("id") or raw.get("id"),
         "llm_response_metadata": response_metadata,
         "metrics_diff": metrics_diff,
-        "metrics_pct_diff": metrics_pct_diff
+        "metrics_pct_diff": metrics_pct_diff,
+        "metrics_explanations": metrics_explanations,
     }
 
 def build_graph():

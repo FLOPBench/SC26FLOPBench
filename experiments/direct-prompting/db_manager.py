@@ -2,7 +2,8 @@ import psycopg
 import subprocess
 import time
 import re
-from psycopg.errors import DuplicateDatabase
+import os
+from psycopg.errors import DuplicateDatabase, UndefinedTable
 import json
 from typing import Dict, Any, List
 
@@ -117,6 +118,111 @@ def setup_default_database(
 
     return target_uri
 
+
+def _postgres_command_env(password: str) -> Dict[str, str]:
+    env = os.environ.copy()
+    env["PGPASSWORD"] = password
+    return env
+
+
+def wipe_database(
+    db_name: str = "gpuflops_db",
+    user: str = "postgres",
+    password: str = "postgres",
+    host: str = "localhost",
+    port: int = 5432,
+) -> None:
+    base_uri = f"postgresql://{user}:{password}@{host}:{port}/postgres"
+    with psycopg.connect(base_uri, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT pg_terminate_backend(pid)
+                FROM pg_stat_activity
+                WHERE datname = %s AND pid <> pg_backend_pid()
+                """,
+                (db_name,),
+            )
+            cur.execute(f"DROP DATABASE IF EXISTS {db_name};")
+
+
+def dump_database(
+    dump_file_path: str,
+    db_name: str = "gpuflops_db",
+    user: str = "postgres",
+    password: str = "postgres",
+    host: str = "localhost",
+    port: int = 5432,
+) -> str:
+    dump_file_abspath = os.path.abspath(dump_file_path)
+    os.makedirs(os.path.dirname(dump_file_abspath), exist_ok=True)
+
+    result = subprocess.run(
+        [
+            "pg_dump",
+            "-h",
+            host,
+            "-p",
+            str(port),
+            "-U",
+            user,
+            "-d",
+            db_name,
+            "-Fc",
+            "-f",
+            dump_file_abspath,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_postgres_command_env(password),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "pg_dump failed")
+
+    return dump_file_abspath
+
+
+def restore_database_from_dump(
+    dump_file_path: str,
+    db_name: str = "gpuflops_db",
+    user: str = "postgres",
+    password: str = "postgres",
+    host: str = "localhost",
+    port: int = 5432,
+) -> str:
+    dump_file_abspath = os.path.abspath(dump_file_path)
+    if not os.path.exists(dump_file_abspath):
+        raise FileNotFoundError(f"Database dump file not found: {dump_file_abspath}")
+
+    wipe_database(db_name=db_name, user=user, password=password, host=host, port=port)
+    target_uri = setup_default_database(db_name=db_name, user=user, password=password, host=host, port=port)
+
+    result = subprocess.run(
+        [
+            "pg_restore",
+            "-h",
+            host,
+            "-p",
+            str(port),
+            "-U",
+            user,
+            "-d",
+            db_name,
+            "--no-owner",
+            "--no-privileges",
+            dump_file_abspath,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_postgres_command_env(password),
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "pg_restore failed")
+
+    return target_uri
+
 class CheckpointDBParser:
     def __init__(self, db_uri: str):
         self.db_uri = db_uri
@@ -126,7 +232,12 @@ class CheckpointDBParser:
         query = "SELECT thread_id, checkpoint_ns, checkpoint_id, checkpoint FROM checkpoints"
         checkpoints = []
         with self.conn.cursor() as cur:
-            cur.execute(query)
+            try:
+                cur.execute(query)
+            except UndefinedTable:
+                # A fresh database will not have LangGraph checkpoint tables yet.
+                self.conn.rollback()
+                return []
             for row in cur.fetchall():
                 thread_id, checkpoint_ns, checkpoint_id, checkpoint_data = row
                 
@@ -184,8 +295,12 @@ class CheckpointDBParser:
             "avg_time_per_run": total_time / total_runs
         }
 
-    def calculate_database_run_statistics(self, trials_per_run: int) -> Dict[str, Any]:
+    def calculate_database_run_statistics(self, trials_per_run: int, thread_ids: List[str] | None = None) -> Dict[str, Any]:
         checkpoints = self.fetch_all_checkpoints()
+        if thread_ids is not None:
+            thread_id_filter = set(thread_ids)
+            checkpoints = [cp for cp in checkpoints if cp["thread_id"] in thread_id_filter]
+
         total_checkpoint_entries = len(checkpoints)
 
         completed_threads = set()
@@ -199,7 +314,7 @@ class CheckpointDBParser:
         if trials_per_run > 0:
             completed_trials_by_run: Dict[str, set[int]] = {}
             for thread_id in completed_threads:
-                match = re.search(r"_trial(\d+)(?:_DRYRUN_V\d+)?$", thread_id)
+                match = re.search(r"_trial(\d+)(?:_DRYRUN\d+)?$", thread_id)
                 if not match:
                     continue
 
