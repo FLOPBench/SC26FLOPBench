@@ -136,26 +136,62 @@ def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 	}
 
 
-def _latest_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-	latest: Dict[str, Dict[str, Any]] = {}
+def _tail_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+	checkpoints_by_thread: Dict[str, List[Dict[str, Any]]] = {}
 	for checkpoint in checkpoints:
-		thread_id = checkpoint["thread_id"]
-		current = latest.get(thread_id)
-		if current is None or str(checkpoint["checkpoint_id"]) > str(current["checkpoint_id"]):
-			latest[thread_id] = checkpoint
-	return latest
+		checkpoints_by_thread.setdefault(checkpoint["thread_id"], []).append(checkpoint)
+
+	tails: Dict[str, Dict[str, Any]] = {}
+	for thread_id, thread_checkpoints in checkpoints_by_thread.items():
+		checkpoints_by_id = {
+			checkpoint["checkpoint_id"]: checkpoint for checkpoint in thread_checkpoints
+		}
+		children_by_parent: Dict[Any, List[Dict[str, Any]]] = {}
+		for checkpoint in thread_checkpoints:
+			parent_checkpoint_id = checkpoint["parent_checkpoint_id"]
+			children_by_parent.setdefault(parent_checkpoint_id, []).append(checkpoint)
+
+		roots = children_by_parent[None] if None in children_by_parent else []
+		if len(roots) != 1:
+			raise ValueError(
+				f"Thread {thread_id} expected exactly one root checkpoint, found {len(roots)}"
+			)
+
+		current = roots[0]
+		visited_checkpoint_ids = set()
+		while True:
+			checkpoint_id = current["checkpoint_id"]
+			if checkpoint_id in visited_checkpoint_ids:
+				raise ValueError(f"Cycle detected in checkpoint chain for thread {thread_id}")
+			visited_checkpoint_ids.add(checkpoint_id)
+
+			if checkpoint_id not in checkpoints_by_id:
+				raise KeyError(f"Checkpoint {checkpoint_id} missing from thread index for {thread_id}")
+
+			children = children_by_parent[checkpoint_id] if checkpoint_id in children_by_parent else []
+			if not children:
+				tails[thread_id] = current
+				break
+			if len(children) != 1:
+				raise ValueError(
+					f"Thread {thread_id} expected a linear checkpoint chain, found {len(children)} children for checkpoint {checkpoint_id}"
+				)
+			current = children[0]
+
+		if len(visited_checkpoint_ids) != len(thread_checkpoints):
+			unvisited = len(thread_checkpoints) - len(visited_checkpoint_ids)
+			raise ValueError(
+				f"Thread {thread_id} has {unvisited} checkpoint entries disconnected from the root chain"
+			)
+
+	return tails
 
 
 def _completed_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
 	completed: Dict[str, Dict[str, Any]] = {}
-	for checkpoint in checkpoints:
-		state = checkpoint.get("checkpoint", {}).get("channel_values", {})
-		if "total_tokens" not in state:
-			continue
-
-		thread_id = checkpoint["thread_id"]
-		current = completed.get(thread_id)
-		if current is None or str(checkpoint["checkpoint_id"]) > str(current["checkpoint_id"]):
+	for thread_id, checkpoint in _tail_checkpoint_by_thread(checkpoints).items():
+		state = checkpoint["checkpoint"]["channel_values"]
+		if "total_tokens" in state:
 			completed[thread_id] = checkpoint
 	return completed
 
@@ -163,7 +199,7 @@ def _completed_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Di
 def _sample_mean_pct_diff(metrics_pct_diff: Dict[str, Any]) -> float:
 	values: List[float] = []
 	for metric_name in METRIC_LABELS:
-		value = metrics_pct_diff.get(metric_name)
+		value = metrics_pct_diff[metric_name]
 		if value is None:
 			continue
 		try:
@@ -187,37 +223,37 @@ def _extract_completed_records(
 		if not include_dry_run and _is_dry_run_thread(thread_id):
 			continue
 
-		state = checkpoint.get("checkpoint", {}).get("channel_values", {})
+		state = checkpoint["checkpoint"]["channel_values"]
 		metadata = _thread_metadata(thread_id)
-		metrics_diff = state.get("metrics_diff") or {}
-		metrics_pct_diff = state.get("metrics_pct_diff") or {}
+		metrics_diff = state["metrics_diff"]
+		metrics_pct_diff = state["metrics_pct_diff"]
 
 		record: Dict[str, Any] = {
 			"thread_id": thread_id,
 			"status": "completed",
-			"program_name": state.get("program_name"),
-			"kernel_mangled_name": state.get("kernel_mangled_name"),
-			"kernel_demangled_name": state.get("kernel_demangled_name"),
-			"model_name": state.get("llm_model_name") or metadata["model_name"],
+			"program_name": state["program_name"],
+			"kernel_mangled_name": state["kernel_mangled_name"],
+			"kernel_demangled_name": state["kernel_demangled_name"],
+			"model_name": state["llm_model_name"] or metadata["model_name"],
 			"safe_model_name": metadata["safe_model_name"],
 			"use_sass": metadata["use_sass"],
 			"gpu": metadata["gpu"],
 			"trial": metadata["trial"],
-			"query_time": pd.to_numeric(state.get("query_time"), errors="coerce"),
-			"cost_usd": pd.to_numeric(state.get("cost_usd"), errors="coerce"),
-			"input_tokens": pd.to_numeric(state.get("input_tokens"), errors="coerce"),
-			"output_tokens": pd.to_numeric(state.get("output_tokens"), errors="coerce"),
-			"total_tokens": pd.to_numeric(state.get("total_tokens"), errors="coerce"),
-			"expected_fp16": pd.to_numeric(state.get("expected_fp16"), errors="coerce"),
-			"expected_fp32": pd.to_numeric(state.get("expected_fp32"), errors="coerce"),
-			"expected_fp64": pd.to_numeric(state.get("expected_fp64"), errors="coerce"),
-			"expected_read_bytes": pd.to_numeric(state.get("expected_read_bytes"), errors="coerce"),
-			"expected_write_bytes": pd.to_numeric(state.get("expected_write_bytes"), errors="coerce"),
+			"query_time": pd.to_numeric(state["query_time"], errors="coerce"),
+			"cost_usd": pd.to_numeric(state["cost_usd"], errors="coerce"),
+			"input_tokens": pd.to_numeric(state["input_tokens"], errors="coerce"),
+			"output_tokens": pd.to_numeric(state["output_tokens"], errors="coerce"),
+			"total_tokens": pd.to_numeric(state["total_tokens"], errors="coerce"),
+			"expected_fp16": pd.to_numeric(state["expected_fp16"], errors="coerce"),
+			"expected_fp32": pd.to_numeric(state["expected_fp32"], errors="coerce"),
+			"expected_fp64": pd.to_numeric(state["expected_fp64"], errors="coerce"),
+			"expected_read_bytes": pd.to_numeric(state["expected_read_bytes"], errors="coerce"),
+			"expected_write_bytes": pd.to_numeric(state["expected_write_bytes"], errors="coerce"),
 			"sample_mean_pct_diff": np.nan,
 		}
 
 		for metric_key in METRIC_LABELS:
-			record[f"metrics_diff_{metric_key}"] = pd.to_numeric(metrics_diff.get(metric_key), errors="coerce")
+			record[f"metrics_diff_{metric_key}"] = pd.to_numeric(metrics_diff[metric_key], errors="coerce")
 			record[f"metrics_pct_diff_{metric_key}"] = np.nan
 
 		records.append(record)
@@ -238,21 +274,21 @@ def _extract_failed_records(
 		if not include_dry_run and _is_dry_run_thread(thread_id):
 			continue
 
-		failed_attempts = attempt.get("failed_attempts", 0) or 0
-		last_status = attempt.get("last_status")
+		failed_attempts = attempt["failed_attempts"] or 0
+		last_status = attempt["last_status"]
 		if failed_attempts <= 0 and last_status != "failed":
 			continue
 
 		metadata = _thread_metadata(thread_id)
-		partial_state = latest_checkpoints.get(thread_id, {}).get("checkpoint", {}).get("channel_values", {})
+		partial_state = latest_checkpoints[thread_id]["checkpoint"]["channel_values"]
 		records.append(
 			{
 				"thread_id": thread_id,
 				"status": "failed",
-				"program_name": partial_state.get("program_name"),
-				"kernel_mangled_name": partial_state.get("kernel_mangled_name"),
-				"kernel_demangled_name": partial_state.get("kernel_demangled_name"),
-				"model_name": partial_state.get("llm_model_name") or metadata["model_name"],
+				"program_name": partial_state["program_name"],
+				"kernel_mangled_name": partial_state["kernel_mangled_name"],
+				"kernel_demangled_name": partial_state["kernel_demangled_name"],
+				"model_name": partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"],
 				"safe_model_name": metadata["safe_model_name"],
 				"use_sass": metadata["use_sass"],
 				"gpu": metadata["gpu"],
@@ -265,7 +301,7 @@ def _extract_failed_records(
 				"sample_mean_pct_diff": np.nan,
 				"last_status": last_status,
 				"failed_attempts": failed_attempts,
-				"last_error": attempt.get("last_error"),
+				"last_error": attempt["last_error"],
 			}
 		)
 
@@ -281,7 +317,7 @@ def _failed_dataframe(records: List[Dict[str, Any]]) -> pd.DataFrame:
 
 
 def _database_dataframe(checkpoints: List[Dict[str, Any]], attempts: Dict[str, Dict[str, Any]], include_dry_run: bool) -> pd.DataFrame:
-	latest_checkpoints = _latest_checkpoint_by_thread(checkpoints)
+	latest_checkpoints = _tail_checkpoint_by_thread(checkpoints)
 	completed_checkpoints = _completed_checkpoint_by_thread(checkpoints)
 
 	completed_records = _extract_completed_records(completed_checkpoints, include_dry_run)
@@ -345,7 +381,7 @@ def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataF
 
 	for _, row in completed_df.iterrows():
 		for metric_key, metric_label in METRIC_LABELS.items():
-			value = row.get(f"{prefix}_{metric_key}")
+			value = row[f"{prefix}_{metric_key}"]
 			if pd.isna(value):
 				continue
 			rows.append(
@@ -622,11 +658,11 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 					"sass_configuration": "With SASS" if use_sass else "Without SASS",
 					"rank_group": "best",
 					"rank": rank,
-					"program_name": sample.get("program_name"),
-					"kernel_mangled_name": sample.get("kernel_mangled_name"),
-					"mean_percent_diff": round(float(sample.get("sample_mean_pct_diff", np.nan)), 4),
-					"query_time": round(float(sample.get("query_time", np.nan)), 4) if pd.notna(sample.get("query_time")) else np.nan,
-					"cost_usd": round(float(sample.get("cost_usd", np.nan)), 8) if pd.notna(sample.get("cost_usd")) else np.nan,
+					"program_name": sample["program_name"],
+					"kernel_mangled_name": sample["kernel_mangled_name"],
+					"mean_percent_diff": round(float(sample["sample_mean_pct_diff"]), 4),
+					"query_time": round(float(sample["query_time"]), 4) if pd.notna(sample["query_time"]) else np.nan,
+					"cost_usd": round(float(sample["cost_usd"]), 8) if pd.notna(sample["cost_usd"]) else np.nan,
 				}
 			)
 
@@ -637,11 +673,11 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 					"sass_configuration": "With SASS" if use_sass else "Without SASS",
 					"rank_group": "worst",
 					"rank": rank,
-					"program_name": sample.get("program_name"),
-					"kernel_mangled_name": sample.get("kernel_mangled_name"),
-					"mean_percent_diff": round(float(sample.get("sample_mean_pct_diff", np.nan)), 4),
-					"query_time": round(float(sample.get("query_time", np.nan)), 4) if pd.notna(sample.get("query_time")) else np.nan,
-					"cost_usd": round(float(sample.get("cost_usd", np.nan)), 8) if pd.notna(sample.get("cost_usd")) else np.nan,
+					"program_name": sample["program_name"],
+					"kernel_mangled_name": sample["kernel_mangled_name"],
+					"mean_percent_diff": round(float(sample["sample_mean_pct_diff"]), 4),
+					"query_time": round(float(sample["query_time"]), 4) if pd.notna(sample["query_time"]) else np.nan,
+					"cost_usd": round(float(sample["cost_usd"]), 8) if pd.notna(sample["cost_usd"]) else np.nan,
 				}
 			)
 

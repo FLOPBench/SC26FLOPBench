@@ -229,7 +229,10 @@ class CheckpointDBParser:
         self.conn = psycopg.connect(self.db_uri)
 
     def fetch_all_checkpoints(self) -> List[Dict[str, Any]]:
-        query = "SELECT thread_id, checkpoint_ns, checkpoint_id, checkpoint FROM checkpoints"
+        query = (
+            "SELECT thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint "
+            "FROM checkpoints"
+        )
         checkpoints = []
         with self.conn.cursor() as cur:
             try:
@@ -239,7 +242,7 @@ class CheckpointDBParser:
                 self.conn.rollback()
                 return []
             for row in cur.fetchall():
-                thread_id, checkpoint_ns, checkpoint_id, checkpoint_data = row
+                thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint_data = row
                 
                 # Checkpointer stores data, we parse it
                 if isinstance(checkpoint_data, (bytes, bytearray, memoryview)):
@@ -251,6 +254,7 @@ class CheckpointDBParser:
                     "thread_id": thread_id,
                     "checkpoint_ns": checkpoint_ns,
                     "checkpoint_id": checkpoint_id,
+                    "parent_checkpoint_id": parent_checkpoint_id,
                     "checkpoint": checkpoint_dict
                 })
         return checkpoints
@@ -305,8 +309,8 @@ class CheckpointDBParser:
 
         completed_threads = set()
         for cp in checkpoints:
-            state = cp.get("checkpoint", {})
-            channel_values = state.get("channel_values", {})
+            state = cp["checkpoint"]
+            channel_values = state["channel_values"]
             if "total_tokens" in channel_values:
                 completed_threads.add(cp["thread_id"])
 
