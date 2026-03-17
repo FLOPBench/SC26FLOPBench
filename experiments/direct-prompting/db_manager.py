@@ -1,7 +1,91 @@
 import psycopg
+import subprocess
+import time
 from psycopg.errors import DuplicateDatabase
 import json
 from typing import Dict, Any, List
+
+
+def _discover_postgres_cluster(port: int = 5432) -> dict | None:
+    result = subprocess.run(
+        ["pg_lsclusters", "--no-header"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to inspect PostgreSQL clusters: {result.stderr.strip()}")
+
+    clusters = []
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        clusters.append(
+            {
+                "version": parts[0],
+                "name": parts[1],
+                "port": int(parts[2]),
+                "status": parts[3],
+            }
+        )
+
+    if not clusters:
+        return None
+
+    for cluster in clusters:
+        if cluster["port"] == port:
+            return cluster
+    return clusters[0]
+
+
+def _can_connect_to_postgres(host: str, port: int, user: str, password: str, db_name: str = "postgres") -> bool:
+    try:
+        with psycopg.connect(
+            f"postgresql://{user}:{password}@{host}:{port}/{db_name}",
+            connect_timeout=2,
+        ):
+            return True
+    except psycopg.OperationalError:
+        return False
+
+
+def ensure_postgres_running(
+    host: str = "localhost",
+    port: int = 5432,
+    user: str = "postgres",
+    password: str = "postgres",
+) -> None:
+    cluster = _discover_postgres_cluster(port)
+    if cluster is None:
+        raise RuntimeError("No local PostgreSQL cluster was found. Install or initialize PostgreSQL first.")
+
+    status = cluster["status"]
+    if status == "online" and _can_connect_to_postgres(host, port, user, password):
+        return
+
+    action = "start" if status != "online" else "restart"
+    print(
+        f"PostgreSQL cluster {cluster['version']}/{cluster['name']} on port {cluster['port']} "
+        f"is {status}; attempting to {action} it..."
+    )
+    result = subprocess.run(
+        ["pg_ctlcluster", cluster["version"], cluster["name"], action],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"pg_ctlcluster {action} failed")
+
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        if _can_connect_to_postgres(host, port, user, password):
+            print("PostgreSQL is ready.")
+            return
+        time.sleep(1)
+
+    raise RuntimeError(f"PostgreSQL did not become ready on {host}:{port} after {action}.")
 
 def setup_default_database(
     db_name: str = "gpuflops_db",
@@ -103,6 +187,7 @@ class CheckpointDBParser:
         self.conn.close()
 
 if __name__ == "__main__":
+    ensure_postgres_running()
     db_uri = setup_default_database()
     parser = CheckpointDBParser(db_uri)
     try:

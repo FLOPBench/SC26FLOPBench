@@ -38,6 +38,7 @@ if db_manager_spec and db_manager_spec.loader:
     db_manager_spec.loader.exec_module(db_manager_mod)
 CheckpointDBParser = db_manager_mod.CheckpointDBParser
 setup_default_database = db_manager_mod.setup_default_database
+ensure_postgres_running = db_manager_mod.ensure_postgres_running
 
 def print_run_result(state: dict):
     # Support both raw dictionary states (from app.invoke) and DB checkpoint parsings
@@ -271,14 +272,15 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run FLOP prediction LLM queries")
-    parser.add_argument("--model-name", type=str, default="openai/gpt-5.1-codex-mini", help="OpenRouter model identifier")
+    parser.add_argument("--modelName", type=str, default="openai/gpt-5.1-codex-mini", help="OpenRouter model identifier")
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
     args = parser.parse_args()
 
+    ensure_postgres_running()
     DB_URI = setup_default_database()
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
     
-    run_queries(DB_URI, DATASET_PATH, args.model_name, args.trials, args.singleDryRun, args.verbose, args.useSASS)
+    run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS)
