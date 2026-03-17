@@ -595,6 +595,69 @@ def _save_table_figure(dataframe: pd.DataFrame, title: str, output_path: Path) -
 	plt.close(fig)
 
 
+def _latex_escape(value: str) -> str:
+	replacements = {
+		"\\": r"\textbackslash{}",
+		"&": r"\&",
+		"%": r"\%",
+		"$": r"\$",
+		"#": r"\#",
+		"_": r"\_",
+		"{": r"\{",
+		"}": r"\}",
+		"~": r"\textasciitilde{}",
+		"^": r"\textasciicircum{}",
+	}
+	escaped = []
+	for character in value:
+		escaped.append(replacements.get(character, character))
+	return "".join(escaped)
+
+
+def _latex_cell(value: Any) -> str:
+	if pd.isna(value):
+		return ""
+	if isinstance(value, (float, np.floating)):
+		if np.isinf(value):
+			return r"$\infty$" if value > 0 else r"$-\infty$"
+		return f"{value}"
+	return _latex_escape(str(value))
+
+
+def _write_booktabs_latex_table(
+	dataframe: pd.DataFrame,
+	output_path: Path,
+	caption: str,
+	label: str,
+) -> None:
+	column_count = len(dataframe.columns)
+	column_alignment = "l" + "c" * max(column_count - 1, 0)
+	header_row = " & ".join(_latex_escape(str(column_name)) for column_name in dataframe.columns) + r" \\"
+	body_rows = [
+		" & ".join(_latex_cell(value) for value in row) + r" \\"
+		for row in dataframe.itertuples(index=False, name=None)
+	]
+	latex_lines = [
+		r"\begin{table}[htbp]",
+		r"\centering",
+		f"\\caption{{{_latex_escape(caption)}}}",
+		f"\\label{{{_latex_escape(label)}}}",
+		f"\\begin{{tabular}}{{{column_alignment}}}",
+		r"\toprule",
+		header_row,
+		r"\midrule",
+	]
+	latex_lines.extend(body_rows)
+	latex_lines.extend([
+		r"\bottomrule",
+		r"\end{tabular}",
+		r"\end{table}",
+		"",
+	])
+	latex_table = "\n".join(latex_lines)
+	output_path.write_text(latex_table, encoding="utf-8")
+
+
 def _table1_summary(completed_df: pd.DataFrame, failed_df: pd.DataFrame) -> pd.DataFrame:
 	if completed_df.empty and failed_df.empty:
 		return pd.DataFrame(
@@ -817,9 +880,14 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	)
 
 	table1_df = _table1_summary(completed_df, failed_df)
-	table1_csv = output_dir / "table1_model_percent_diff_summary.csv"
+	table1_tex = output_dir / "table1_model_percent_diff_summary.tex"
 	table1_png = output_dir / "table1_model_percent_diff_summary.png"
-	table1_df.to_csv(table1_csv, index=False)
+	_write_booktabs_latex_table(
+		table1_df,
+		table1_tex,
+		"Mean and Median Percent Difference by Model and SASS",
+		"tab:model_percent_diff_summary",
+	)
 	_save_table_figure(table1_df, "Table 1: Mean and Median Percent Difference by Model and SASS", table1_png)
 
 	table2_df = _table2_best_worst(completed_df)
@@ -837,7 +905,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		plot3_path,
 		plot4a_path,
 		plot4b_path,
-		table1_csv,
+		table1_tex,
 		table1_png,
 		table2_csv,
 		suggestions_path,

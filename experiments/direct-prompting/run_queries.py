@@ -151,7 +151,32 @@ def _format_ratio(count: int, total: int) -> str:
         return "0/0 (0.00%)"
     return f"{count}/{total} ({(count / total) * 100.0:.2f}%)"
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False):
+
+def _extract_cost_usd_from_state(state: dict | None) -> float | None:
+    if state is None:
+        return None
+
+    channel_values = state.get("checkpoint", {}).get("channel_values", state)
+    cost_usd = channel_values.get("cost_usd")
+    if cost_usd is None:
+        return None
+
+    return float(cost_usd)
+
+
+def _extract_cost_usd_from_tail_checkpoint(parser: CheckpointDBParser, thread_id: str) -> float | None:
+    checkpoint = parser.fetch_tail_checkpoint_for_thread(thread_id)
+    if checkpoint is None:
+        return None
+
+    channel_values = checkpoint["checkpoint"]["channel_values"]
+    cost_usd = channel_values.get("cost_usd")
+    if cost_usd is None:
+        return None
+
+    return float(cost_usd)
+
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -265,8 +290,6 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     "completed_threads": 0,
                     "runs_with_all_trials_completed": 0,
                 }
-        parser.close()
-
         completed_threads = set()
         checkpoint_threads = set()
         for cp in checkpoints:
@@ -317,6 +340,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"Trial Count:                {trials}")
         print(f"Max Timeout:                {max_timeout} seconds")
         print(f"Max Queries Per Run:        {max_queries if max_queries is not None else 'unlimited'}")
+        print(f"Max Spend Per Run:          ${max_spend:.8f}" if max_spend is not None else "Max Spend Per Run:          unlimited")
         print(f"Max Failed Attempts:        {max_failed_attempts}")
         print(f"Single Dry Run Enabled:     {single_dry_run}")
         print(f"Verbose Output Enabled:     {verbose}")
@@ -363,6 +387,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         graph_builder = build_graph()
         app = graph_builder.compile(checkpointer=checkpointer)
 
+        session_spend_usd = 0.0
+
         # Run the remaining configurations
         for query in tqdm(queries_to_run, desc="Running Queries"):
             attempt_tracker.mark_attempt_started(query["thread_id"])
@@ -380,14 +406,41 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
 
                 attempt_tracker.mark_attempt_success(query["thread_id"])
 
+                query_cost_usd = _extract_cost_usd_from_state(final_state)
+                if query_cost_usd is None:
+                    query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, query["thread_id"])
+                if query_cost_usd is not None:
+                    session_spend_usd += query_cost_usd
+
                 if single_dry_run or verbose:
                     print_run_result(final_state)
+
+                if max_spend is not None and session_spend_usd >= max_spend:
+                    print(
+                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
+                        f"with limit ${max_spend:.8f}. Stopping execution."
+                    )
+                    return
             except Exception as e:
                 attempt_tracker.mark_attempt_failure(query["thread_id"], str(e))
+
+                query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, query["thread_id"])
+                if query_cost_usd is not None:
+                    session_spend_usd += query_cost_usd
+
                 print(f"\nError running query {query['thread_id']}: {e}")
+
+                if max_spend is not None and session_spend_usd >= max_spend:
+                    print(
+                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
+                        f"with limit ${max_spend:.8f}. Stopping execution."
+                    )
+                    return
+
                 raise  # Fail hard as requested so user can intervene
     finally:
         attempt_tracker.close()
+        parser.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run FLOP prediction LLM queries")
@@ -395,17 +448,19 @@ if __name__ == "__main__":
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
     parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
     parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
+    parser.add_argument("--maxSpend", type=float, default=None, help="Maximum USD spend allowed for queries executed during this script run; already-completed database runs do not count toward this limit")
     parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
-    parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file before resuming execution")
-    parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop the PostgreSQL database before execution for a clean start")
-    parser.add_argument("--dumpDBOnFinish", action="store_true", help="Dump the PostgreSQL database to gpuflops_db.dump after the run finishes")
+    parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated gpuflops_db before execution begins")
+    parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop gpuflops_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
+    parser.add_argument("--dumpDBOnFinish", action="store_true", help="After a successful run, dump the final gpuflops_db contents to experiments/direct-prompting/gpuflops_db.dump")
+    parser.add_argument("--exportDBOnly", action="store_true", help="Skip query execution and only export the current gpuflops_db state to experiments/direct-prompting/gpuflops_db.dump after any requested wipe/restore steps")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
     args = parser.parse_args()
 
     ensure_postgres_running()
-    default_dump_file = os.path.join(WORKSPACE_ROOT, "gpuflops_db.dump")
+    default_dump_file = os.path.join(os.path.dirname(__file__), "gpuflops_db.dump")
 
     if args.deleteDBFreshStart:
         print("Deleting PostgreSQL database for a fresh start...")
@@ -417,11 +472,18 @@ if __name__ == "__main__":
     else:
         DB_URI = setup_default_database()
 
+    if args.exportDBOnly:
+        dump_path = dump_database(default_dump_file)
+        print(f"Database dump written to: {dump_path}")
+        sys.exit(0)
+
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
+
+    skip_completed_check = args.deleteDBFreshStart and not args.importDBDumpFile
 
     run_succeeded = False
     try:
-        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, args.deleteDBFreshStart)
+        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend)
         run_succeeded = True
     finally:
         if args.dumpDBOnFinish and run_succeeded:

@@ -230,6 +230,72 @@ class CheckpointDBParser:
         self.conn = psycopg.connect(self.db_uri)
         self.serde = JsonPlusSerializer()
 
+    def _parse_checkpoint_rows(self, rows: List[Any]) -> List[Dict[str, Any]]:
+        checkpoints = []
+        for row in rows:
+            thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint_data = row
+
+            if isinstance(checkpoint_data, (bytes, bytearray, memoryview)):
+                checkpoint_dict = json.loads(checkpoint_data.decode('utf-8'))
+            else:
+                checkpoint_dict = checkpoint_data
+
+            checkpoints.append({
+                "thread_id": thread_id,
+                "checkpoint_ns": checkpoint_ns,
+                "checkpoint_id": checkpoint_id,
+                "parent_checkpoint_id": parent_checkpoint_id,
+                "checkpoint": checkpoint_dict,
+            })
+
+        return checkpoints
+
+    def _tail_checkpoint_from_records(self, checkpoints: List[Dict[str, Any]], thread_id: str) -> Dict[str, Any] | None:
+        if not checkpoints:
+            return None
+
+        checkpoints_by_id = {
+            checkpoint["checkpoint_id"]: checkpoint for checkpoint in checkpoints
+        }
+        children_by_parent: Dict[str | None, List[Dict[str, Any]]] = {}
+        for checkpoint in checkpoints:
+            parent_checkpoint_id = checkpoint["parent_checkpoint_id"]
+            children_by_parent.setdefault(parent_checkpoint_id, []).append(checkpoint)
+
+        roots = children_by_parent.get(None, [])
+        if len(roots) != 1:
+            raise ValueError(
+                f"Thread {thread_id} expected exactly one root checkpoint, found {len(roots)}"
+            )
+
+        current = roots[0]
+        visited_checkpoint_ids = set()
+        while True:
+            checkpoint_id = current["checkpoint_id"]
+            if checkpoint_id in visited_checkpoint_ids:
+                raise ValueError(f"Cycle detected in checkpoint chain for thread {thread_id}")
+            visited_checkpoint_ids.add(checkpoint_id)
+
+            if checkpoint_id not in checkpoints_by_id:
+                raise KeyError(f"Checkpoint {checkpoint_id} missing from thread index for {thread_id}")
+
+            children = children_by_parent.get(checkpoint_id, [])
+            if not children:
+                break
+            if len(children) != 1:
+                raise ValueError(
+                    f"Thread {thread_id} expected a linear checkpoint chain, found {len(children)} children for checkpoint {checkpoint_id}"
+                )
+            current = children[0]
+
+        if len(visited_checkpoint_ids) != len(checkpoints):
+            unvisited = len(checkpoints) - len(visited_checkpoint_ids)
+            raise ValueError(
+                f"Thread {thread_id} has {unvisited} checkpoint entries disconnected from the root chain"
+            )
+
+        return current
+
     def fetch_all_checkpoints(self) -> List[Dict[str, Any]]:
         query = (
             "SELECT thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint "
@@ -243,23 +309,24 @@ class CheckpointDBParser:
                 # A fresh database will not have LangGraph checkpoint tables yet.
                 self.conn.rollback()
                 return []
-            for row in cur.fetchall():
-                thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint_data = row
-                
-                # Checkpointer stores data, we parse it
-                if isinstance(checkpoint_data, (bytes, bytearray, memoryview)):
-                    checkpoint_dict = json.loads(checkpoint_data.decode('utf-8'))
-                else:
-                    checkpoint_dict = checkpoint_data
-                    
-                checkpoints.append({
-                    "thread_id": thread_id,
-                    "checkpoint_ns": checkpoint_ns,
-                    "checkpoint_id": checkpoint_id,
-                    "parent_checkpoint_id": parent_checkpoint_id,
-                    "checkpoint": checkpoint_dict
-                })
+            checkpoints = self._parse_checkpoint_rows(cur.fetchall())
         return checkpoints
+
+    def fetch_tail_checkpoint_for_thread(self, thread_id: str) -> Dict[str, Any] | None:
+        query = (
+            "SELECT thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, checkpoint "
+            "FROM checkpoints WHERE thread_id = %s"
+        )
+        with self.conn.cursor() as cur:
+            try:
+                cur.execute(query, (thread_id,))
+            except UndefinedTable:
+                self.conn.rollback()
+                return None
+
+            checkpoints = self._parse_checkpoint_rows(cur.fetchall())
+
+        return self._tail_checkpoint_from_records(checkpoints, thread_id)
 
     def fetch_checkpoint_blob_value(
         self,

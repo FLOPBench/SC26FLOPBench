@@ -62,6 +62,8 @@ htmlcov/
 
 *.json
 
-# ignroe cubin files
+# ignore cubin files
 *.cubin
 
+# ignore PostgreSQL dump files
+*.dump
