@@ -35,7 +35,7 @@ ensure_postgres_running = db_manager_mod.ensure_postgres_running
 
 
 THREAD_PATTERN = re.compile(
-	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<sass>withsass|nosass)_trial(?P<trial>\d+)(?:_DRYRUN\d+)?$"
+	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<sass>withsass|nosass)_trial(?P<trial>\d+)(?:_DRYRUN(?:\d+)?)?$"
 )
 
 METRIC_LABELS = {
@@ -115,6 +115,12 @@ def _is_dry_run_thread(thread_id: str) -> bool:
 	return "_DRYRUN" in thread_id or thread_id.endswith("_DRYRUN")
 
 
+def _stored_thread_ids(checkpoints: List[Dict[str, Any]], attempts: Dict[str, Dict[str, Any]]) -> set[str]:
+	checkpoint_thread_ids = {checkpoint["thread_id"] for checkpoint in checkpoints}
+	attempt_thread_ids = set(attempts.keys())
+	return checkpoint_thread_ids | attempt_thread_ids
+
+
 def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 	match = THREAD_PATTERN.search(thread_id)
 	if not match:
@@ -134,6 +140,15 @@ def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 		"use_sass": match.group("sass") == "withsass",
 		"trial": int(match.group("trial")),
 	}
+
+
+def _require_mapping_keys(mapping: Dict[str, Any], required_keys: List[str], context: str) -> None:
+	missing_keys = [key for key in required_keys if key not in mapping]
+	if missing_keys:
+		available_keys = sorted(mapping.keys())
+		raise KeyError(
+			f"{context} is missing required keys {missing_keys}. Available keys: {available_keys}"
+		)
 
 
 def _tail_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -224,6 +239,28 @@ def _extract_completed_records(
 			continue
 
 		state = checkpoint["checkpoint"]["channel_values"]
+		_require_mapping_keys(
+			state,
+			[
+				"metrics_diff",
+				"metrics_pct_diff",
+				"program_name",
+				"kernel_mangled_name",
+				"kernel_demangled_name",
+				"llm_model_name",
+				"query_time",
+				"cost_usd",
+				"input_tokens",
+				"output_tokens",
+				"total_tokens",
+				"expected_fp16",
+				"expected_fp32",
+				"expected_fp64",
+				"expected_read_bytes",
+				"expected_write_bytes",
+			],
+			f"Completed checkpoint tail for thread {thread_id}",
+		)
 		metadata = _thread_metadata(thread_id)
 		metrics_diff = state["metrics_diff"]
 		metrics_pct_diff = state["metrics_pct_diff"]
@@ -249,12 +286,12 @@ def _extract_completed_records(
 			"expected_fp64": pd.to_numeric(state["expected_fp64"], errors="coerce"),
 			"expected_read_bytes": pd.to_numeric(state["expected_read_bytes"], errors="coerce"),
 			"expected_write_bytes": pd.to_numeric(state["expected_write_bytes"], errors="coerce"),
-			"sample_mean_pct_diff": np.nan,
+			"sample_mean_pct_diff": _sample_mean_pct_diff(metrics_pct_diff),
 		}
 
 		for metric_key in METRIC_LABELS:
 			record[f"metrics_diff_{metric_key}"] = pd.to_numeric(metrics_diff[metric_key], errors="coerce")
-			record[f"metrics_pct_diff_{metric_key}"] = np.nan
+			record[f"metrics_pct_diff_{metric_key}"] = pd.to_numeric(metrics_pct_diff[metric_key], errors="coerce")
 
 		records.append(record)
 
@@ -281,6 +318,15 @@ def _extract_failed_records(
 
 		metadata = _thread_metadata(thread_id)
 		partial_state = latest_checkpoints[thread_id]["checkpoint"]["channel_values"]
+		_require_mapping_keys(
+			partial_state,
+			[
+				"program_name",
+				"kernel_mangled_name",
+				"kernel_demangled_name",
+			],
+			f"Latest checkpoint tail for failed thread {thread_id}",
+		)
 		records.append(
 			{
 				"thread_id": thread_id,
@@ -334,41 +380,6 @@ def _database_dataframe(checkpoints: List[Dict[str, Any]], attempts: Dict[str, D
 		full_df["model_name"] = full_df["model_name"].fillna("unknown-model")
 	if "use_sass" in full_df.columns:
 		full_df["use_sass"] = full_df["use_sass"].fillna(False)
-
-	completed_mask = full_df["status"] == "completed"
-	expected_column_map = {
-		"fp16": "expected_fp16",
-		"fp32": "expected_fp32",
-		"fp64": "expected_fp64",
-		"read_bytes": "expected_read_bytes",
-		"write_bytes": "expected_write_bytes",
-	}
-	metric_pct_columns: List[str] = []
-	for metric_key, expected_column in expected_column_map.items():
-		pct_column = f"metrics_pct_diff_{metric_key}"
-		metric_pct_columns.append(pct_column)
-		diff_column = f"metrics_diff_{metric_key}"
-		full_df[pct_column] = np.nan
-		if diff_column not in full_df.columns or expected_column not in full_df.columns:
-			continue
-
-		expected_series = pd.to_numeric(full_df.loc[completed_mask, expected_column], errors="coerce")
-		diff_series = pd.to_numeric(full_df.loc[completed_mask, diff_column], errors="coerce")
-		pct_series = pd.Series(np.nan, index=expected_series.index, dtype=float)
-
-		nonzero_mask = expected_series.notna() & (expected_series != 0)
-		pct_series.loc[nonzero_mask] = (diff_series.loc[nonzero_mask].abs() / expected_series.loc[nonzero_mask].abs()) * 100.0
-
-		zero_expected_mask = expected_series == 0
-		zero_and_match_mask = zero_expected_mask & (diff_series == 0)
-		zero_and_miss_mask = zero_expected_mask & (diff_series != 0)
-		pct_series.loc[zero_and_match_mask] = 0.0
-		pct_series.loc[zero_and_miss_mask] = np.inf
-
-		full_df.loc[completed_mask, pct_column] = pct_series
-
-	if metric_pct_columns:
-		full_df["sample_mean_pct_diff"] = full_df[metric_pct_columns].replace([np.inf, -np.inf], np.nan).mean(axis=1, skipna=True)
 
 	return full_df
 
@@ -718,10 +729,32 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	attempt_tracker = QueryAttemptTracker(db_uri)
 	try:
 		checkpoints = parser.fetch_all_checkpoints()
+		tail_checkpoints = _tail_checkpoint_by_thread(checkpoints)
+		for checkpoint in tail_checkpoints.values():
+			channel_values = checkpoint["checkpoint"]["channel_values"]
+			if "total_tokens" in channel_values:
+				parser.hydrate_checkpoint_channels(
+					checkpoint,
+					["metrics_diff", "metrics_pct_diff", "metrics_explanations"],
+				)
 		attempts = attempt_tracker.fetch_all_attempts()
 	finally:
 		parser.close()
 		attempt_tracker.close()
+
+	stored_thread_ids = _stored_thread_ids(checkpoints, attempts)
+	if not stored_thread_ids:
+		raise RuntimeError("No checkpoint or query-attempt records were found in the database.")
+
+	if not include_dry_run:
+		non_dry_run_thread_ids = {
+			thread_id for thread_id in stored_thread_ids if not _is_dry_run_thread(thread_id)
+		}
+		if not non_dry_run_thread_ids:
+			raise RuntimeError(
+				"The database currently contains only dry-run thread IDs. "
+				"Re-run with --includeDryRun or populate the database with non-dry experiment runs."
+			)
 
 	samples_df = _database_dataframe(checkpoints, attempts, include_dry_run)
 

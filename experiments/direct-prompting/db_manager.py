@@ -6,6 +6,7 @@ import os
 from psycopg.errors import DuplicateDatabase, UndefinedTable
 import json
 from typing import Dict, Any, List
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 
 def _discover_postgres_cluster(port: int = 5432) -> dict | None:
@@ -227,6 +228,7 @@ class CheckpointDBParser:
     def __init__(self, db_uri: str):
         self.db_uri = db_uri
         self.conn = psycopg.connect(self.db_uri)
+        self.serde = JsonPlusSerializer()
 
     def fetch_all_checkpoints(self) -> List[Dict[str, Any]]:
         query = (
@@ -258,6 +260,47 @@ class CheckpointDBParser:
                     "checkpoint": checkpoint_dict
                 })
         return checkpoints
+
+    def fetch_checkpoint_blob_value(
+        self,
+        thread_id: str,
+        checkpoint_ns: str,
+        channel: str,
+        version: str,
+    ) -> Any:
+        query = (
+            "SELECT type, blob FROM checkpoint_blobs "
+            "WHERE thread_id = %s AND checkpoint_ns = %s AND channel = %s AND version = %s"
+        )
+        with self.conn.cursor() as cur:
+            cur.execute(query, (thread_id, checkpoint_ns, channel, version))
+            row = cur.fetchone()
+
+        if row is None:
+            raise KeyError(
+                "No checkpoint_blobs row found for "
+                f"thread_id={thread_id}, checkpoint_ns={checkpoint_ns!r}, channel={channel}, version={version}"
+            )
+
+        type_name, blob = row
+        return self.serde.loads_typed((type_name, bytes(blob)))
+
+    def hydrate_checkpoint_channels(self, checkpoint_record: Dict[str, Any], channels: List[str]) -> None:
+        checkpoint_payload = checkpoint_record["checkpoint"]
+        channel_values = checkpoint_payload["channel_values"]
+        channel_versions = checkpoint_payload["channel_versions"]
+
+        for channel in channels:
+            if channel in channel_values:
+                continue
+
+            version = channel_versions[channel]
+            channel_values[channel] = self.fetch_checkpoint_blob_value(
+                checkpoint_record["thread_id"],
+                checkpoint_record["checkpoint_ns"],
+                channel,
+                version,
+            )
 
     def calculate_summary_statistics(self) -> Dict[str, Any]:
         """
