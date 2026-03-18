@@ -37,6 +37,7 @@ ensure_postgres_running = db_manager_mod.ensure_postgres_running
 THREAD_PATTERN = re.compile(
 	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<sass>withsass|nosass)_trial(?P<trial>\d+)(?:_DRYRUN(?:\d+)?)?$"
 )
+MODEL_DATE_SUFFIX_PATTERN = re.compile(r"-\d{8}$")
 
 METRIC_LABELS = {
 	"fp16": "FP16 FLOPs",
@@ -107,8 +108,14 @@ def _safe_filename(value: str) -> str:
 	return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("_") or "value"
 
 
+def _normalize_model_name(value: Optional[str]) -> str:
+	if not value:
+		return "unknown-model"
+	return MODEL_DATE_SUFFIX_PATTERN.sub("", value)
+
+
 def _display_model_name(safe_model_name: str) -> str:
-	return safe_model_name.replace("_", "/")
+	return _normalize_model_name(safe_model_name.replace("_", "/"))
 
 
 def _is_dry_run_thread(thread_id: str) -> bool:
@@ -135,7 +142,7 @@ def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 	safe_model_name = match.group("safe_model")
 	return {
 		"gpu": match.group("gpu"),
-		"safe_model_name": safe_model_name,
+		"safe_model_name": _normalize_model_name(safe_model_name),
 		"model_name": _display_model_name(safe_model_name),
 		"use_sass": match.group("sass") == "withsass",
 		"trial": int(match.group("trial")),
@@ -271,7 +278,7 @@ def _extract_completed_records(
 			"program_name": state["program_name"],
 			"kernel_mangled_name": state["kernel_mangled_name"],
 			"kernel_demangled_name": state["kernel_demangled_name"],
-			"model_name": state["llm_model_name"] or metadata["model_name"],
+			"model_name": _normalize_model_name(state["llm_model_name"] or metadata["model_name"]),
 			"safe_model_name": metadata["safe_model_name"],
 			"use_sass": metadata["use_sass"],
 			"gpu": metadata["gpu"],
@@ -334,7 +341,7 @@ def _extract_failed_records(
 				"program_name": partial_state["program_name"],
 				"kernel_mangled_name": partial_state["kernel_mangled_name"],
 				"kernel_demangled_name": partial_state["kernel_demangled_name"],
-				"model_name": partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"],
+				"model_name": _normalize_model_name(partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"]),
 				"safe_model_name": metadata["safe_model_name"],
 				"use_sass": metadata["use_sass"],
 				"gpu": metadata["gpu"],
@@ -415,10 +422,22 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path)
 	)
 
 	segment_order = [
-		"Completed | Without SASS",
+		"Failed | With SASS",
 		"Completed | With SASS",
 		"Failed | Without SASS",
+		"Completed | Without SASS",
+	]
+	segment_colors = {
+		"Completed | With SASS": "#2e7d32",
+		"Completed | Without SASS": "#81c784",
+		"Failed | With SASS": "#c62828",
+		"Failed | Without SASS": "#ef9a9a",
+	}
+	legend_order = [
+		"Completed | With SASS",
+		"Completed | Without SASS",
 		"Failed | With SASS",
+		"Failed | Without SASS",
 	]
 	counts = (
 		plot_df.groupby(["model_name", "status_segment"]).size().unstack(fill_value=0).reindex(columns=segment_order, fill_value=0)
@@ -426,35 +445,47 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path)
 	model_names = counts.index.tolist()
 
 	sns.set_theme(style="whitegrid")
-	fig, ax = plt.subplots(figsize=(max(10, 1.8 * max(len(model_names), 1)), 7))
-	colors = sns.color_palette("Set2", n_colors=len(segment_order))
-	bottoms = np.zeros(len(model_names))
+	fig_height = max(7, 0.65 * max(len(model_names), 1) + 1.5)
+	fig, ax = plt.subplots(figsize=(14, fig_height))
+	lefts = np.zeros(len(model_names))
 
-	for segment, color in zip(segment_order, colors):
+	for segment in segment_order:
 		values = counts[segment].to_numpy()
-		bars = ax.bar(model_names, values, bottom=bottoms, label=segment, color=color, edgecolor="white")
-		for bar, value, bottom in zip(bars, values, bottoms):
+		bars = ax.barh(model_names, values, left=lefts, label=segment, color=segment_colors[segment], edgecolor="white")
+		for bar, value, left in zip(bars, values, lefts):
 			if value <= 0:
 				continue
 			ax.text(
-				bar.get_x() + bar.get_width() / 2.0,
-				bottom + value / 2.0,
+				left + value / 2.0,
+				bar.get_y() + bar.get_height() / 2.0,
 				f"{int(value)}",
 				ha="center",
 				va="center",
 				fontsize=8,
 				color="black",
 			)
-		bottoms = bottoms + values
+		lefts = lefts + values
 
-	for model_index, total in enumerate(bottoms):
-		ax.text(model_index, total + 0.5, f"{int(total)}", ha="center", va="bottom", fontsize=10, fontweight="bold")
+	for model_index, total in enumerate(lefts):
+		ax.text(total + 0.5, model_index, f"{int(total)}", ha="left", va="center", fontsize=10, fontweight="bold")
 
 	ax.set_title("Database Sample Counts by Model and SASS Configuration")
-	ax.set_xlabel("Model Name")
-	ax.set_ylabel("Sample Count")
-	ax.legend(title="Sample Type", bbox_to_anchor=(1.02, 1), loc="upper left")
-	ax.tick_params(axis="x", rotation=30)
+	ax.set_xlabel("Sample Count")
+	ax.set_ylabel("Model Name")
+	handles, labels = ax.get_legend_handles_labels()
+	handle_by_label = dict(zip(labels, handles))
+	ax.legend(
+		[handle_by_label[label] for label in legend_order if label in handle_by_label],
+		[label for label in legend_order if label in handle_by_label],
+		title="Sample Type",
+		bbox_to_anchor=(1.02, 1),
+		loc="upper left",
+	)
+	ax.tick_params(axis="y", pad=12)
+	for label in ax.get_yticklabels():
+		label.set_rotation(0)
+		label.set_horizontalalignment("right")
+	ax.margins(x=0.05)
 	fig.tight_layout()
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
