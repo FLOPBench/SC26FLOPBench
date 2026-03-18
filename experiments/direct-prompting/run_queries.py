@@ -152,6 +152,24 @@ def _format_ratio(count: int, total: int) -> str:
     return f"{count}/{total} ({(count / total) * 100.0:.2f}%)"
 
 
+def _format_query_calculation(query_counts_by_gpu: dict[str, int], trials: int) -> list[str]:
+    if not query_counts_by_gpu:
+        return ["No queries defined."]
+
+    lines = []
+    total_terms = []
+    for gpu_name, base_query_count in query_counts_by_gpu.items():
+        gpu_total = base_query_count * trials
+        total_terms.append(str(gpu_total))
+        lines.append(
+            f"{gpu_name:<25} {base_query_count} kernel/GPU pairs x {trials} trial(s) = {gpu_total} samples"
+        )
+
+    total_expression = " + ".join(total_terms)
+    lines.append(f"{'Total formula':<25} {total_expression} = {sum(query_counts_by_gpu.values()) * trials}")
+    return lines
+
+
 def _extract_cost_usd_from_state(state: dict | None) -> float | None:
     if state is None:
         return None
@@ -186,6 +204,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
     
     # We will generate a list of task queries
     queries = []
+    query_counts_by_gpu = {}
     
     for program_name, prog_data in data.items():
         if single_dry_run and program_name != "adam-cuda":
@@ -204,8 +223,6 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 if single_dry_run and gpu_name != "H100":
                     continue
                     
-                print(f'Parsing data for program "{program_name}", kernel "{demangled_name}", GPU "{gpu_name}"...')
-                print(f'kernel data keys: {list(kernel_data["sass_code"].keys())}')
                 arch = get_architecture(gpu_name)
                 sass_data = kernel_data["sass_code"][arch]
                 imix_data = kernel_data["imix"][arch]
@@ -227,6 +244,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 safe_model = _sanitize_thread_part(model_name)
                 safe_sass_config = _sass_thread_part(use_sass)
                 base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}_{safe_sass_config}"
+                query_counts_by_gpu[gpu_name] = query_counts_by_gpu.get(gpu_name, 0) + 1
                 
                 state_inputs = {
                     "program_name": program_name,
@@ -341,8 +359,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"Model Name:                 {model_name}")
         print(f"Trial Count:                {trials}")
         print(f"Max Timeout:                {max_timeout} seconds")
-        print(f"Max Queries Per Run:        {max_queries if max_queries is not None else 'unlimited'}")
-        print(f"Max Spend Per Run:          ${max_spend:.8f}" if max_spend is not None else "Max Spend Per Run:          unlimited")
+        print(f"Max Queries:                {max_queries if max_queries is not None else 'unlimited'}")
+        print(f"Max Spend:                  ${max_spend:.8f}" if max_spend is not None else "Max Spend:                  unlimited")
         print(f"Max Failed Attempts:        {max_failed_attempts}")
         print(f"Single Dry Run Enabled:     {single_dry_run}")
         print(f"Verbose Output Enabled:     {verbose}")
@@ -353,6 +371,9 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"DB runs with all trials done: {db_stats['runs_with_all_trials_completed']}")
         print(f"DB runs with failures:       {total_failed_runs_db}")
         print(f"----------------------------------------------------------------")
+        print("Query count calculation:")
+        for calculation_line in _format_query_calculation(query_counts_by_gpu, trials):
+            print(f"  {calculation_line}")
         print(f"Total defined queries:       {total_queries}")
         print(f"Completed progress:          {_format_ratio(completed_count, total_queries)}")
         print(f"Remaining progress:          {_format_ratio(remaining_count, total_queries)}")

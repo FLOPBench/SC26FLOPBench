@@ -294,10 +294,62 @@ def build_compile_commands(program_name, gpu="3080"):
     except Exception:
         return []
 
+def filter_kernels_with_complete_gpu_coverage(dataset, required_gpus):
+    dropped_counts = {gpu: 0 for gpu in required_gpus}
+    kept_counts = {gpu: 0 for gpu in required_gpus}
+    filtered_dataset = {}
+
+    for prog, data in dataset.items():
+        kept_kernels = {}
+        kept_source_to_kernels = defaultdict(list)
+
+        for kernel_name, kernel_data in data["kernels"].items():
+            kernel_gpus = set(kernel_data.get("metrics", {}).keys())
+            missing_gpus = [gpu for gpu in required_gpus if gpu not in kernel_gpus]
+
+            if missing_gpus:
+                for gpu in missing_gpus:
+                    dropped_counts[gpu] += 1
+                continue
+
+            kept_kernels[kernel_name] = kernel_data
+            for gpu in required_gpus:
+                kept_counts[gpu] += 1
+
+        if not kept_kernels:
+            continue
+
+        for source_path, kernel_names in data["source_to_kernels"].items():
+            filtered_kernel_names = [kernel_name for kernel_name in kernel_names if kernel_name in kept_kernels]
+            if filtered_kernel_names:
+                kept_source_to_kernels[source_path] = filtered_kernel_names
+
+        filtered_dataset[prog] = {
+            "exeArgs": data["exeArgs"],
+            "source_to_kernels": kept_source_to_kernels,
+            "kernels": kept_kernels,
+            "compile_commands": data["compile_commands"],
+            "sources": data["sources"]
+        }
+
+    kept_totals = list(kept_counts.values())
+    assert len(set(kept_totals)) == 1, f"Kept kernel counts differ across GPUs: {kept_counts}"
+
+    print("Dropped kernels due to missing GPU samples:")
+    for gpu in required_gpus:
+        print(f"  {gpu}: {dropped_counts[gpu]}")
+
+    print("Kernels kept in final dataset:")
+    for gpu in required_gpus:
+        print(f"  {gpu}: {kept_counts[gpu]}")
+
+    return filtered_dataset
+
 def main():
     csv_path = ROOT_DIR / "cuda-profiling" / "collected-data" / "all-NCU-GPU-Data.csv"
     sass_dir = ROOT_DIR / "cuda-profiling" / "collected-data" / "scraped-sass"
     sources_json_path = ROOT_DIR / "dataset-creation" / "scraped_sources.json"
+    required_gpus = ["3080", "A10", "A100", "H100"]
     
     if not csv_path.exists():
         print("Missing CSV path. Exit.")
@@ -369,6 +421,8 @@ def main():
         dataset[prog]["kernels"][kmangled]["metrics"][gpu_device] = metrics
 
     print("Formatting and shifting 'sources' layout...")
+    dataset = filter_kernels_with_complete_gpu_coverage(dataset, required_gpus)
+
     ordered_dataset = {}
     for prog, data in dataset.items():
         ordered_dataset[prog] = {
