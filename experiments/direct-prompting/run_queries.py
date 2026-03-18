@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sys
 import argparse
@@ -138,6 +139,12 @@ def load_dataset(path: str):
         return json.load(f)
 
 
+def _normalize_exe_args(exe_args) -> str:
+    if isinstance(exe_args, float) and math.isnan(exe_args):
+        return "<no arguments>"
+    return exe_args
+
+
 def _sanitize_thread_part(value: str) -> str:
     return value.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
 
@@ -213,7 +220,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         kernels = prog_data["kernels"]
         sources = prog_data["sources"]
         compile_commands = prog_data["compile_commands"]
-        exe_args = prog_data["exeArgs"]
+        exe_args = _normalize_exe_args(prog_data["exeArgs"])
         
         for mangled_kernel, kernel_data in kernels.items():
             demangled_name = kernel_data["demangledName"]

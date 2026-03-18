@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import matplotlib
+import matplotlib.transforms as mtransforms
 
 matplotlib.use("Agg")
 
@@ -106,6 +107,17 @@ FAILED_RECORD_COLUMNS = [
 
 def _safe_filename(value: str) -> str:
 	return re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("_") or "value"
+
+
+def _bounded_plot_height(
+	item_count: int,
+	*,
+	min_height: float,
+	per_item: float,
+	padding: float,
+	max_height: float,
+) -> float:
+	return min(max_height, max(min_height, per_item * max(item_count, 1) + padding))
 
 
 def _normalize_model_name(value: Optional[str]) -> str:
@@ -324,16 +336,20 @@ def _extract_failed_records(
 			continue
 
 		metadata = _thread_metadata(thread_id)
-		partial_state = latest_checkpoints[thread_id]["checkpoint"]["channel_values"]
-		_require_mapping_keys(
-			partial_state,
-			[
-				"program_name",
-				"kernel_mangled_name",
-				"kernel_demangled_name",
-			],
-			f"Latest checkpoint tail for failed thread {thread_id}",
-		)
+		try:
+			partial_state = latest_checkpoints[thread_id]["checkpoint"]["channel_values"]
+			_require_mapping_keys(
+				partial_state,
+				[
+					"program_name",
+					"kernel_mangled_name",
+					"kernel_demangled_name",
+				],
+				f"Latest checkpoint tail for failed thread {thread_id}",
+			)
+		except KeyError as error:
+			print(f"Warning: skipping failed thread {thread_id}: {error}", file=sys.stderr)
+			continue
 		records.append(
 			{
 				"thread_id": thread_id,
@@ -413,6 +429,98 @@ def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataF
 	return pd.DataFrame(rows, columns=columns)
 
 
+def _prepare_signed_metric_pct_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	columns = ["model_name", "use_sass", "metric", "value"]
+	if completed_df.empty:
+		return pd.DataFrame(columns=columns)
+
+	expected_column_by_metric = {
+		"fp16": "expected_fp16",
+		"fp32": "expected_fp32",
+		"fp64": "expected_fp64",
+		"read_bytes": "expected_read_bytes",
+		"write_bytes": "expected_write_bytes",
+	}
+
+	for _, row in completed_df.iterrows():
+		for metric_key, metric_label in METRIC_LABELS.items():
+			diff_value = pd.to_numeric(row[f"metrics_diff_{metric_key}"], errors="coerce")
+			expected_value = pd.to_numeric(row[expected_column_by_metric[metric_key]], errors="coerce")
+			if pd.isna(diff_value) or pd.isna(expected_value) or not np.isfinite(diff_value) or not np.isfinite(expected_value):
+				continue
+			if expected_value == 0:
+				continue
+			rows.append(
+				{
+					"model_name": row["model_name"],
+					"use_sass": row["use_sass"],
+					"metric": metric_label,
+					"value": float(diff_value / expected_value * 100.0),
+				}
+			)
+	return pd.DataFrame(rows, columns=columns)
+
+
+def _models_with_completed_runs(samples_df: pd.DataFrame) -> set[str]:
+	if samples_df.empty or "model_name" not in samples_df.columns or "status" not in samples_df.columns:
+		return set()
+	completed_models = samples_df.loc[samples_df["status"] == "completed", "model_name"].dropna().unique().tolist()
+	return set(completed_models)
+
+
+def _filter_plot_models(dataframe: pd.DataFrame, allowed_models: set[str]) -> pd.DataFrame:
+	if dataframe.empty or not allowed_models or "model_name" not in dataframe.columns:
+		return dataframe.iloc[0:0].copy() if "model_name" in dataframe.columns else dataframe.copy()
+	return dataframe[dataframe["model_name"].isin(allowed_models)].copy()
+
+
+def _sorted_model_names(dataframe: pd.DataFrame) -> List[str]:
+	if dataframe.empty or "model_name" not in dataframe.columns:
+		return []
+	return sorted(dataframe["model_name"].dropna().unique().tolist())
+
+
+def _annotate_boxplot_group_sums(
+	ax: plt.Axes,
+	plot_df: pd.DataFrame,
+	value_column: str,
+	model_order: List[str],
+	hue_order: List[str],
+) -> None:
+	if plot_df.empty:
+		return
+
+	trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
+	offset_by_hue = {
+		"Without SASS": -0.2,
+		"With SASS": 0.2,
+	}
+	annotation_colors = {
+		"Without SASS": "#4f4f4f",
+		"With SASS": "#1f1f1f",
+	}
+	group_sums = (
+		plot_df.groupby(["model_name", "use_sass_label"], dropna=False)[value_column].sum().to_dict()
+	)
+
+	for model_index, model_name in enumerate(model_order):
+		for hue_label in hue_order:
+			total_cost = group_sums.get((model_name, hue_label))
+			if total_cost is None or not math.isfinite(float(total_cost)):
+				continue
+			ax.text(
+				1.02,
+				model_index + offset_by_hue[hue_label],
+				f"${float(total_cost):.4f}",
+				transform=trans,
+				ha="left",
+				va="center",
+				fontsize=8,
+				color=annotation_colors[hue_label],
+			)
+
+
 def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path) -> None:
 	plot_df = samples_df.copy()
 	plot_df["use_sass_label"] = np.where(plot_df["use_sass"], "With SASS", "Without SASS")
@@ -442,11 +550,12 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path)
 	counts = (
 		plot_df.groupby(["model_name", "status_segment"]).size().unstack(fill_value=0).reindex(columns=segment_order, fill_value=0)
 	)
-	model_names = counts.index.tolist()
+	model_names = _sorted_model_names(plot_df)
+	counts = counts.reindex(model_names, fill_value=0)
 
 	sns.set_theme(style="whitegrid")
-	fig_height = max(7, 0.65 * max(len(model_names), 1) + 1.5)
-	fig, ax = plt.subplots(figsize=(14, fig_height))
+	fig_height = _bounded_plot_height(len(model_names), min_height=6.5, per_item=0.45, padding=1.5, max_height=9.5)
+	fig, ax = plt.subplots(figsize=(10.5, fig_height))
 	lefts = np.zeros(len(model_names))
 
 	for segment in segment_order:
@@ -497,56 +606,68 @@ def _save_histogram_by_sass(
 	title: str,
 	x_label: str,
 	output_path: Path,
+	annotate_group_sums: bool = False,
 ) -> None:
 	sns.set_theme(style="whitegrid")
-	fig, axes = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
+	fig_height = _bounded_plot_height(model_count, min_height=6.0, per_item=0.45, padding=1.25, max_height=9.0)
+	fig, ax = plt.subplots(figsize=(10.5, fig_height))
+	hue_order = ["Without SASS", "With SASS"]
 
-	if completed_df.empty or value_column not in completed_df.columns or "use_sass" not in completed_df.columns:
-		for ax, use_sass in zip(axes, [False, True]):
-			label = "With SASS" if use_sass else "Without SASS"
-			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
-			ax.set_title(label)
-			ax.set_xlabel(x_label)
-			ax.set_ylabel("Sample Count")
-		fig.suptitle(title)
+	if completed_df.empty or value_column not in completed_df.columns or "use_sass" not in completed_df.columns or "model_name" not in completed_df.columns:
+		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
+		ax.set_xlabel(x_label)
+		ax.set_ylabel("Model Name")
+		ax.set_title(title)
 		fig.tight_layout()
 		fig.savefig(output_path, dpi=200, bbox_inches="tight")
 		plt.close(fig)
 		return
 
-	for ax, use_sass in zip(axes, [False, True]):
-		subset = completed_df[completed_df["use_sass"] == use_sass].copy()
-		numeric_values = pd.to_numeric(subset[value_column], errors="coerce")
-		subset = subset[numeric_values.notna()]
-		numeric_values = numeric_values.loc[subset.index]
-		subset = subset[np.isfinite(numeric_values.to_numpy())]
-		subset[value_column] = pd.to_numeric(subset[value_column], errors="coerce")
-		label = "With SASS" if use_sass else "Without SASS"
-		if subset.empty:
-			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
-		else:
-			sns.histplot(
-				data=subset,
-				x=value_column,
-				hue="model_name",
-				bins=30,
-				multiple="layer",
-				element="step",
-				fill=False,
-				common_norm=False,
-				ax=ax,
-			)
-		ax.set_title(label)
-		ax.set_xlabel(x_label)
-		ax.set_ylabel("Sample Count")
+	plot_df = completed_df.copy()
+	plot_df[value_column] = pd.to_numeric(plot_df[value_column], errors="coerce")
+	plot_df = plot_df[plot_df[value_column].notna()]
+	plot_df = plot_df[np.isfinite(plot_df[value_column].to_numpy())]
+	plot_df["use_sass_label"] = np.where(plot_df["use_sass"], "With SASS", "Without SASS")
+	model_order = _sorted_model_names(plot_df)
 
-	fig.suptitle(title)
-	fig.tight_layout()
+	if plot_df.empty:
+		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
+	else:
+		sns.boxplot(
+			data=plot_df,
+			x=value_column,
+			y="model_name",
+			hue="use_sass_label",
+			order=model_order,
+			hue_order=hue_order,
+			orient="h",
+			ax=ax,
+		)
+		if annotate_group_sums:
+			_annotate_boxplot_group_sums(ax, plot_df, value_column, model_order, hue_order)
+
+	ax.set_title(title)
+	ax.set_xlabel(x_label)
+	ax.set_ylabel("Model Name")
+	legend = ax.get_legend()
+	if legend is not None:
+		legend.set_title("SASS Configuration")
+	if annotate_group_sums:
+		fig.tight_layout(rect=(0, 0, 0.9, 1))
+	else:
+		fig.tight_layout()
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 
-def _save_metric_hist_grid(metric_df: pd.DataFrame, title: str, x_label: str, output_path: Path) -> None:
+def _save_metric_hist_grid(
+	metric_df: pd.DataFrame,
+	title: str,
+	x_label: str,
+	output_path: Path,
+	x_left_limit: Optional[float] = None,
+) -> None:
 	if metric_df.empty or "model_name" not in metric_df.columns:
 		sns.set_theme(style="whitegrid")
 		fig, axes = plt.subplots(1, 2, figsize=(16, 4), squeeze=False)
@@ -559,47 +680,66 @@ def _save_metric_hist_grid(metric_df: pd.DataFrame, title: str, x_label: str, ou
 		plt.close(fig)
 		return
 
-	model_names = sorted(metric_df["model_name"].dropna().unique().tolist())
-	row_count = max(len(model_names), 1)
+	model_names = _sorted_model_names(metric_df)
+	model_count = max(len(model_names), 1)
+	metric_order = [
+		"FP16 FLOPs",
+		"FP32 FLOPs",
+		"FP64 FLOPs",
+		"Read Bytes",
+		"Write Bytes",
+	]
 
 	sns.set_theme(style="whitegrid")
-	fig, axes = plt.subplots(row_count, 2, figsize=(16, max(4, 4 * row_count)), squeeze=False)
+	fig_height = _bounded_plot_height(model_count, min_height=5.5, per_item=0.45, padding=1.0, max_height=9.5)
+	fig, axes = plt.subplots(1, 2, figsize=(12.5, fig_height), squeeze=False, sharey=True)
 
 	if not model_names:
 		for ax in axes.flatten():
 			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 			ax.set_axis_off()
 	else:
-		for row_index, model_name in enumerate(model_names):
-			for col_index, use_sass in enumerate([False, True]):
-				ax = axes[row_index][col_index]
-				subset = metric_df[(metric_df["model_name"] == model_name) & (metric_df["use_sass"] == use_sass)].copy()
-				numeric_values = pd.to_numeric(subset["value"], errors="coerce")
-				subset = subset[numeric_values.notna()]
-				numeric_values = numeric_values.loc[subset.index]
-				subset = subset[np.isfinite(numeric_values.to_numpy())]
-				subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
-				if subset.empty:
-					ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
+		for col_index, use_sass in enumerate([False, True]):
+			ax = axes[0][col_index]
+			subset = metric_df[metric_df["use_sass"] == use_sass].copy()
+			numeric_values = pd.to_numeric(subset["value"], errors="coerce")
+			subset = subset[numeric_values.notna()]
+			numeric_values = numeric_values.loc[subset.index]
+			subset = subset[np.isfinite(numeric_values.to_numpy())]
+			subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
+			if subset.empty:
+				ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
+			else:
+				sns.boxplot(
+					data=subset,
+					x="value",
+					y="model_name",
+					hue="metric",
+					order=model_names,
+					hue_order=metric_order,
+					orient="h",
+					ax=ax,
+				)
+			sass_label = "Without SASS" if not use_sass else "With SASS"
+			ax.set_title(sass_label)
+			ax.set_xscale("symlog", linthresh=1.0)
+			if x_left_limit is not None:
+				current_right_limit = ax.get_xlim()[1]
+				ax.set_xlim(left=x_left_limit, right=current_right_limit)
+			ax.set_xlabel(x_label)
+			ax.set_ylabel("Model Name" if col_index == 0 else "")
+			ax.tick_params(axis="x", labelsize=8)
+			legend = ax.get_legend()
+			if legend is not None:
+				legend.set_title("Metric")
+				if col_index == 0:
+					legend.remove()
 				else:
-					sns.histplot(
-						data=subset,
-						x="value",
-						hue="metric",
-						bins=30,
-						multiple="layer",
-						element="step",
-						fill=False,
-						common_norm=False,
-						ax=ax,
-					)
-				sass_label = "With SASS" if use_sass else "Without SASS"
-				ax.set_title(f"{model_name} | {sass_label}")
-				ax.set_xlabel(x_label)
-				ax.set_ylabel("Metric Count")
+					legend.set_bbox_to_anchor((1.02, 1.0))
+					legend.set_loc("upper left")
 
 	fig.suptitle(title)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, 0, 0.86, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -869,13 +1009,16 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	if not failed_df.empty:
 		failed_df["use_sass"] = failed_df["use_sass"].astype(bool)
 	samples_df["use_sass"] = samples_df["use_sass"].fillna(False).astype(bool)
+	plot_models = _models_with_completed_runs(samples_df)
+	plot_samples_df = _filter_plot_models(samples_df, plot_models)
+	plot_completed_df = _filter_plot_models(completed_df, plot_models)
 
 	plot1_path = output_dir / "plot1_sample_counts_by_model.png"
-	_save_stacked_sample_count_plot(samples_df, plot1_path)
+	_save_stacked_sample_count_plot(plot_samples_df, plot1_path)
 
 	plot2_path = output_dir / "plot2_query_time_distribution.png"
 	_save_histogram_by_sass(
-		completed_df,
+		plot_completed_df,
 		"query_time",
 		"Query Time Distribution by Model and SASS Configuration",
 		"Query Time (seconds)",
@@ -884,15 +1027,16 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 
 	plot3_path = output_dir / "plot3_cost_distribution.png"
 	_save_histogram_by_sass(
-		completed_df,
+		plot_completed_df,
 		"cost_usd",
 		"Query Cost Distribution by Model and SASS Configuration",
 		"Cost (USD)",
 		plot3_path,
+		annotate_group_sums=True,
 	)
 
-	metric_diff_df = _prepare_metric_long_df(completed_df, "metrics_diff")
-	metric_pct_diff_df = _prepare_metric_long_df(completed_df, "metrics_pct_diff")
+	metric_diff_df = _prepare_metric_long_df(plot_completed_df, "metrics_diff")
+	metric_pct_diff_df = _prepare_signed_metric_pct_long_df(plot_completed_df)
 
 	plot4a_path = output_dir / "plot4a_metrics_diff_distribution.png"
 	_save_metric_hist_grid(
@@ -906,8 +1050,9 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	_save_metric_hist_grid(
 		metric_pct_diff_df,
 		"Metric Percent Difference Distribution by Model and SASS Configuration",
-		"Absolute Percent Difference",
+		"Percent Difference",
 		plot4b_path,
+		x_left_limit=-200.0,
 	)
 
 	table1_df = _table1_summary(completed_df, failed_df)
