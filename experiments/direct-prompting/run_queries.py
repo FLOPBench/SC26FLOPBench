@@ -204,6 +204,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 if single_dry_run and gpu_name != "H100":
                     continue
                     
+                print(f'Parsing data for program "{program_name}", kernel "{demangled_name}", GPU "{gpu_name}"...')
+                print(f'kernel data keys: {list(kernel_data["sass_code"].keys())}')
                 arch = get_architecture(gpu_name)
                 sass_data = kernel_data["sass_code"][arch]
                 imix_data = kernel_data["imix"][arch]

@@ -28,6 +28,16 @@ def fix_omp_kernel_name(x):
             return match.group(1)
     return x_str
 
+def fix_cuda_static_kernel_name(x):
+    if pd.isna(x):
+        return x
+    x_str = str(x)
+    if '__nv_static_' in x_str:
+        mangled_start = x_str.find('_Z')
+        if mangled_start != -1:
+            return x_str[mangled_start:]
+    return x_str
+
 def get_demangled_omp_name(k):
     mangled_core = fix_omp_kernel_name(k)
     line_tag = ""
@@ -81,6 +91,8 @@ def build_metrics_db(csv_path):
     
     # Now fix the OpenMP kernel names to drop the hash, grouping them properly
     df['Kernel Name'] = df['Kernel Name'].apply(fix_omp_kernel_name)
+    cuda_mask = df['Program Name'].str.endswith('-cuda', na=False)
+    df.loc[cuda_mask, 'Kernel Name'] = df.loc[cuda_mask, 'Kernel Name'].apply(fix_cuda_static_kernel_name)
     df['Fixed Kernel Name'] = df['Kernel Name']
 
     print("Demangling kernels...")
@@ -133,6 +145,9 @@ def get_sass_and_imix(program_name, sm_version, sass_dir, kernel_mangled):
         else:
             for k in parser.text_sections.keys():
                 if fix_omp_kernel_name(k) == kernel_mangled:
+                    matched_key = k
+                    break
+                if program_name.endswith('-cuda') and fix_cuda_static_kernel_name(k) == kernel_mangled:
                     matched_key = k
                     break
                     
@@ -208,7 +223,7 @@ def extract_source_mapping(program_name, kernel_mangled, demangled_name, sources
             else:
                 base_name_clean = fix_omp_kernel_name(kernel_mangled)
         else:
-            base_name_clean = kernel_mangled
+            base_name_clean = fix_cuda_static_kernel_name(kernel_mangled)
 
     for f_path, content in sources_dict.items():
         # Ensure it's a whole word match before doing anything
