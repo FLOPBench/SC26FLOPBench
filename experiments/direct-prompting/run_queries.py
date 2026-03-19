@@ -84,28 +84,75 @@ def print_run_result(state: dict):
     if not isinstance(predicted, dict):
         predicted = vars(predicted) if hasattr(predicted, '__dict__') else {}
     diff = state.get("metrics_pct_diff", {})
+    metrics_explanations = state.get("metrics_explanations", {})
+    if not isinstance(metrics_explanations, dict):
+        metrics_explanations = {}
     
     def get_diff(name_hints):
         for k, v in diff.items():
             if any(hint.lower() in k.lower() for hint in name_hints):
                 return f"{v:.2f}%" if v is not None else "N/A"
         return "N/A"
+
+    def get_explanation(state_key: str, prediction_key: str):
+        explanation = metrics_explanations.get(state_key)
+        if explanation:
+            return explanation
+        return predicted.get(prediction_key) or "N/A"
         
     metrics_data = [
-        ("FP64", state.get('expected_fp64'), predicted.get('fp64_flop_count'), get_diff(["fp64", "dp"])),
-        ("FP32", state.get('expected_fp32'), predicted.get('fp32_flop_count'), get_diff(["fp32", "sp"])),
-        ("FP16", state.get('expected_fp16'), predicted.get('fp16_flop_count'), get_diff(["fp16", "hp"])),
-        ("Bytes Read", state.get('expected_read_bytes'), predicted.get('dram_bytes_read_count'), get_diff(["read"])),
-        ("Bytes Written", state.get('expected_write_bytes'), predicted.get('dram_bytes_written_count'), get_diff(["write", "written"]))
+        (
+            "FP64",
+            state.get('expected_fp64'),
+            predicted.get('fp64_flop_count'),
+            get_diff(["fp64", "dp"]),
+            get_explanation("fp64_flop_explanation", "fp64_flop_explanation"),
+        ),
+        (
+            "FP32",
+            state.get('expected_fp32'),
+            predicted.get('fp32_flop_count'),
+            get_diff(["fp32", "sp"]),
+            get_explanation("fp32_flop_explanation", "fp32_flop_explanation"),
+        ),
+        (
+            "FP16",
+            state.get('expected_fp16'),
+            predicted.get('fp16_flop_count'),
+            get_diff(["fp16", "hp"]),
+            get_explanation("fp16_flop_explanation", "fp16_flop_explanation"),
+        ),
+        (
+            "Bytes Read",
+            state.get('expected_read_bytes'),
+            predicted.get('dram_bytes_read_count'),
+            get_diff(["read"]),
+            get_explanation("dram_bytes_read_explanation", "dram_bytes_read_explanation"),
+        ),
+        (
+            "Bytes Written",
+            state.get('expected_write_bytes'),
+            predicted.get('dram_bytes_written_count'),
+            get_diff(["write", "written"]),
+            get_explanation("dram_bytes_written_explanation", "dram_bytes_written_explanation"),
+        )
     ]
     
     print("\n--- Metric Results ---")
     print(f"{'Metric':<15} | {'Expected':<15} | {'Predicted':<15} | {'% Diff':>10}")
     print("-" * 65)
-    for name, exp, pred, pct in metrics_data:
+    for name, exp, pred, pct, _ in metrics_data:
         exp_str = str(exp) if exp is not None else "N/A"
         pred_str = str(pred) if pred is not None else "N/A"
         print(f"{name:<15} | {exp_str:<15} | {pred_str:<15} | {pct:>10}")
+
+    print("\n--- Metric Explanations ---")
+    for name, exp, pred, _, explanation in metrics_data:
+        exp_str = str(exp) if exp is not None else "N/A"
+        pred_str = str(pred) if pred is not None else "N/A"
+        print(f">>>>>> {name}: Expected={exp_str} | Predicted={pred_str}")
+        print(f"Explanation: {explanation}")
+        print()
         
     print(f"\n--- Dimension Results ---")
     print(f"Block Size      | Expected: {str(state.get('expected_block_size')):<20} | Predicted: {str(predicted.get('blockSz'))}")
