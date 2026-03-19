@@ -44,7 +44,8 @@ When counting FLOPs and DRAM accesses, here are some points to keep in mind:
  - other floating point datatypes like FP8 should not be counted as FP16, FP32, or FP64 FLOPs
  - commandline input arguments may not be used directly in the kernel function call, they may be passed through other functions or used to compute other values
  - if the target kernel is templated, be sure to only report on the execution of its FIRST instantiation
- - although the target kernel appears to have many read / write operations, the compiler may optimize some of these away or combine them, so be sure to use the SASS instructions (if they are provided) to identify the actual number of global memory (DRAM) accesses that occur during execution, via the global load (LDG) and store (STG) instructions in the SASS.
+ - although the target kernel appears to have many read / write operations, the compiler may optimize some of these away or combine them, so be sure to use the SASS instructions (if they are provided) to identify the actual number of global memory (DRAM) accesses that occur during execution, via the global load (LDG) and store (STG) instructions in the SASS
+ - Because the L2 cache comes after the DRAM, some LDG instructions might be serviced by the L2 cache instead of DRAM, so be sure to only count the LDG instructions that correspond to DRAM accesses when calculating the total number of DRAM bytes read. Similarly, for DRAM bytes written, be sure to only count the STG instructions that go beyond the L2 cache and actually write to DRAM. Consider the size of the L2 cache of the target GPU architecture along with the number of STG operations to estimate if all the bytes written fit into the L2 and how many spill over into DRAM. For the dram_bytes_written_count, we only care about the bytes that write beyond the L2 cache and actually go to DRAM
  - it is okay to give a best estimate if exact counts cannot be determined, but be sure to clearly state any assumptions or simplifications you make in your explanations
 
 For each estimation, provide a two-sentence explanation of how you arrived at the final count, including the reasoning behind the total number of operations performed in the first kernel invocation, assumptions, or simplifications you made during your analysis.
@@ -81,7 +82,7 @@ class DirectPromptGenerator:
         kernel_mangled_name: str,
         kernel_demangled_name: str,
         source_code_files: Dict[str, str],
-        gpu_roofline_specs: Dict[str, str],
+        gpu_roofline_specs: Dict[str, object],
         compile_commands: list,
         exe_args: str,
         sass_dict: Optional[Dict[str, str]] = None,

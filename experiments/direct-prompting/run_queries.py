@@ -134,6 +134,97 @@ def get_architecture(gpu: str) -> str:
     }
     return mapping.get(gpu, "sm_80")
 
+
+GPU_ROOFLINE_SPECS = {
+    "3080": {
+        "gpu_target": "RTX 3080 (PCIe)",
+        "dataset_gpu_key": "3080",
+        "architecture_family": "Ampere",
+        "architecture_chip": "GA102",
+        "arch": "sm_86",
+        "compute_capability": "8.6",
+        "sm_count": 68,
+        "memory_type": "GDDR6X",
+        "global_memory_size_gb": 10,
+        "memory_bandwidth_gb_per_s": 760,
+        "l2_cache_size_mb": 5,
+        "per_sm": {
+            "l1_cache_size_kb": 128,
+            "cuda_cores": 128,
+            "shared_memory_bytes": 102400,
+            "shared_memory_human": "up to 100 KB"
+        }
+    },
+    "A10": {
+        "gpu_target": "A10 (PCIe)",
+        "dataset_gpu_key": "A10",
+        "architecture_family": "Ampere",
+        "architecture_chip": "GA102",
+        "arch": "sm_86",
+        "compute_capability": "8.6",
+        "sm_count": 72,
+        "memory_type": "GDDR6",
+        "global_memory_size_gb": 24,
+        "memory_bandwidth_gb_per_s": 600,
+        "l2_cache_size_mb": 6,
+        "per_sm": {
+            "l1_cache_size_kb": 128,
+            "cuda_cores": 128,
+            "shared_memory_bytes": 102400,
+            "shared_memory_human": "up to 100 KB"
+        }
+    },
+    "A100": {
+        "gpu_target": "A100 (SXM4)",
+        "dataset_gpu_key": "A100",
+        "architecture_family": "Ampere",
+        "architecture_chip": "GA100",
+        "arch": "sm_80",
+        "compute_capability": "8.0",
+        "sm_count": 108,
+        "memory_type": "HBM2e",
+        "global_memory_size_gb": 40,
+        "memory_bandwidth_gb_per_s": 1555,
+        "l2_cache_size_mb": 40,
+        "per_sm": {
+            "l1_cache_size_kb": 192,
+            "cuda_cores": 64,
+            "shared_memory_bytes": 167936,
+            "shared_memory_human": "up to 164 KB"
+        }
+    },
+    "H100": {
+        "gpu_target": "H100 (SXM5)",
+        "dataset_gpu_key": "H100",
+        "architecture_family": "Hopper",
+        "architecture_chip": "GH100",
+        "arch": "sm_90",
+        "compute_capability": "9.0",
+        "sm_count": 132,
+        "memory_type": "HBM3",
+        "global_memory_size_gb": 80,
+        "memory_bandwidth_gb_per_s": 3360,
+        "l2_cache_size_mb": 50,
+        "per_sm": {
+            "l1_cache_size_kb": 256,
+            "cuda_cores": 128,
+            "shared_memory_bytes": 233472,
+            "shared_memory_human": "up to 228 KB"
+        }
+    }
+}
+
+
+def get_gpu_roofline_specs(gpu: str) -> dict[str, object]:
+    specs = GPU_ROOFLINE_SPECS.get(gpu)
+    if specs is None:
+        return {
+            "gpu_target": gpu,
+            "dataset_gpu_key": gpu,
+            "arch": get_architecture(gpu),
+        }
+    return dict(specs)
+
 def load_dataset(path: str):
     with open(path, "r") as f:
         return json.load(f)
@@ -230,7 +321,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 if single_dry_run and gpu_name != "H100":
                     continue
                     
-                arch = get_architecture(gpu_name)
+                gpu_roofline_specs = get_gpu_roofline_specs(gpu_name)
+                arch = str(gpu_roofline_specs["arch"])
                 sass_data = kernel_data["sass_code"][arch]
                 imix_data = kernel_data["imix"][arch]
                 gpu_compile_commands = compile_commands[gpu_name] if isinstance(compile_commands, dict) else compile_commands
@@ -258,7 +350,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     "kernel_mangled_name": mangled_kernel,
                     "kernel_demangled_name": demangled_name,
                     "source_code_files": sources,
-                    "gpu_roofline_specs": {"gpu_target": gpu_name, "arch": arch},
+                    "gpu_roofline_specs": gpu_roofline_specs,
                     "compile_commands": gpu_compile_commands,
                     "exe_args": exe_args,
                     "sass_dict": sass_dict,
