@@ -4,7 +4,9 @@ import math
 import os
 import sys
 import argparse
+import multiprocessing
 import signal
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import contextmanager
 from tqdm import tqdm
 from psycopg_pool import ConnectionPool
@@ -393,13 +395,82 @@ def _extract_cost_usd_from_tail_checkpoint(parser: CheckpointDBParser, thread_id
 
     return float(cost_usd)
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None):
+
+def _iter_query_batches(queries: list[dict], batch_size: int):
+    for start_index in range(0, len(queries), batch_size):
+        yield queries[start_index:start_index + batch_size]
+
+
+def _execute_query_worker(
+    db_uri: str,
+    model_name: str,
+    query: dict,
+    verbose: bool,
+    max_timeout: int,
+) -> dict:
+    thread_id = query["thread_id"]
+    parser = CheckpointDBParser(db_uri)
+    attempt_tracker = QueryAttemptTracker(db_uri)
+    pool = None
+
+    try:
+        settings = OpenRouterLLMSettings(model_name=model_name)
+        configurable_llm = build_openrouter_llm(settings)
+
+        pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
+        checkpointer = PostgresSaver(pool)
+        checkpointer.setup()
+
+        graph_builder = build_graph()
+        app = graph_builder.compile(checkpointer=checkpointer)
+
+        attempt_tracker.mark_attempt_started(thread_id)
+
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "llm": configurable_llm,
+                "verbose": verbose,
+            }
+        }
+
+        with _query_timeout(max_timeout):
+            final_state = app.invoke(query["state"], config=config)
+
+        attempt_tracker.mark_attempt_success(thread_id)
+
+        query_cost_usd = _extract_cost_usd_from_state(final_state)
+        if query_cost_usd is None:
+            query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, thread_id)
+
+        return {
+            "thread_id": thread_id,
+            "status": "completed",
+            "final_state": final_state,
+            "cost_usd": query_cost_usd,
+            "error": None,
+        }
+    except Exception as e:
+        attempt_tracker.mark_attempt_failure(thread_id, str(e))
+
+        query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, thread_id)
+
+        return {
+            "thread_id": thread_id,
+            "status": "failed",
+            "final_state": None,
+            "cost_usd": query_cost_usd,
+            "error": str(e),
+        }
+    finally:
+        if pool is not None:
+            pool.close()
+        attempt_tracker.close()
+        parser.close()
+
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
-    
-    # Configure LLM dynamically
-    settings = OpenRouterLLMSettings(model_name=model_name)
-    configurable_llm = build_openrouter_llm(settings)
     
     # We will generate a list of task queries
     queries = []
@@ -558,6 +629,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"\n--- Query Execution Summary ---")
         print(f"Model Name:                 {model_name}")
         print(f"Trial Count:                {trials}")
+        print(f"Query Batch Size:           {query_batch_size}")
         print(f"Max Timeout:                {max_timeout} seconds")
         print(f"Max Queries:                {max_queries if max_queries is not None else 'unlimited'}")
         print(f"Max Spend:                  ${max_spend:.8f}" if max_spend is not None else "Max Spend:                  unlimited")
@@ -602,65 +674,76 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         if not single_dry_run:
             input("Press 'Enter' to continue and run the remaining queries...")
 
-        # Configure and run LangGraph
-        pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
-        checkpointer = PostgresSaver(pool)
-        checkpointer.setup()
-
-        graph_builder = build_graph()
-        app = graph_builder.compile(checkpointer=checkpointer)
-
         session_spend_usd = 0.0
 
-        # Run the remaining configurations
-        for query in tqdm(queries_to_run, desc="Running Queries"):
-            attempt_tracker.mark_attempt_started(query["thread_id"])
-            config = {
-                "configurable": {
-                    "thread_id": query["thread_id"],
-                    "llm": configurable_llm,
-                    "verbose": verbose,
-                }
-            }
-            try:
-                # We execute the graph directly. State starts with user outputs.
-                with _query_timeout(max_timeout):
-                    final_state = app.invoke(query["state"], config=config)
+        failed_queries: list[tuple[str, str]] = []
+        worker_verbose = verbose and query_batch_size == 1
 
-                attempt_tracker.mark_attempt_success(query["thread_id"])
+        with tqdm(total=len(queries_to_run), desc="Running Queries") as progress_bar:
+            for batch_number, query_batch in enumerate(_iter_query_batches(queries_to_run, query_batch_size), start=1):
+                if max_spend is not None and session_spend_usd >= max_spend:
+                    print(
+                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
+                        f"with limit ${max_spend:.8f}. Stopping execution before batch {batch_number}."
+                    )
+                    break
 
-                query_cost_usd = _extract_cost_usd_from_state(final_state)
-                if query_cost_usd is None:
-                    query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, query["thread_id"])
-                if query_cost_usd is not None:
-                    session_spend_usd += query_cost_usd
+                with ProcessPoolExecutor(
+                    max_workers=query_batch_size,
+                    mp_context=multiprocessing.get_context("spawn"),
+                ) as executor:
+                    future_to_thread_id = {
+                        executor.submit(
+                            _execute_query_worker,
+                            db_uri,
+                            model_name,
+                            query,
+                            worker_verbose,
+                            max_timeout,
+                        ): query["thread_id"]
+                        for query in query_batch
+                    }
 
-                if single_dry_run or verbose:
-                    print_run_result(final_state)
+                    for future in as_completed(future_to_thread_id):
+                        thread_id = future_to_thread_id[future]
+                        try:
+                            result = future.result()
+                        except Exception as e:
+                            attempt_tracker.mark_attempt_failure(thread_id, str(e))
+                            failed_queries.append((thread_id, str(e)))
+                            print(f"\nError running query {thread_id}: {e}")
+                            progress_bar.update(1)
+                            continue
+
+                        progress_bar.update(1)
+
+                        query_cost_usd = result.get("cost_usd")
+                        if query_cost_usd is not None:
+                            session_spend_usd += query_cost_usd
+
+                        if result["status"] == "completed":
+                            if single_dry_run or verbose:
+                                print_run_result(result["final_state"])
+                        else:
+                            error_message = result.get("error") or "Unknown error"
+                            failed_queries.append((thread_id, error_message))
+                            print(f"\nError running query {thread_id}: {error_message}")
 
                 if max_spend is not None and session_spend_usd >= max_spend:
                     print(
                         f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
                         f"with limit ${max_spend:.8f}. Stopping execution."
                     )
-                    return
-            except Exception as e:
-                attempt_tracker.mark_attempt_failure(query["thread_id"], str(e))
+                    break
 
-                query_cost_usd = _extract_cost_usd_from_tail_checkpoint(parser, query["thread_id"])
-                if query_cost_usd is not None:
-                    session_spend_usd += query_cost_usd
-
-                print(f"\nError running query {query['thread_id']}: {e}")
-
-                if max_spend is not None and session_spend_usd >= max_spend:
-                    print(
-                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
-                        f"with limit ${max_spend:.8f}. Stopping execution."
-                    )
-                    return
-
-                raise  # Fail hard as requested so user can intervene
+        if failed_queries:
+            failed_thread_ids = ", ".join(thread_id for thread_id, _ in failed_queries[:10])
+            if len(failed_queries) > 10:
+                failed_thread_ids += ", ..."
+            raise RuntimeError(
+                f"{len(failed_queries)} queries failed during execution. "
+                f"Failed thread IDs: {failed_thread_ids}"
+            )
     finally:
         attempt_tracker.close()
         parser.close()
@@ -672,6 +755,7 @@ if __name__ == "__main__":
     parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
     parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
     parser.add_argument("--maxSpend", type=float, default=None, help="Maximum USD spend allowed for queries executed during this script run; already-completed database runs do not count toward this limit")
+    parser.add_argument("--queryBatchSize", type=int, default=1, help="Number of queries to execute in parallel per batch")
     parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
     parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated gpuflops_db before execution begins")
     parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop gpuflops_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
@@ -702,11 +786,14 @@ if __name__ == "__main__":
 
     DATASET_PATH = os.path.join(WORKSPACE_ROOT, "dataset-creation", "gpuFLOPBench.json")
 
+    if args.queryBatchSize < 1:
+        raise ValueError("--queryBatchSize must be at least 1")
+
     skip_completed_check = args.deleteDBFreshStart and not args.importDBDumpFile
 
     run_succeeded = False
     try:
-        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend)
+        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend, args.queryBatchSize)
         run_succeeded = True
     finally:
         if args.dumpDBOnFinish and run_succeeded:
