@@ -1,3 +1,4 @@
+import ast
 import json
 import math
 import os
@@ -70,6 +71,40 @@ def print_run_result(state: dict):
     # Support both raw dictionary states (from app.invoke) and DB checkpoint parsings
     if "checkpoint" in state:
         state = state.get("checkpoint", {}).get("channel_values", {})
+
+    def parse_dim_triplet(value):
+        if isinstance(value, (list, tuple)) and len(value) == 3:
+            try:
+                return [int(component) for component in value]
+            except (TypeError, ValueError):
+                return None
+
+        if isinstance(value, str):
+            try:
+                parsed = ast.literal_eval(value)
+            except (SyntaxError, ValueError):
+                return None
+
+            if isinstance(parsed, (list, tuple)) and len(parsed) == 3:
+                try:
+                    return [int(component) for component in parsed]
+                except (TypeError, ValueError):
+                    return None
+
+        return None
+
+    def dim_total(value):
+        triplet = parse_dim_triplet(value)
+        if triplet is None:
+            return None
+        return math.prod(triplet)
+
+    def percent_diff(expected_value, predicted_value):
+        if expected_value is None or predicted_value is None:
+            return "N/A"
+        if expected_value == 0:
+            return "0.00%" if predicted_value == 0 else "inf"
+        return f"{(abs(predicted_value - expected_value) / expected_value) * 100.0:.2f}%"
     
     print("\n" + "="*70)
     print(" RUN COMPLETE ")
@@ -99,6 +134,11 @@ def print_run_result(state: dict):
         if explanation:
             return explanation
         return predicted.get(prediction_key) or "N/A"
+
+    expected_block_total = dim_total(state.get('expected_block_size'))
+    predicted_block_total = dim_total(predicted.get('blockSz'))
+    expected_grid_total = dim_total(state.get('expected_grid_size'))
+    predicted_grid_total = dim_total(predicted.get('gridSz'))
         
     metrics_data = [
         (
@@ -135,6 +175,20 @@ def print_run_result(state: dict):
             predicted.get('dram_bytes_written_count'),
             get_diff(["write", "written"]),
             get_explanation("dram_bytes_written_explanation", "dram_bytes_written_explanation"),
+        ),
+        (
+            "Block Threads",
+            expected_block_total,
+            predicted_block_total,
+            percent_diff(expected_block_total, predicted_block_total),
+            get_explanation("blockSz_explanation", "blockSz_explanation"),
+        ),
+        (
+            "Grid Threads",
+            expected_grid_total,
+            predicted_grid_total,
+            percent_diff(expected_grid_total, predicted_grid_total),
+            get_explanation("gridSz_explanation", "gridSz_explanation"),
         )
     ]
     

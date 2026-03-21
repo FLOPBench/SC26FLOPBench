@@ -13,7 +13,7 @@ You will be provided with the following information in XML tags:
 - <gpu_roofline_specs>: Hardware specifications for the target GPU architecture.
 - <compile_commands>: The compilation commands used, which define macros and include paths.
 - <source_code>: The source code files required for analysis.
-- <sass> and <static-imix>: Optional hardware SASS instructions and static instruction mix (IMIX) data that (when provided) should be used to guide and validate your metric calculations when provided. The SASS may include multiple sections corresponding to different kernels and __device__ functions that get called by the main target kernel, so be sure to analyze all relevant sections when SASS is available. Understand that the IMIX provides an overall STATIC instruction mix for the entire kernel, it does not account for dynamic behavior such as warp divergence or loop iterations, so use it as a soft sanity check rather than a source of truth when estimating FLOP counts.
+- <sass> and <static-imix>: Optional hardware SASS instructions and static instruction mix (IMIX) data. When available, use SASS to refine or validate what instructions actually execute, including relevant helper functions or inlined code reached by the target kernel. Treat IMIX as a coarse static sanity check rather than a source of dynamic truth, because it does not encode loop trip counts, control-flow decisions, or warp divergence.
 
 Estimate the following metrics for the FIRST invocation of the target kernel:
 Section 1:
@@ -27,6 +27,12 @@ Section 3:
 - DRAM bytes read (dram_bytes_read_explanation, dram_bytes_read_count)
 - DRAM bytes written (dram_bytes_written_explanation, dram_bytes_written_count)
 
+General rules:
+- Analyze only the first invocation of the target kernel. If the kernel is launched inside a loop or through multiple call paths, only the first executed invocation matters.
+- Perform forward constant propagation from <command_line_input_args> through the relevant host code before estimating launch dimensions, loop trip counts, FLOP counts, or memory traffic.
+- Scale all FLOP and memory estimates by the amount of work that actually executes, including launched threads, loop iterations, and taken control-flow paths.
+- Use source analysis as the primary basis for the estimate, SASS to refine or validate executed behavior when available, and IMIX only as a coarse cross-check.
+
 ---
 
 ## Section 1: Grid Size and Block Size
@@ -38,17 +44,10 @@ Section 3:
 - If the target kernel is templated, only report the first instantiation that is actually executed.
 
 ### OpenMP Target Offload Launch Configuration
-- For OpenMP target offload kernels compiled with clang/LLVM for NVIDIA GPUs, the runtime determines the grid size. The `thread_limit(N)` clause sets the block size (threads per team).
-- **Critical**: The clang OpenMP runtime for NVIDIA GPUs typically does **not** use `ceil(total_iterations / thread_limit)` as the grid size. Instead, it uses a much smaller number of teams and distributes iterations via a grid-stride loop.
-- **When SASS is available**: Look for the grid-stride loop structure in the SASS. The SASS will typically show:
-  - An initial `CTAID.X` comparison against a constant (e.g., `ISETP.GT.U32.AND P0, PT, R60, 0x3d08f`). This constant is `total_iterations / thread_limit - 1`, NOT the grid size.
-  - An outer loop that increments the CTA-local base by `num_teams * thread_limit` (visible as `LEA R60, R0, R60, 0x8` where R0 comes from `c[0x0][0xc]` which is `gridDim.x`).
-  - The actual grid size is passed as a runtime parameter and is typically **not** encoded as a literal constant in the SASS. The constant `0x3d08f` or similar represents the **iteration space bound**, not the grid size.
-  - To find the actual grid size from SASS: look for `c[0x0][0xc]` which is `gridDim.x`. The runtime value is not visible in the SASS text itself — it is a runtime parameter.
-- **When SASS is not available**: The clang OpenMP runtime on NVIDIA GPUs typically launches a **small number of teams**. A reasonable estimate is `num_SMs / 2` to `num_SMs` teams, but the actual value depends on the runtime. Use `num_SMs / 2` as a default estimate unless other evidence suggests differently.
-- **Key insight**: The constant in the SASS guard (like `0x3d08f` = 250,000-1) represents `ceil(total_iterations / thread_limit) - 1`, which is the maximum valid CTA index if the grid were that large. But the runtime launches far fewer CTAs (typically a few thousand or less) and uses the grid-stride loop to cover the full iteration space. Do NOT use this constant as the grid size.
-- For this benchmark suite, the observed pattern for clang OpenMP offload is that the runtime launches approximately `ceil(total_iterations / (thread_limit * chunk_factor))` teams where chunk_factor makes each team process multiple chunks. The actual grid size for a 64M iteration space with thread_limit=256 has been observed to be around 3200 teams (i.e., `total_iterations / (256 * ~78)`), which is much smaller than 250,000 but much larger than `num_SMs`.
-- **Without SASS**: For OpenMP offload kernels without SASS, estimate the grid size as approximately **3200** teams for large iteration spaces (tens of millions of iterations) with thread_limit=256. This is based on the observed clang OpenMP runtime behavior. Scale proportionally for different iteration space sizes or thread limits.
+- For OpenMP target offload kernels, the runtime often determines the grid size while clauses such as `thread_limit(N)` constrain the block size or team size.
+- Do not assume the grid size is simply `ceil(total_iterations / thread_limit)`. OpenMP runtimes commonly distribute work through grid-stride style execution, chunking, or implementation-defined scheduling decisions.
+- When SASS is available, use it to distinguish iteration-space bounds from actual runtime launch parameters. A bound or guard on a CTA or loop index may describe the logical iteration space rather than the number of launched teams.
+- When SASS is not available and the runtime-selected grid size cannot be derived from host code or directives, make the most defensible estimate you can from the available OpenMP clauses, loop structure, and runtime behavior, and state the uncertainty clearly in the explanation.
 
 ---
 
@@ -62,15 +61,14 @@ Section 3:
 - Other floating point datatypes such as FP8 should not be counted as FP16, FP32, or FP64 FLOPs.
 
 ### SASS-Guided FLOP Counting
-- If <sass> and <static-imix> are provided, use them to validate and refine your FLOP estimates. If you report a particular FP16, FP32, or FP64 count, check whether the corresponding SASS instructions and IMIX data support that estimate.
+- If <sass> and <static-imix> are provided, use them to validate and refine your FLOP estimates. If you report a particular FP16, FP32, or FP64 count, check whether the corresponding SASS instructions and static IMIX support that estimate.
 - If SASS is provided, map the SASS back to the source when helpful so you can catch hidden FLOP counts or compiler transformations that are not obvious from the source alone.
 - Be sure to account for hidden or easily overlooked FLOP sources, including transcendental math functions (for example sin, cos, exp, log, sqrt, __sinf, __expf), warp divergence, loop iterations, and floating point division that may compile into multiple instructions such as reciprocal approximations, multiplications, or Newton-Raphson refinement steps.
 
 ### Counting Compiler-Generated FP16 and FP32 Instructions
-- **HFMA2 instructions**: Some compilers use HFMA2.MMA instructions for constant materialization or register initialization even when the source code uses only FP32 or FP64 types. These are real executed FP16 arithmetic instructions and **must be counted as FP16 FLOPs**. Each HFMA2 instruction performs 2 FP16 FMA operations (one per half of the packed pair), so count each executed HFMA2 as **4 FP16 FLOPs** (2 multiplies + 2 adds). Multiply by the number of threads and loop iterations that execute that instruction.
-- **FP32 instructions in FP64 division/math helpers**: When the compiler expands FP64 division (e.g., `__cuda_sm20_div_rn_f64_full`), it generates FP32 helper instructions such as FFMA, FSETP, FMUL, FADD, and FSEL. These **count as FP32 FLOPs** because they execute real FP32 arithmetic. Similarly, FP32 instructions in powf/sqrtf library expansions count as FP32 FLOPs. Do not dismiss these as "support code" — if they execute FP32 arithmetic on data, they contribute to the FP32 FLOP count.
-- **Counting approach for FP32 in FP64 helpers**: When SASS shows FP64 division helper calls, count the FP32 instructions (FFMA, FSETP, FMUL, FADD, FSEL) on the taken execution path. Each such instruction counts as 1 FP32 FLOP. Multiply by the number of times the division is invoked (number of threads × number of divisions per thread).
-- **When SASS is not available**: FP64 division, sqrt, and other math operations are known to generate FP32 helper instructions at the hardware level. When analyzing a kernel that performs FP64 divisions without SASS, estimate that each FP64 division generates approximately 6 FP32 helper FLOPs on the normal fast path. This accounts for the FSETP, FFMA, and FSEL instructions visible in the `__cuda_sm20_div_rn_f64_full` helper. Similarly, HFMA2 instructions may be generated for constant materialization even without explicit FP16 source code; when the target architecture is sm_80 or sm_90, estimate that the compiler may insert a small number of HFMA2 instructions for register initialization.
+- Count compiler-generated arithmetic instructions if they execute, even when they originate from helper routines, lowered math-library calls, constant materialization, or implementation details rather than explicit source-level arithmetic.
+- Packed FP16 fused multiply-add instructions contribute multiple FP16 FLOPs per instruction. Lower-precision helper instructions used to implement higher-precision or transcendental operations still count toward the precision at which they execute.
+- When SASS is available, count the arithmetic instructions on the taken execution path and scale by how many times that path executes. When SASS is not available, acknowledge that source-only counting may under-estimate lowered helper work and provide the best defensible estimate from the source.
 - Compilers may also eliminate common subexpressions or reuse previously computed values, which can reduce the true FLOP count. Use the source and SASS together to avoid over-counting optimized-away work.
 
 ### Counting FLOPs from Transcendental and Math Library Functions
@@ -82,7 +80,8 @@ Section 3:
 ## Section 3: DRAM Read and Write Byte Counting
 
 ### General Principles
-- Estimate DRAM bytes read and DRAM bytes written for the same first invocation of the kernel. Account for the number of launched threads, loop iterations, and warp divergence regions when scaling total memory traffic.
+- Estimate DRAM bytes read and DRAM bytes written for the same first invocation of the kernel.
+- Count only memory traffic attributable to that invocation, not later kernel launches, host-device transfers, or deferred effects outside the invocation being analyzed.
 - Although the source may show many reads and writes, the compiler may optimize, combine, or eliminate some of them. If SASS is provided, use the global load and store instructions in SASS, especially LDG and STG, to identify the actual global-memory traffic generated by execution.
 
 ### Cache and DRAM Modeling
@@ -92,26 +91,24 @@ Section 3:
 - Use SASS and IMIX as supporting evidence when available, and map SASS back to source when that helps explain hidden or optimized memory behavior.
 
 ### Distinguishing Unique Footprint from Total Traffic
-- When a kernel has an inner loop that repeatedly reads and writes the same memory locations (e.g., updating `m[j]`, `v[j]`, `p[j]` across 200 time steps for the same element j), the **unique data footprint** may be much smaller than the **total load/store instruction count × element size**.
+- Distinguish the unique data footprint from total load/store traffic. A kernel may execute many memory instructions while repeatedly touching the same cache lines.
 - For DRAM read estimation: if the unique read footprint (distinct cache lines touched) fits in L2, then after the first compulsory miss, subsequent reads of the same addresses in inner-loop iterations will hit in cache. In this case, DRAM bytes read ≈ unique footprint, not total_loads × element_size.
 - For DRAM write estimation: if the unique write footprint fits in L2, then repeated stores to the same addresses will overwrite the same cache lines without eviction, and DRAM bytes written ≈ 0 during the kernel (the dirty lines remain in L2 until a later eviction event).
 - Always compute both the unique footprint and the total traffic, then use the L2 cache size to determine which estimate is appropriate.
 
 ### Stencil and Streaming Access Patterns
-- For stencil kernels that read from a large array with neighbor accesses (e.g., phi[x±1][y±1][z±1]), the unique read footprint is approximately the size of the input array, not 6× the array size. Many neighbor accesses overlap with each other across adjacent iterations, so the actual DRAM read traffic is closer to the unique array footprint than to the raw load count × element size.
-- **Important**: When the input array is much larger than L2, DRAM reads may exceed the unique input footprint due to cache line evictions and re-fetches during the streaming traversal. For a 3D stencil over a large array, the effective DRAM read amplification factor is typically between 1.5× and 4× the unique array size, depending on the stencil radius, array dimensions, and L2 cache size. Use 3× as a reasonable default multiplier when the array is much larger than L2 and the stencil accesses span multiple rows/planes.
-- When the input array fits in L2, DRAM reads ≈ unique input footprint (loaded once, then reused from cache).
+- For stencil or neighbor-based kernels, overlapping accesses can make DRAM traffic much closer to the unique input footprint than to the raw count of source-level loads.
+- When the working set is much larger than L2, account for the possibility of cache-line eviction and refetch rather than assuming perfect reuse.
+- When the working set fits in L2, DRAM traffic may be close to the unique footprint loaded once and then reused from cache.
 
 ### Write Traffic Amplification
-- For streaming write patterns where the output arrays are much larger than L2, the actual DRAM write traffic may exceed the unique write footprint due to write-allocate behavior (reading cache lines before writing them) and other hardware effects. A typical amplification factor is 1.0× to 1.2× the unique write footprint. Use the unique footprint as the base estimate.
+- For streaming write patterns where the output footprint is larger than L2, actual DRAM write traffic can exceed the unique write footprint because of cache behavior and write-allocation effects. Use the unique footprint as a baseline and adjust only when the access pattern or hardware evidence justifies it.
 
 ---
 
 ## Output Format
-
 For each metric, provide a short two-sentence explanation of how you arrived at the final count. Include the reasoning behind the total work or traffic performed in the first kernel invocation, along with any important assumptions or simplifications.
-
-Remember that the IMIX provided is static, therefore it does not reflect dynamic behavior such as loop iterations or warp divergence, so use it as a sanity check rather than a source of truth when estimating FLOP counts. Always rely primarily on your own analysis of the source code and SASS to determine the actual executed work and memory traffic for the first kernel invocation.
+Remember that IMIX is static and does not encode dynamic behavior such as loop iterations, path frequency, or warp divergence. Base your final answer on the strongest available evidence and state uncertainty explicitly when the launch behavior or executed work cannot be derived exactly.
 """
 
 class KernelMetricsPrediction(BaseModel):
