@@ -1,13 +1,13 @@
 \begin{table}[htbp]
 \centering
-\caption{Mean and Median Percent Difference by Model and SASS}
+\caption{Mean and Median Percent Difference by Model and Evidence Configuration}
 \label{tab:model\_percent\_diff\_summary}
 \begin{tabular}{lccccc}
 \toprule
-model\_name & sass\_configuration & mean\_percent\_diff & median\_percent\_diff & completed\_samples & failed\_samples \\
+model\_name & evidence\_configuration & mean\_percent\_diff & median\_percent\_diff & completed\_samples & failed\_samples \\
 \midrule
-openai/gpt-5.4 & With SASS & 100.1099 & 29.8273 & 156 & 1 \\
-openai/gpt-5.4 & Without SASS & 41.2499 & 36.8292 & 128 & 0 \\
+openai/gpt-5.4 & No SASS / No IMIX & 914.1224 & 29.236 & 320 & 0 \\
+openai/gpt-5.4 & SASS Only & 279.4032 & 28.4644 & 366 & 0 \\
 \bottomrule
 \end{tabular}
 \end{table}

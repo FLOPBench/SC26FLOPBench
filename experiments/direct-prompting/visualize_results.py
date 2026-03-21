@@ -1,4 +1,5 @@
 import argparse
+import ast
 import math
 import os
 import re
@@ -36,9 +37,15 @@ ensure_postgres_running = db_manager_mod.ensure_postgres_running
 
 
 THREAD_PATTERN = re.compile(
-	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<sass>withsass|nosass)_trial(?P<trial>\d+)(?:_DRYRUN(?:\d+)?)?$"
+	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<config>withsass|nosass|sass_imix|sass_noimix|nosass_imix|nosass_noimix)_trial(?P<trial>\d+)(?:_DRYRUN(?:\d+)?)?$"
 )
 MODEL_DATE_SUFFIX_PATTERN = re.compile(r"-\d{8}$")
+EVIDENCE_CONFIGURATION_ORDER = [
+	"No SASS / No IMIX",
+	"SASS Only",
+	"IMIX Only",
+	"SASS + IMIX",
+]
 
 METRIC_LABELS = {
 	"fp16": "FP16 FLOPs",
@@ -46,17 +53,22 @@ METRIC_LABELS = {
 	"fp64": "FP64 FLOPs",
 	"read_bytes": "Read Bytes",
 	"write_bytes": "Write Bytes",
+	"block_size": "Block Size",
+	"grid_size": "Grid Size",
 }
 
 COMPLETED_RECORD_COLUMNS = [
 	"thread_id",
 	"status",
 	"program_name",
+	"runtime",
 	"kernel_mangled_name",
 	"kernel_demangled_name",
 	"model_name",
 	"safe_model_name",
 	"use_sass",
+	"use_imix",
+	"evidence_configuration",
 	"gpu",
 	"trial",
 	"query_time",
@@ -69,28 +81,39 @@ COMPLETED_RECORD_COLUMNS = [
 	"expected_fp64",
 	"expected_read_bytes",
 	"expected_write_bytes",
+	"expected_block_size",
+	"expected_grid_size",
+	"predicted_block_size",
+	"predicted_grid_size",
 	"metrics_diff_fp16",
 	"metrics_diff_fp32",
 	"metrics_diff_fp64",
 	"metrics_diff_read_bytes",
 	"metrics_diff_write_bytes",
+	"metrics_diff_block_size",
+	"metrics_diff_grid_size",
 	"sample_mean_pct_diff",
 	"metrics_pct_diff_fp16",
 	"metrics_pct_diff_fp32",
 	"metrics_pct_diff_fp64",
 	"metrics_pct_diff_read_bytes",
 	"metrics_pct_diff_write_bytes",
+	"metrics_pct_diff_block_size",
+	"metrics_pct_diff_grid_size",
 ]
 
 FAILED_RECORD_COLUMNS = [
 	"thread_id",
 	"status",
 	"program_name",
+	"runtime",
 	"kernel_mangled_name",
 	"kernel_demangled_name",
 	"model_name",
 	"safe_model_name",
 	"use_sass",
+	"use_imix",
+	"evidence_configuration",
 	"gpu",
 	"trial",
 	"query_time",
@@ -130,8 +153,75 @@ def _display_model_name(safe_model_name: str) -> str:
 	return _normalize_model_name(safe_model_name.replace("_", "/"))
 
 
+def _runtime_from_program_name(program_name: Optional[str]) -> str:
+	if not program_name:
+		return "unknown"
+	if program_name.endswith("-cuda"):
+		return "cuda"
+	if program_name.endswith("-omp"):
+		return "omp"
+	return "unknown"
+
+
 def _is_dry_run_thread(thread_id: str) -> bool:
 	return "_DRYRUN" in thread_id or thread_id.endswith("_DRYRUN")
+
+
+def _parse_dim_triplet(value: Any) -> Optional[List[int]]:
+	if isinstance(value, (list, tuple)) and len(value) == 3:
+		try:
+			return [int(component) for component in value]
+		except (TypeError, ValueError):
+			return None
+
+	if isinstance(value, str):
+		try:
+			parsed = ast.literal_eval(value)
+		except (SyntaxError, ValueError):
+			return None
+
+		if isinstance(parsed, (list, tuple)) and len(parsed) == 3:
+			try:
+				return [int(component) for component in parsed]
+			except (TypeError, ValueError):
+				return None
+
+	return None
+
+
+def _dim_total(value: Any) -> float:
+	triplet = _parse_dim_triplet(value)
+	if triplet is None:
+		return float("nan")
+	return float(math.prod(triplet))
+
+
+def _percent_diff(expected_value: float, predicted_value: float) -> float:
+	if not np.isfinite(expected_value) or not np.isfinite(predicted_value):
+		return float("nan")
+	if expected_value == 0:
+		return 0.0 if predicted_value == 0 else float("inf")
+	return float(abs(predicted_value - expected_value) / expected_value * 100.0)
+
+
+def _dimension_metrics(state: Dict[str, Any]) -> Dict[str, float]:
+	prediction = state["prediction"] if "prediction" in state and isinstance(state["prediction"], dict) else {}
+	expected_block_size = _dim_total(state.get("expected_block_size"))
+	expected_grid_size = _dim_total(state.get("expected_grid_size"))
+	predicted_block_size = _dim_total(prediction.get("blockSz"))
+	predicted_grid_size = _dim_total(prediction.get("gridSz"))
+	block_diff = predicted_block_size - expected_block_size if np.isfinite(expected_block_size) and np.isfinite(predicted_block_size) else float("nan")
+	grid_diff = predicted_grid_size - expected_grid_size if np.isfinite(expected_grid_size) and np.isfinite(predicted_grid_size) else float("nan")
+	return {
+		"expected_block_size": expected_block_size,
+		"expected_grid_size": expected_grid_size,
+		"predicted_block_size": predicted_block_size,
+		"predicted_grid_size": predicted_grid_size,
+		"metrics_diff_block_size": block_diff,
+		"metrics_diff_grid_size": grid_diff,
+		"metrics_pct_diff_block_size": _percent_diff(expected_block_size, predicted_block_size),
+		"metrics_pct_diff_grid_size": _percent_diff(expected_grid_size, predicted_grid_size),
+	}
 
 
 def _stored_thread_ids(checkpoints: List[Dict[str, Any]], attempts: Dict[str, Dict[str, Any]]) -> set[str]:
@@ -148,15 +238,39 @@ def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 			"safe_model_name": "unknown-model",
 			"model_name": "unknown-model",
 			"use_sass": None,
+			"use_imix": None,
+			"evidence_configuration": "Unknown",
 			"trial": None,
 		}
 
 	safe_model_name = match.group("safe_model")
+	config = match.group("config")
+	if config == "withsass":
+		use_sass = True
+		use_imix = True
+	elif config == "nosass":
+		use_sass = False
+		use_imix = False
+	else:
+		use_sass = config.startswith("sass_")
+		use_imix = config.endswith("_imix")
+
+	if use_sass and use_imix:
+		evidence_configuration = "SASS + IMIX"
+	elif use_sass:
+		evidence_configuration = "SASS Only"
+	elif use_imix:
+		evidence_configuration = "IMIX Only"
+	else:
+		evidence_configuration = "No SASS / No IMIX"
+
 	return {
 		"gpu": match.group("gpu"),
 		"safe_model_name": _normalize_model_name(safe_model_name),
 		"model_name": _display_model_name(safe_model_name),
-		"use_sass": match.group("sass") == "withsass",
+		"use_sass": use_sass,
+		"use_imix": use_imix,
+		"evidence_configuration": evidence_configuration,
 		"trial": int(match.group("trial")),
 	}
 
@@ -281,18 +395,27 @@ def _extract_completed_records(
 			f"Completed checkpoint tail for thread {thread_id}",
 		)
 		metadata = _thread_metadata(thread_id)
-		metrics_diff = state["metrics_diff"]
-		metrics_pct_diff = state["metrics_pct_diff"]
+		metrics_diff = dict(state["metrics_diff"])
+		metrics_pct_diff = dict(state["metrics_pct_diff"])
+		dimension_metrics = _dimension_metrics(state)
+		metrics_diff["block_size"] = dimension_metrics["metrics_diff_block_size"]
+		metrics_diff["grid_size"] = dimension_metrics["metrics_diff_grid_size"]
+		metrics_pct_diff["block_size"] = dimension_metrics["metrics_pct_diff_block_size"]
+		metrics_pct_diff["grid_size"] = dimension_metrics["metrics_pct_diff_grid_size"]
+		runtime = _runtime_from_program_name(state["program_name"])
 
 		record: Dict[str, Any] = {
 			"thread_id": thread_id,
 			"status": "completed",
 			"program_name": state["program_name"],
+			"runtime": runtime,
 			"kernel_mangled_name": state["kernel_mangled_name"],
 			"kernel_demangled_name": state["kernel_demangled_name"],
 			"model_name": _normalize_model_name(state["llm_model_name"] or metadata["model_name"]),
 			"safe_model_name": metadata["safe_model_name"],
 			"use_sass": metadata["use_sass"],
+				"use_imix": metadata["use_imix"],
+				"evidence_configuration": metadata["evidence_configuration"],
 			"gpu": metadata["gpu"],
 			"trial": metadata["trial"],
 			"query_time": pd.to_numeric(state["query_time"], errors="coerce"),
@@ -305,6 +428,10 @@ def _extract_completed_records(
 			"expected_fp64": pd.to_numeric(state["expected_fp64"], errors="coerce"),
 			"expected_read_bytes": pd.to_numeric(state["expected_read_bytes"], errors="coerce"),
 			"expected_write_bytes": pd.to_numeric(state["expected_write_bytes"], errors="coerce"),
+			"expected_block_size": pd.to_numeric(dimension_metrics["expected_block_size"], errors="coerce"),
+			"expected_grid_size": pd.to_numeric(dimension_metrics["expected_grid_size"], errors="coerce"),
+			"predicted_block_size": pd.to_numeric(dimension_metrics["predicted_block_size"], errors="coerce"),
+			"predicted_grid_size": pd.to_numeric(dimension_metrics["predicted_grid_size"], errors="coerce"),
 			"sample_mean_pct_diff": _sample_mean_pct_diff(metrics_pct_diff),
 		}
 
@@ -355,11 +482,14 @@ def _extract_failed_records(
 				"thread_id": thread_id,
 				"status": "failed",
 				"program_name": partial_state["program_name"],
+				"runtime": _runtime_from_program_name(partial_state["program_name"]),
 				"kernel_mangled_name": partial_state["kernel_mangled_name"],
 				"kernel_demangled_name": partial_state["kernel_demangled_name"],
 				"model_name": _normalize_model_name(partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"]),
 				"safe_model_name": metadata["safe_model_name"],
 				"use_sass": metadata["use_sass"],
+				"use_imix": metadata["use_imix"],
+				"evidence_configuration": metadata["evidence_configuration"],
 				"gpu": metadata["gpu"],
 				"trial": metadata["trial"],
 				"query_time": np.nan,
@@ -403,13 +533,19 @@ def _database_dataframe(checkpoints: List[Dict[str, Any]], attempts: Dict[str, D
 		full_df["model_name"] = full_df["model_name"].fillna("unknown-model")
 	if "use_sass" in full_df.columns:
 		full_df["use_sass"] = full_df["use_sass"].fillna(False)
+	if "use_imix" in full_df.columns:
+		full_df["use_imix"] = full_df["use_imix"].fillna(False)
+	if "evidence_configuration" in full_df.columns:
+		full_df["evidence_configuration"] = full_df["evidence_configuration"].fillna("No SASS / No IMIX")
+	if "runtime" in full_df.columns:
+		full_df["runtime"] = full_df["runtime"].fillna("unknown")
 
 	return full_df
 
 
 def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataFrame:
 	rows: List[Dict[str, Any]] = []
-	columns = ["model_name", "use_sass", "metric", "value"]
+	columns = ["runtime", "model_name", "use_sass", "use_imix", "evidence_configuration", "metric", "value"]
 	if completed_df.empty:
 		return pd.DataFrame(columns=columns)
 
@@ -420,8 +556,11 @@ def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataF
 				continue
 			rows.append(
 				{
+					"runtime": row["runtime"],
 					"model_name": row["model_name"],
 					"use_sass": row["use_sass"],
+					"use_imix": row["use_imix"],
+					"evidence_configuration": row["evidence_configuration"],
 					"metric": metric_label,
 					"value": float(value),
 				}
@@ -431,7 +570,7 @@ def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataF
 
 def _prepare_signed_metric_pct_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	rows: List[Dict[str, Any]] = []
-	columns = ["model_name", "use_sass", "metric", "value"]
+	columns = ["runtime", "model_name", "use_sass", "use_imix", "evidence_configuration", "metric", "value"]
 	if completed_df.empty:
 		return pd.DataFrame(columns=columns)
 
@@ -441,6 +580,8 @@ def _prepare_signed_metric_pct_long_df(completed_df: pd.DataFrame) -> pd.DataFra
 		"fp64": "expected_fp64",
 		"read_bytes": "expected_read_bytes",
 		"write_bytes": "expected_write_bytes",
+		"block_size": "expected_block_size",
+		"grid_size": "expected_grid_size",
 	}
 
 	for _, row in completed_df.iterrows():
@@ -453,8 +594,11 @@ def _prepare_signed_metric_pct_long_df(completed_df: pd.DataFrame) -> pd.DataFra
 				continue
 			rows.append(
 				{
+					"runtime": row["runtime"],
 					"model_name": row["model_name"],
 					"use_sass": row["use_sass"],
+					"use_imix": row["use_imix"],
+					"evidence_configuration": row["evidence_configuration"],
 					"metric": metric_label,
 					"value": float(diff_value / expected_value * 100.0),
 				}
@@ -492,16 +636,18 @@ def _annotate_boxplot_group_sums(
 		return
 
 	trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
-	offset_by_hue = {
-		"Without SASS": -0.2,
-		"With SASS": 0.2,
-	}
+	if len(hue_order) == 1:
+		offsets = [0.0]
+	else:
+		step = 0.6 / max(len(hue_order) - 1, 1)
+		offsets = [(-0.3 + step * index) for index in range(len(hue_order))]
+	offset_by_hue = {label: offsets[index] for index, label in enumerate(hue_order)}
+	palette = ["#4f4f4f", "#1f1f1f", "#5b5b5b", "#000000"]
 	annotation_colors = {
-		"Without SASS": "#4f4f4f",
-		"With SASS": "#1f1f1f",
+		label: palette[index % len(palette)] for index, label in enumerate(hue_order)
 	}
 	group_sums = (
-		plot_df.groupby(["model_name", "use_sass_label"], dropna=False)[value_column].sum().to_dict()
+		plot_df.groupby(["model_name", "evidence_configuration"], dropna=False)[value_column].sum().to_dict()
 	)
 
 	for model_index, model_name in enumerate(model_order):
@@ -523,30 +669,29 @@ def _annotate_boxplot_group_sums(
 
 def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path) -> None:
 	plot_df = samples_df.copy()
-	plot_df["use_sass_label"] = np.where(plot_df["use_sass"], "With SASS", "Without SASS")
 	plot_df["status_segment"] = plot_df.apply(
-		lambda row: f"{row['status'].title()} | {row['use_sass_label']}",
+		lambda row: f"{row['status'].title()} | {row['evidence_configuration']}",
 		axis=1,
 	)
 
-	segment_order = [
-		"Failed | With SASS",
-		"Completed | With SASS",
-		"Failed | Without SASS",
-		"Completed | Without SASS",
-	]
+	segment_order = []
+	for evidence_configuration in reversed(EVIDENCE_CONFIGURATION_ORDER):
+		segment_order.append(f"Failed | {evidence_configuration}")
+		segment_order.append(f"Completed | {evidence_configuration}")
 	segment_colors = {
-		"Completed | With SASS": "#2e7d32",
-		"Completed | Without SASS": "#81c784",
-		"Failed | With SASS": "#c62828",
-		"Failed | Without SASS": "#ef9a9a",
+		"Completed | SASS + IMIX": "#1b5e20",
+		"Failed | SASS + IMIX": "#b71c1c",
+		"Completed | SASS Only": "#388e3c",
+		"Failed | SASS Only": "#d32f2f",
+		"Completed | IMIX Only": "#66bb6a",
+		"Failed | IMIX Only": "#ef5350",
+		"Completed | No SASS / No IMIX": "#a5d6a7",
+		"Failed | No SASS / No IMIX": "#ffcdd2",
 	}
-	legend_order = [
-		"Completed | With SASS",
-		"Completed | Without SASS",
-		"Failed | With SASS",
-		"Failed | Without SASS",
-	]
+	legend_order = []
+	for evidence_configuration in EVIDENCE_CONFIGURATION_ORDER:
+		legend_order.append(f"Completed | {evidence_configuration}")
+		legend_order.append(f"Failed | {evidence_configuration}")
 	counts = (
 		plot_df.groupby(["model_name", "status_segment"]).size().unstack(fill_value=0).reindex(columns=segment_order, fill_value=0)
 	)
@@ -578,7 +723,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path)
 	for model_index, total in enumerate(lefts):
 		ax.text(total + 0.5, model_index, f"{int(total)}", ha="left", va="center", fontsize=10, fontweight="bold")
 
-	ax.set_title("Database Sample Counts by Model and SASS Configuration")
+	ax.set_title("Database Sample Counts by Model and Evidence Configuration")
 	ax.set_xlabel("Sample Count")
 	ax.set_ylabel("Model Name")
 	handles, labels = ax.get_legend_handles_labels()
@@ -612,9 +757,9 @@ def _save_histogram_by_sass(
 	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
 	fig_height = _bounded_plot_height(model_count, min_height=6.0, per_item=0.45, padding=1.25, max_height=9.0)
 	fig, ax = plt.subplots(figsize=(10.5, fig_height))
-	hue_order = ["Without SASS", "With SASS"]
+	hue_order = EVIDENCE_CONFIGURATION_ORDER
 
-	if completed_df.empty or value_column not in completed_df.columns or "use_sass" not in completed_df.columns or "model_name" not in completed_df.columns:
+	if completed_df.empty or value_column not in completed_df.columns or "evidence_configuration" not in completed_df.columns or "model_name" not in completed_df.columns:
 		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 		ax.set_xlabel(x_label)
 		ax.set_ylabel("Model Name")
@@ -628,7 +773,6 @@ def _save_histogram_by_sass(
 	plot_df[value_column] = pd.to_numeric(plot_df[value_column], errors="coerce")
 	plot_df = plot_df[plot_df[value_column].notna()]
 	plot_df = plot_df[np.isfinite(plot_df[value_column].to_numpy())]
-	plot_df["use_sass_label"] = np.where(plot_df["use_sass"], "With SASS", "Without SASS")
 	model_order = _sorted_model_names(plot_df)
 
 	if plot_df.empty:
@@ -638,7 +782,7 @@ def _save_histogram_by_sass(
 			data=plot_df,
 			x=value_column,
 			y="model_name",
-			hue="use_sass_label",
+				hue="evidence_configuration",
 			order=model_order,
 			hue_order=hue_order,
 			orient="h",
@@ -652,7 +796,7 @@ def _save_histogram_by_sass(
 	ax.set_ylabel("Model Name")
 	legend = ax.get_legend()
 	if legend is not None:
-		legend.set_title("SASS Configuration")
+		legend.set_title("Evidence Configuration")
 	if annotate_group_sums:
 		fig.tight_layout(rect=(0, 0, 0.9, 1))
 	else:
@@ -670,7 +814,7 @@ def _save_metric_hist_grid(
 ) -> None:
 	if metric_df.empty or "model_name" not in metric_df.columns:
 		sns.set_theme(style="whitegrid")
-		fig, axes = plt.subplots(1, 2, figsize=(16, 4), squeeze=False)
+		fig, axes = plt.subplots(3, len(EVIDENCE_CONFIGURATION_ORDER), figsize=(22, 10), squeeze=False)
 		for ax in axes.flatten():
 			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 			ax.set_axis_off()
@@ -682,64 +826,99 @@ def _save_metric_hist_grid(
 
 	model_names = _sorted_model_names(metric_df)
 	model_count = max(len(model_names), 1)
-	metric_order = [
-		"FP16 FLOPs",
-		"FP32 FLOPs",
-		"FP64 FLOPs",
-		"Read Bytes",
-		"Write Bytes",
+	metric_order = list(METRIC_LABELS.values())
+	runtime_rows = [
+		("cuda", "CUDA"),
+		("omp", "OpenMP"),
+		("combined", "CUDA + OpenMP"),
 	]
 
 	sns.set_theme(style="whitegrid")
-	fig_height = _bounded_plot_height(model_count, min_height=5.5, per_item=0.45, padding=1.0, max_height=9.5)
-	fig, axes = plt.subplots(1, 2, figsize=(12.5, fig_height), squeeze=False, sharey=True)
+	row_height = _bounded_plot_height(model_count, min_height=3.5, per_item=0.4, padding=0.75, max_height=5.5)
+	fig_height = min(16.5, max(10.5, row_height * len(runtime_rows)))
+	fig_width = max(18.0, 5.0 * len(EVIDENCE_CONFIGURATION_ORDER))
+	fig, axes = plt.subplots(3, len(EVIDENCE_CONFIGURATION_ORDER), figsize=(fig_width, fig_height), squeeze=False, sharey="row")
+	legend_handles: List[Any] = []
+	legend_labels: List[str] = []
 
 	if not model_names:
 		for ax in axes.flatten():
 			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 			ax.set_axis_off()
 	else:
-		for col_index, use_sass in enumerate([False, True]):
-			ax = axes[0][col_index]
-			subset = metric_df[metric_df["use_sass"] == use_sass].copy()
-			numeric_values = pd.to_numeric(subset["value"], errors="coerce")
-			subset = subset[numeric_values.notna()]
-			numeric_values = numeric_values.loc[subset.index]
-			subset = subset[np.isfinite(numeric_values.to_numpy())]
-			subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
-			if subset.empty:
-				ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
-			else:
-				sns.boxplot(
-					data=subset,
-					x="value",
-					y="model_name",
-					hue="metric",
-					order=model_names,
-					hue_order=metric_order,
-					orient="h",
-					ax=ax,
-				)
-			sass_label = "Without SASS" if not use_sass else "With SASS"
-			ax.set_title(sass_label)
-			ax.set_xscale("symlog", linthresh=1.0)
-			if x_left_limit is not None:
-				current_right_limit = ax.get_xlim()[1]
-				ax.set_xlim(left=x_left_limit, right=current_right_limit)
-			ax.set_xlabel(x_label)
-			ax.set_ylabel("Model Name" if col_index == 0 else "")
-			ax.tick_params(axis="x", labelsize=8)
-			legend = ax.get_legend()
-			if legend is not None:
-				legend.set_title("Metric")
-				if col_index == 0:
-					legend.remove()
+		for row_index, (runtime_key, runtime_label) in enumerate(runtime_rows):
+			for col_index, evidence_configuration in enumerate(EVIDENCE_CONFIGURATION_ORDER):
+				ax = axes[row_index][col_index]
+				subset = metric_df[metric_df["evidence_configuration"] == evidence_configuration].copy()
+				if runtime_key != "combined":
+					subset = subset[subset["runtime"] == runtime_key]
+				numeric_values = pd.to_numeric(subset["value"], errors="coerce")
+				subset = subset[numeric_values.notna()]
+				numeric_values = numeric_values.loc[subset.index]
+				subset = subset[np.isfinite(numeric_values.to_numpy())]
+				subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
+				if subset.empty:
+					ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 				else:
-					legend.set_bbox_to_anchor((1.02, 1.0))
-					legend.set_loc("upper left")
+					sns.boxplot(
+						data=subset,
+						x="value",
+						y="model_name",
+						hue="metric",
+						order=model_names,
+						hue_order=metric_order,
+						orient="h",
+						ax=ax,
+					)
+					launch_subset = subset[subset["metric"].isin(["Block Size", "Grid Size"])]
+					if not launch_subset.empty:
+						sns.stripplot(
+							data=launch_subset,
+							x="value",
+							y="model_name",
+							hue="metric",
+							order=model_names,
+							hue_order=metric_order,
+							orient="h",
+							dodge=True,
+							jitter=False,
+							size=2.4,
+							alpha=0.55,
+							linewidth=0,
+							ax=ax,
+						)
+				if row_index == 0:
+					ax.set_title(evidence_configuration)
+				ax.set_xscale("symlog", linthresh=1.0)
+				if x_left_limit is not None:
+					current_right_limit = ax.get_xlim()[1]
+					ax.set_xlim(left=x_left_limit, right=current_right_limit)
+				ax.set_xlabel(x_label)
+				ax.set_ylabel(f"{runtime_label}\nModel Name" if col_index == 0 else "")
+				ax.tick_params(axis="x", labelsize=8)
+				legend = ax.get_legend()
+				if legend is not None:
+					handles, labels = ax.get_legend_handles_labels()
+					if not legend_handles:
+						handle_by_label = {}
+						for handle, label in zip(handles, labels):
+							if label in metric_order and label not in handle_by_label:
+								handle_by_label[label] = handle
+						legend_labels = [label for label in metric_order if label in handle_by_label]
+						legend_handles = [handle_by_label[label] for label in legend_labels]
+					legend.remove()
+
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			legend_labels,
+			title="Metric",
+			loc="upper left",
+			bbox_to_anchor=(0.87, 0.97),
+		)
 
 	fig.suptitle(title)
-	fig.tight_layout(rect=(0, 0, 0.86, 1))
+	fig.tight_layout(rect=(0, 0, 0.86, 0.98))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -834,7 +1013,7 @@ def _table1_summary(completed_df: pd.DataFrame, failed_df: pd.DataFrame) -> pd.D
 		return pd.DataFrame(
 			columns=[
 				"model_name",
-				"sass_configuration",
+				"evidence_configuration",
 				"mean_percent_diff",
 				"median_percent_diff",
 				"completed_samples",
@@ -842,11 +1021,11 @@ def _table1_summary(completed_df: pd.DataFrame, failed_df: pd.DataFrame) -> pd.D
 			]
 		)
 
-	if completed_df.empty or "model_name" not in completed_df.columns or "use_sass" not in completed_df.columns:
-		completed_summary = pd.DataFrame(columns=["model_name", "use_sass", "mean_percent_diff", "median_percent_diff", "completed_samples"])
+	if completed_df.empty or "model_name" not in completed_df.columns or "evidence_configuration" not in completed_df.columns:
+		completed_summary = pd.DataFrame(columns=["model_name", "evidence_configuration", "mean_percent_diff", "median_percent_diff", "completed_samples"])
 	else:
 		completed_summary = (
-			completed_df.groupby(["model_name", "use_sass"], dropna=False)
+			completed_df.groupby(["model_name", "evidence_configuration"], dropna=False)
 			.agg(
 				mean_percent_diff=("sample_mean_pct_diff", "mean"),
 				median_percent_diff=("sample_mean_pct_diff", "median"),
@@ -855,23 +1034,21 @@ def _table1_summary(completed_df: pd.DataFrame, failed_df: pd.DataFrame) -> pd.D
 			.reset_index()
 		)
 
-	if failed_df.empty or "model_name" not in failed_df.columns or "use_sass" not in failed_df.columns:
-		failed_summary = pd.DataFrame(columns=["model_name", "use_sass", "failed_samples"])
+	if failed_df.empty or "model_name" not in failed_df.columns or "evidence_configuration" not in failed_df.columns:
+		failed_summary = pd.DataFrame(columns=["model_name", "evidence_configuration", "failed_samples"])
 	else:
 		failed_summary = (
-			failed_df.groupby(["model_name", "use_sass"], dropna=False)
+			failed_df.groupby(["model_name", "evidence_configuration"], dropna=False)
 			.agg(failed_samples=("thread_id", "count"))
 			.reset_index()
 		)
 
-	summary = completed_summary.merge(failed_summary, on=["model_name", "use_sass"], how="outer")
+	summary = completed_summary.merge(failed_summary, on=["model_name", "evidence_configuration"], how="outer")
 	summary["completed_samples"] = summary["completed_samples"].fillna(0).astype(int)
 	summary["failed_samples"] = summary["failed_samples"].fillna(0).astype(int)
-	summary["use_sass"] = summary["use_sass"].map({True: "With SASS", False: "Without SASS"}).fillna("Unknown")
-	summary = summary.rename(columns={"use_sass": "sass_configuration"})
 	summary["mean_percent_diff"] = summary["mean_percent_diff"].round(4)
 	summary["median_percent_diff"] = summary["median_percent_diff"].round(4)
-	return summary.sort_values(["model_name", "sass_configuration"]).reset_index(drop=True)
+	return summary.sort_values(["model_name", "evidence_configuration"]).reset_index(drop=True)
 
 
 def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
@@ -879,7 +1056,7 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 		return pd.DataFrame(
 			columns=[
 				"model_name",
-				"sass_configuration",
+				"evidence_configuration",
 				"rank_group",
 				"rank",
 				"program_name",
@@ -891,7 +1068,7 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 		)
 
 	rows: List[Dict[str, Any]] = []
-	for (model_name, use_sass), group in completed_df.groupby(["model_name", "use_sass"], dropna=False):
+	for (model_name, evidence_configuration), group in completed_df.groupby(["model_name", "evidence_configuration"], dropna=False):
 		sortable = group.dropna(subset=["sample_mean_pct_diff"]).sort_values("sample_mean_pct_diff", ascending=True)
 		best = sortable.head(5)
 		worst = sortable.tail(5).sort_values("sample_mean_pct_diff", ascending=False)
@@ -900,7 +1077,7 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 			rows.append(
 				{
 					"model_name": model_name,
-					"sass_configuration": "With SASS" if use_sass else "Without SASS",
+					"evidence_configuration": evidence_configuration,
 					"rank_group": "best",
 					"rank": rank,
 					"program_name": sample["program_name"],
@@ -915,7 +1092,7 @@ def _table2_best_worst(completed_df: pd.DataFrame) -> pd.DataFrame:
 			rows.append(
 				{
 					"model_name": model_name,
-					"sass_configuration": "With SASS" if use_sass else "Without SASS",
+					"evidence_configuration": evidence_configuration,
 					"rank_group": "worst",
 					"rank": rank,
 					"program_name": sample["program_name"],
@@ -935,22 +1112,22 @@ def _save_table2_group_figures(table2_df: pd.DataFrame, output_dir: Path) -> Non
 
 	grouped_dir = output_dir / "table2_by_model"
 	grouped_dir.mkdir(parents=True, exist_ok=True)
-	for (model_name, sass_configuration), group in table2_df.groupby(["model_name", "sass_configuration"]):
-		safe_name = _safe_filename(f"{model_name}_{sass_configuration}")
+	for (model_name, evidence_configuration), group in table2_df.groupby(["model_name", "evidence_configuration"]):
+		safe_name = _safe_filename(f"{model_name}_{evidence_configuration}")
 		_save_table_figure(
 			group.reset_index(drop=True),
-			f"Best and Worst Predictions: {model_name} | {sass_configuration}",
+			f"Best and Worst Predictions: {model_name} | {evidence_configuration}",
 			grouped_dir / f"{safe_name}.png",
 		)
 
 
 def _write_suggestions(output_path: Path) -> None:
 	suggestions = [
-		"Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and SASS setting.",
+		"Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and evidence configuration.",
 		"ECDF plots for query_time and cost_usd to compare tail latency and tail cost behavior across models.",
 		"Heatmap of median percent error by program_name and model_name to find benchmarks that are consistently easy or hard.",
 		"Boxplots of sample_mean_pct_diff grouped by GPU target to show whether some architectures are systematically harder to predict.",
-		"Stacked bar chart of failure rate by model_name and use_sass to separate accuracy improvements from reliability regressions.",
+		"Stacked bar chart of failure rate by model_name and evidence_configuration to separate accuracy improvements from reliability regressions.",
 		"Pairplot or correlation heatmap for token counts, query_time, cost_usd, and sample_mean_pct_diff to expose tradeoffs.",
 	]
 	output_path.write_text("\n".join(f"- {item}" for item in suggestions) + "\n", encoding="utf-8")
@@ -969,7 +1146,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 			if "total_tokens" in channel_values:
 				parser.hydrate_checkpoint_channels(
 					checkpoint,
-					["metrics_diff", "metrics_pct_diff", "metrics_explanations"],
+					["prediction", "metrics_diff", "metrics_pct_diff", "metrics_explanations"],
 				)
 		attempts = attempt_tracker.fetch_all_attempts()
 	finally:
@@ -1006,9 +1183,13 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 
 	if not completed_df.empty:
 		completed_df["use_sass"] = completed_df["use_sass"].astype(bool)
+		completed_df["use_imix"] = completed_df["use_imix"].astype(bool)
 	if not failed_df.empty:
 		failed_df["use_sass"] = failed_df["use_sass"].astype(bool)
+		failed_df["use_imix"] = failed_df["use_imix"].astype(bool)
 	samples_df["use_sass"] = samples_df["use_sass"].fillna(False).astype(bool)
+	samples_df["use_imix"] = samples_df["use_imix"].fillna(False).astype(bool)
+	samples_df["evidence_configuration"] = samples_df["evidence_configuration"].fillna("No SASS / No IMIX")
 	plot_models = _models_with_completed_runs(samples_df)
 	plot_samples_df = _filter_plot_models(samples_df, plot_models)
 	plot_completed_df = _filter_plot_models(completed_df, plot_models)
@@ -1020,7 +1201,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	_save_histogram_by_sass(
 		plot_completed_df,
 		"query_time",
-		"Query Time Distribution by Model and SASS Configuration",
+		"Query Time Distribution by Model and Evidence Configuration",
 		"Query Time (seconds)",
 		plot2_path,
 	)
@@ -1029,7 +1210,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	_save_histogram_by_sass(
 		plot_completed_df,
 		"cost_usd",
-		"Query Cost Distribution by Model and SASS Configuration",
+		"Query Cost Distribution by Model and Evidence Configuration",
 		"Cost (USD)",
 		plot3_path,
 		annotate_group_sums=True,
@@ -1041,7 +1222,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	plot4a_path = output_dir / "plot4a_metrics_diff_distribution.png"
 	_save_metric_hist_grid(
 		metric_diff_df,
-		"Metric Difference Distribution by Model and SASS Configuration",
+		"Metric Difference Distribution by Model and Evidence Configuration",
 		"Predicted - Expected",
 		plot4a_path,
 	)
@@ -1049,7 +1230,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	plot4b_path = output_dir / "plot4b_metrics_pct_diff_distribution.png"
 	_save_metric_hist_grid(
 		metric_pct_diff_df,
-		"Metric Percent Difference Distribution by Model and SASS Configuration",
+		"Metric Percent Difference Distribution by Model and Evidence Configuration",
 		"Percent Difference",
 		plot4b_path,
 		x_left_limit=-200.0,
@@ -1061,10 +1242,10 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	_write_booktabs_latex_table(
 		table1_df,
 		table1_tex,
-		"Mean and Median Percent Difference by Model and SASS",
+		"Mean and Median Percent Difference by Model and Evidence Configuration",
 		"tab:model_percent_diff_summary",
 	)
-	_save_table_figure(table1_df, "Table 1: Mean and Median Percent Difference by Model and SASS", table1_png)
+	_save_table_figure(table1_df, "Table 1: Mean and Median Percent Difference by Model and Evidence Configuration", table1_png)
 
 	table2_df = _table2_best_worst(completed_df)
 	table2_csv = output_dir / "table2_best_and_worst_predictions.csv"

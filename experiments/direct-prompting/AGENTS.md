@@ -37,10 +37,12 @@ Each query is keyed by a deterministic `thread_id` built from:
 - mangled kernel name
 - GPU target
 - model name
-- SASS mode: `withsass` or `nosass`
+- evidence configuration: `nosass_noimix`, `sass_noimix`, `nosass_imix`, or `sass_imix`
 - trial number
 
 Dry runs append a `_DRYRUN` suffix so they do not collide with normal experiment runs.
+
+Legacy runs may still use the older two-state suffixes `withsass` and `nosass`. The visualizer treats those as backward-compatible aliases for `sass_imix` and `nosass_noimix`, respectively.
 
 Normal runs inspect the database before execution and skip:
 
@@ -77,6 +79,18 @@ By default it uses `openai/gpt-5.1-codex-mini`. You can adjust it via `--modelNa
 ```bash
 # Run on standard paths tracking repeating 3 inference trails explicitly via --trials
 python3 experiments/direct-prompting/run_queries.py --modelName openai/gpt-4o-mini --trials 3 --verbose
+
+# Source-only prompt
+python3 experiments/direct-prompting/run_queries.py
+
+# Include SASS only
+python3 experiments/direct-prompting/run_queries.py --useSASS
+
+# Include IMIX only
+python3 experiments/direct-prompting/run_queries.py --useIMIX
+
+# Include both SASS and IMIX
+python3 experiments/direct-prompting/run_queries.py --useSASS --useIMIX
 ```
 
 ## run_queries.py Arguments
@@ -88,7 +102,8 @@ python3 experiments/direct-prompting/run_queries.py --modelName openai/gpt-4o-mi
 - `--maxFailedAttempts`: If a query reaches this many failed attempts, future runs skip it automatically until the database is reset or edited.
 - `--singleDryRun`: Restricts execution to a deterministic `adam-cuda` on `H100` sample. This mode always re-runs the selected query even if an older completed checkpoint exists.
 - `--verbose`: Prints the full prompt, then prints the final metric summary, token usage, model metadata, query time, and estimated cost after each run.
-- `--useSASS`: Includes SASS and IMIX data in the prompt. This also changes the `thread_id` namespace so SASS and non-SASS runs are stored separately.
+- `--useSASS`: Includes optional SASS data in the prompt. This changes the `thread_id` namespace so SASS-only, IMIX-only, both, and neither stay separate.
+- `--useIMIX`: Includes optional static IMIX data in the prompt. This is independent of `--useSASS`.
 - `--importDBDumpFile`: Restores the database from a PostgreSQL custom-format dump before query execution begins.
 - `--deleteDBFreshStart`: Drops the working database before execution and starts from a clean database state.
 - `--dumpDBOnFinish`: Writes a PostgreSQL custom-format dump to `gpuflops_db.dump` after a successful run.
@@ -134,10 +149,10 @@ This is why later analysis can be performed directly from PostgreSQL without rer
 
 - completed samples recovered from the latest completed checkpoint per `thread_id`
 - failed samples recovered from `query_attempts`, with partial metadata filled from the latest available checkpoint when present
-- model name, SASS mode, GPU target, trial number, timing, token, and cost metadata
+- model name, evidence configuration, GPU target, trial number, timing, token, and cost metadata
 - metric deltas and recomputed percent differences
 
-The script derives model, SASS mode, GPU, and trial by parsing the `thread_id` naming convention.
+The script derives model, evidence configuration, GPU, and trial by parsing the `thread_id` naming convention.
 
 ### Usage
 
@@ -157,13 +172,13 @@ python3 experiments/direct-prompting/visualize_results.py --outputDir experiment
 
 The script currently writes these artifacts:
 
-- `plot1_sample_counts_by_model.png`: Stacked bar chart of sample counts by model and SASS configuration, including both completed and failed samples.
-- `plot2_query_time_distribution.png`: Query-time histograms split into without-SASS and with-SASS panels, with model overlays.
-- `plot3_cost_distribution.png`: Cost histograms split into without-SASS and with-SASS panels, with model overlays.
-- `plot4a_metrics_diff_distribution.png`: Histogram grid of raw prediction-minus-expected metric differences, grouped by model and SASS.
-- `plot4b_metrics_pct_diff_distribution.png`: Histogram grid of absolute percent differences, grouped by model and SASS.
-- `table1_model_percent_diff_summary.csv` and `.png`: Mean and median percent-difference summary by model and SASS, plus completed and failed sample counts.
-- `table2_best_and_worst_predictions.csv`: Top and bottom samples per model and SASS based on mean percent difference.
+- `plot1_sample_counts_by_model.png`: Stacked bar chart of sample counts by model and evidence configuration, including both completed and failed samples.
+- `plot2_query_time_distribution.png`: Query-time boxplots grouped by evidence configuration, with model overlays.
+- `plot3_cost_distribution.png`: Cost boxplots grouped by evidence configuration, with model overlays.
+- `plot4a_metrics_diff_distribution.png`: Distribution grid of raw prediction-minus-expected metric differences, grouped by model and evidence configuration.
+- `plot4b_metrics_pct_diff_distribution.png`: Distribution grid of percent differences, grouped by model and evidence configuration.
+- `table1_model_percent_diff_summary.tex` and `.png`: Mean and median percent-difference summary by model and evidence configuration, plus completed and failed sample counts.
+- `table2_best_and_worst_predictions.csv`: Top and bottom samples per model and evidence configuration based on mean percent difference.
 - `table2_by_model/*.png`: Per-model rendered tables for the best and worst predictions.
 - `other_visualizations.md`: Additional suggested analyses not yet automated.
 

@@ -343,8 +343,14 @@ def _sanitize_thread_part(value: str) -> str:
     return value.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
 
 
-def _sass_thread_part(use_sass: bool) -> str:
-    return "withsass" if use_sass else "nosass"
+def _evidence_thread_part(use_sass: bool, use_imix: bool) -> str:
+    if use_sass and use_imix:
+        return "sass_imix"
+    if use_sass:
+        return "sass_noimix"
+    if use_imix:
+        return "nosass_imix"
+    return "nosass_noimix"
 
 
 def _format_ratio(count: int, total: int) -> str:
@@ -405,7 +411,7 @@ def _execute_query_worker(
     db_uri: str,
     model_name: str,
     query: dict,
-    verbose: bool,
+    print_prompts: bool,
     max_timeout: int,
 ) -> dict:
     thread_id = query["thread_id"]
@@ -430,7 +436,7 @@ def _execute_query_worker(
             "configurable": {
                 "thread_id": thread_id,
                 "llm": configurable_llm,
-                "verbose": verbose,
+                "print_prompts": print_prompts,
             }
         }
 
@@ -468,7 +474,7 @@ def _execute_query_worker(
         attempt_tracker.close()
         parser.close()
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, use_sass: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, print_prompts: bool = False, use_sass: bool = False, use_imix: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -499,12 +505,14 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 imix_data = kernel_data["imix"][arch]
                 gpu_compile_commands = compile_commands[gpu_name] if isinstance(compile_commands, dict) else compile_commands
                 
-                # Make sass/imix as dict with dummy key or just string parsing
                 if use_sass:
                     sass_dict = {mangled_kernel: sass_data}
-                    imix_dict = imix_data
                 else:
                     sass_dict = None
+
+                if use_imix:
+                    imix_dict = imix_data
+                else:
                     imix_dict = None
                 
                 # We identify a task uniquely by program + kernel + gpu
@@ -513,8 +521,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                 safe_kernel = _sanitize_thread_part(mangled_kernel)
                 safe_gpu = _sanitize_thread_part(gpu_name)
                 safe_model = _sanitize_thread_part(model_name)
-                safe_sass_config = _sass_thread_part(use_sass)
-                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}_{safe_sass_config}"
+                safe_evidence_config = _evidence_thread_part(use_sass, use_imix)
+                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}_{safe_evidence_config}"
                 query_counts_by_gpu[gpu_name] = query_counts_by_gpu.get(gpu_name, 0) + 1
                 
                 state_inputs = {
@@ -636,7 +644,9 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"Max Failed Attempts:        {max_failed_attempts}")
         print(f"Single Dry Run Enabled:     {single_dry_run}")
         print(f"Verbose Output Enabled:     {verbose}")
+        print(f"Print Prompts Enabled:      {print_prompts}")
         print(f"Use SASS Enabled:           {use_sass}")
+        print(f"Use IMIX Enabled:           {use_imix}")
         print(f"----------------------------------------------------------------")
         print(f"Database checkpoint entries: {db_stats['total_checkpoint_entries']}")
         print(f"Database completed threads:  {db_stats['completed_threads']}")
@@ -677,9 +687,9 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         session_spend_usd = 0.0
 
         failed_queries: list[tuple[str, str]] = []
-        worker_verbose = verbose and query_batch_size == 1
+        worker_print_prompts = print_prompts
 
-        with tqdm(total=len(queries_to_run), desc="Running Queries") as progress_bar:
+        with tqdm(total=total_queries, initial=completed_count, desc="Running Queries") as progress_bar:
             for batch_number, query_batch in enumerate(_iter_query_batches(queries_to_run, query_batch_size), start=1):
                 if max_spend is not None and session_spend_usd >= max_spend:
                     print(
@@ -698,7 +708,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                             db_uri,
                             model_name,
                             query,
-                            worker_verbose,
+                            worker_print_prompts,
                             max_timeout,
                         ): query["thread_id"]
                         for query in query_batch
@@ -748,7 +758,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         attempt_tracker.close()
         parser.close()
 
-if __name__ == "__main__":
+
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run FLOP prediction LLM queries")
     parser.add_argument("--modelName", type=str, default="openai/gpt-5.1-codex-mini", help="OpenRouter model identifier")
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
@@ -763,7 +774,13 @@ if __name__ == "__main__":
     parser.add_argument("--exportDBOnly", action="store_true", help="Skip query execution and only export the current gpuflops_db state to experiments/direct-prompting/gpuflops_db.dump after any requested wipe/restore steps")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
-    parser.add_argument("--useSASS", action="store_true", help="Include optional SASS and IMIX in the query input")
+    parser.add_argument("--printPrompts", action="store_true", help="Print the full system and human prompts for each query")
+    parser.add_argument("--useSASS", action="store_true", help="Include optional SASS data in the query input")
+    parser.add_argument("--useIMIX", action="store_true", help="Include optional static IMIX data in the query input")
+    return parser
+
+if __name__ == "__main__":
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     ensure_postgres_running()
@@ -793,7 +810,7 @@ if __name__ == "__main__":
 
     run_succeeded = False
     try:
-        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.useSASS, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend, args.queryBatchSize)
+        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.printPrompts, args.useSASS, args.useIMIX, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend, args.queryBatchSize)
         run_succeeded = True
     finally:
         if args.dumpDBOnFinish and run_succeeded:

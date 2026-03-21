@@ -162,20 +162,23 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
         imix_dict=state.get("imix_dict")
     )
     
+    system_prompt = generator.generate_system_prompt()
+
     # Generate human prompt
     human_prompt = generator.generate_prompt()
     
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=human_prompt)
     ]
 
-    if config["configurable"].get("verbose", False):
+    if config["configurable"].get("print_prompts", False):
+        thread_id = config["configurable"].get("thread_id", "<unknown-thread>")
         print("\n" + "=" * 70)
-        print(" QUERY PROMPT ")
+        print(f" QUERY PROMPT [{thread_id}] ")
         print("=" * 70)
         print("--- System Prompt ---")
-        print(SYSTEM_PROMPT)
+        print(system_prompt)
         print("\n--- Human Prompt ---")
         print(human_prompt)
         print("=" * 70 + "\n")
