@@ -6,8 +6,13 @@
 \toprule
 model\_name & evidence\_configuration & mean\_percent\_diff & median\_percent\_diff & completed\_samples & failed\_samples \\
 \midrule
-openai/gpt-5.4 & No SASS / No IMIX & 317.6231 & 32.3904 & 128 & 0 \\
-openai/gpt-5.4 & SASS Only & 308.2765 & 29.8504 & 125 & 0 \\
+anthropic/claude-4.6-opus & No SASS / No IMIX & 729.1172 & 27.4055 & 100 & 0 \\
+anthropic/claude-4.6-opus & SASS Only & 321.9387 & 21.5025 & 73 & 0 \\
+anthropic/claude-opus-4.6 & SASS Only &  &  & 0 & 1 \\
+openai/gpt-5.4 & IMIX Only & 149223.1579 & 28.6677 & 1068 & 0 \\
+openai/gpt-5.4 & No SASS / No IMIX & 217535.803 & 28.5714 & 1095 & 1 \\
+openai/gpt-5.4 & SASS + IMIX & 27501.0273 & 28.542 & 1052 & 0 \\
+openai/gpt-5.4 & SASS Only & 55490.144 & 28.5571 & 1017 & 0 \\
 \bottomrule
 \end{tabular}
 \end{table}

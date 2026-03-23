@@ -284,64 +284,33 @@ def _require_mapping_keys(mapping: Dict[str, Any], required_keys: List[str], con
 		)
 
 
-def _tail_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-	checkpoints_by_thread: Dict[str, List[Dict[str, Any]]] = {}
-	for checkpoint in checkpoints:
-		checkpoints_by_thread.setdefault(checkpoint["thread_id"], []).append(checkpoint)
-
-	tails: Dict[str, Dict[str, Any]] = {}
-	for thread_id, thread_checkpoints in checkpoints_by_thread.items():
-		checkpoints_by_id = {
-			checkpoint["checkpoint_id"]: checkpoint for checkpoint in thread_checkpoints
-		}
-		children_by_parent: Dict[Any, List[Dict[str, Any]]] = {}
-		for checkpoint in thread_checkpoints:
-			parent_checkpoint_id = checkpoint["parent_checkpoint_id"]
-			children_by_parent.setdefault(parent_checkpoint_id, []).append(checkpoint)
-
-		roots = children_by_parent[None] if None in children_by_parent else []
-		if len(roots) != 1:
-			raise ValueError(
-				f"Thread {thread_id} expected exactly one root checkpoint, found {len(roots)}"
-			)
-
-		current = roots[0]
-		visited_checkpoint_ids = set()
-		while True:
-			checkpoint_id = current["checkpoint_id"]
-			if checkpoint_id in visited_checkpoint_ids:
-				raise ValueError(f"Cycle detected in checkpoint chain for thread {thread_id}")
-			visited_checkpoint_ids.add(checkpoint_id)
-
-			if checkpoint_id not in checkpoints_by_id:
-				raise KeyError(f"Checkpoint {checkpoint_id} missing from thread index for {thread_id}")
-
-			children = children_by_parent[checkpoint_id] if checkpoint_id in children_by_parent else []
-			if not children:
-				tails[thread_id] = current
-				break
-			if len(children) != 1:
-				raise ValueError(
-					f"Thread {thread_id} expected a linear checkpoint chain, found {len(children)} children for checkpoint {checkpoint_id}"
-				)
-			current = children[0]
-
-		if len(visited_checkpoint_ids) != len(thread_checkpoints):
-			unvisited = len(thread_checkpoints) - len(visited_checkpoint_ids)
-			raise ValueError(
-				f"Thread {thread_id} has {unvisited} checkpoint entries disconnected from the root chain"
-			)
-
-	return tails
-
-
-def _completed_checkpoint_by_thread(checkpoints: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+def _completed_checkpoint_by_thread(checkpoints: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
 	completed: Dict[str, Dict[str, Any]] = {}
-	for thread_id, checkpoint in _tail_checkpoint_by_thread(checkpoints).items():
+	for thread_id, checkpoint in checkpoints.items():
 		state = checkpoint["checkpoint"]["channel_values"]
 		if "total_tokens" in state:
 			completed[thread_id] = checkpoint
 	return completed
+
+
+def _print_invalid_thread_warnings(invalid_threads: List[Dict[str, Any]]) -> None:
+	if not invalid_threads:
+		return
+
+	reason_counts: Dict[str, int] = {}
+	for item in invalid_threads:
+		reason_counts[item["kind"]] = reason_counts.get(item["kind"], 0) + 1
+
+	print("\nWarning: skipped malformed checkpoint histories during visualization:", file=sys.stderr)
+	for reason, count in sorted(reason_counts.items()):
+		print(f"- {reason}: {count}", file=sys.stderr)
+
+	for item in invalid_threads[:5]:
+		print(f"- {item['thread_id']}: {item['message']}", file=sys.stderr)
+
+	remaining = len(invalid_threads) - min(len(invalid_threads), 5)
+	if remaining > 0:
+		print(f"- ... {remaining} more malformed thread(s) skipped", file=sys.stderr)
 
 
 def _sample_mean_pct_diff(metrics_pct_diff: Dict[str, Any]) -> float:
@@ -515,9 +484,8 @@ def _failed_dataframe(records: List[Dict[str, Any]]) -> pd.DataFrame:
 	return pd.DataFrame(records, columns=FAILED_RECORD_COLUMNS)
 
 
-def _database_dataframe(checkpoints: List[Dict[str, Any]], attempts: Dict[str, Dict[str, Any]], include_dry_run: bool) -> pd.DataFrame:
-	latest_checkpoints = _tail_checkpoint_by_thread(checkpoints)
-	completed_checkpoints = _completed_checkpoint_by_thread(checkpoints)
+def _database_dataframe(latest_checkpoints: Dict[str, Dict[str, Any]], attempts: Dict[str, Dict[str, Any]], include_dry_run: bool) -> pd.DataFrame:
+	completed_checkpoints = _completed_checkpoint_by_thread(latest_checkpoints)
 
 	completed_records = _extract_completed_records(completed_checkpoints, include_dry_run)
 	failed_records = _extract_failed_records(attempts, latest_checkpoints, set(completed_checkpoints), include_dry_run)
@@ -805,6 +773,36 @@ def _save_histogram_by_sass(
 	plt.close(fig)
 
 
+def _apply_shared_metric_x_limits(
+	axes: np.ndarray,
+	*,
+	x_left_limit: Optional[float] = None,
+) -> None:
+	x_limits: List[tuple[float, float]] = []
+	for ax in axes.flatten():
+		if not ax.has_data():
+			continue
+		left, right = ax.get_xlim()
+		if not np.isfinite(left) or not np.isfinite(right):
+			continue
+		x_limits.append((float(left), float(right)))
+
+	if not x_limits:
+		return
+
+	shared_left = min(left for left, _ in x_limits)
+	shared_right = max(right for _, right in x_limits)
+	if x_left_limit is not None:
+		shared_left = float(x_left_limit)
+	if shared_left == shared_right:
+		shared_right = shared_left + 1.0
+
+	for ax in axes.flatten():
+		if not ax.has_data():
+			continue
+		ax.set_xlim(shared_left, shared_right)
+
+
 def _save_metric_hist_grid(
 	metric_df: pd.DataFrame,
 	title: str,
@@ -890,9 +888,6 @@ def _save_metric_hist_grid(
 				if row_index == 0:
 					ax.set_title(evidence_configuration)
 				ax.set_xscale("symlog", linthresh=1.0)
-				if x_left_limit is not None:
-					current_right_limit = ax.get_xlim()[1]
-					ax.set_xlim(left=x_left_limit, right=current_right_limit)
 				ax.set_xlabel(x_label)
 				ax.set_ylabel(f"{runtime_label}\nModel Name" if col_index == 0 else "")
 				ax.tick_params(axis="x", labelsize=8)
@@ -907,6 +902,8 @@ def _save_metric_hist_grid(
 						legend_labels = [label for label in metric_order if label in handle_by_label]
 						legend_handles = [handle_by_label[label] for label in legend_labels]
 					legend.remove()
+
+	_apply_shared_metric_x_limits(axes, x_left_limit=x_left_limit)
 
 	if legend_handles:
 		fig.legend(
@@ -1140,7 +1137,9 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	attempt_tracker = QueryAttemptTracker(db_uri)
 	try:
 		checkpoints = parser.fetch_all_checkpoints()
-		tail_checkpoints = _tail_checkpoint_by_thread(checkpoints)
+		tail_checkpoint_result = parser.fetch_tail_checkpoints_by_thread(checkpoints=checkpoints, tolerate_errors=True)
+		tail_checkpoints = tail_checkpoint_result["tails"]
+		invalid_threads = tail_checkpoint_result["invalid_threads"]
 		for checkpoint in tail_checkpoints.values():
 			channel_values = checkpoint["checkpoint"]["channel_values"]
 			if "total_tokens" in channel_values:
@@ -1152,6 +1151,8 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	finally:
 		parser.close()
 		attempt_tracker.close()
+
+	_print_invalid_thread_warnings(invalid_threads)
 
 	stored_thread_ids = _stored_thread_ids(checkpoints, attempts)
 	if not stored_thread_ids:
@@ -1167,7 +1168,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 				"Re-run with --includeDryRun or populate the database with non-dry experiment runs."
 			)
 
-	samples_df = _database_dataframe(checkpoints, attempts, include_dry_run)
+	samples_df = _database_dataframe(tail_checkpoints, attempts, include_dry_run)
 
 	if samples_df.empty:
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")

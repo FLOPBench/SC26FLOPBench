@@ -19,6 +19,69 @@ def _load_module(module_name: str, relative_path: str):
 prompts = _load_module("direct_prompting_prompts", "experiments/direct-prompting/prompts.py")
 run_queries = _load_module("direct_prompting_run_queries", "experiments/direct-prompting/run_queries.py")
 visualize_results = _load_module("direct_prompting_visualize_results", "experiments/direct-prompting/visualize_results.py")
+db_manager = _load_module("direct_prompting_db_manager", "experiments/direct-prompting/db_manager.py")
+
+
+def _parser_without_db():
+    parser = db_manager.CheckpointDBParser.__new__(db_manager.CheckpointDBParser)
+    parser.db_uri = "postgresql://unused"
+    parser.conn = None
+    parser.serde = None
+    return parser
+
+
+def _checkpoint(thread_id, checkpoint_id, parent_checkpoint_id, channel_values):
+    return {
+        "thread_id": thread_id,
+        "checkpoint_ns": "",
+        "checkpoint_id": checkpoint_id,
+        "parent_checkpoint_id": parent_checkpoint_id,
+        "checkpoint": {
+            "channel_values": channel_values,
+            "channel_versions": {},
+        },
+    }
+
+
+def _completed_channel_values(**overrides):
+    channel_values = {
+        "program_name": "demo-cuda",
+        "kernel_mangled_name": "_Z4demov",
+        "kernel_demangled_name": "demo()",
+        "llm_model_name": "openai/gpt-5.4",
+        "query_time": 1.25,
+        "cost_usd": 0.015,
+        "input_tokens": 100,
+        "output_tokens": 50,
+        "total_tokens": 150,
+        "expected_fp16": 0,
+        "expected_fp32": 128,
+        "expected_fp64": 0,
+        "expected_read_bytes": 64,
+        "expected_write_bytes": 32,
+        "expected_block_size": [8, 4, 1],
+        "expected_grid_size": [2, 2, 1],
+        "prediction": {
+            "blockSz": [8, 4, 1],
+            "gridSz": [2, 2, 1],
+        },
+        "metrics_diff": {
+            "fp16": 0,
+            "fp32": 16,
+            "fp64": 0,
+            "read_bytes": 8,
+            "write_bytes": -4,
+        },
+        "metrics_pct_diff": {
+            "fp16": 0,
+            "fp32": 12.5,
+            "fp64": 0,
+            "read_bytes": 12.5,
+            "write_bytes": 12.5,
+        },
+    }
+    channel_values.update(overrides)
+    return channel_values
 
 
 @pytest.mark.parametrize(
@@ -192,3 +255,68 @@ def test_run_queries_parser_accepts_print_prompts_flag_independently():
 
     assert args.printPrompts is True
     assert args.verbose is False
+
+
+def test_fetch_tail_checkpoint_for_thread_remains_strict_for_disconnected_history():
+    parser = _parser_without_db()
+    thread_id = "demo_kernel_H100_openai_gpt-5.4_sass_imix_trial0"
+    checkpoints = [
+        _checkpoint(thread_id, "root", None, {"program_name": "demo-cuda"}),
+        _checkpoint(thread_id, "tail", "root", _completed_channel_values()),
+        _checkpoint(thread_id, "orphan", None, {"program_name": "demo-cuda"}),
+    ]
+
+    with pytest.raises(ValueError, match="expected exactly one root checkpoint"):
+        parser._tail_checkpoint_from_records(checkpoints, thread_id)
+
+
+def test_fetch_tail_checkpoints_by_thread_skips_invalid_threads_in_tolerant_mode():
+    parser = _parser_without_db()
+    valid_thread_id = "valid_kernel_H100_openai_gpt-5.4_sass_imix_trial0"
+    invalid_thread_id = "invalid_kernel_H100_openai_gpt-5.4_sass_imix_trial0"
+    checkpoints = [
+        _checkpoint(valid_thread_id, "root-valid", None, {"program_name": "demo-cuda"}),
+        _checkpoint(valid_thread_id, "tail-valid", "root-valid", _completed_channel_values()),
+        _checkpoint(invalid_thread_id, "root-invalid", None, {"program_name": "demo-cuda"}),
+        _checkpoint(invalid_thread_id, "tail-invalid", "root-invalid", {"program_name": "demo-cuda"}),
+        _checkpoint(invalid_thread_id, "orphan-invalid", None, {"program_name": "demo-cuda"}),
+    ]
+
+    result = parser.fetch_tail_checkpoints_by_thread(checkpoints=checkpoints, tolerate_errors=True)
+
+    assert set(result["tails"]) == {valid_thread_id}
+    assert len(result["invalid_threads"]) == 1
+    assert result["invalid_threads"][0]["thread_id"] == invalid_thread_id
+    assert result["invalid_threads"][0]["kind"] == "invalid_root_count"
+
+
+def test_database_dataframe_uses_valid_tails_and_ignores_skipped_invalid_threads():
+    parser = _parser_without_db()
+    valid_thread_id = "valid_kernel_H100_openai_gpt-5.4_sass_imix_trial0"
+    invalid_thread_id = "invalid_kernel_H100_openai_gpt-5.4_sass_imix_trial0"
+    checkpoints = [
+        _checkpoint(valid_thread_id, "root-valid", None, {"program_name": "demo-cuda"}),
+        _checkpoint(valid_thread_id, "tail-valid", "root-valid", _completed_channel_values()),
+        _checkpoint(invalid_thread_id, "root-invalid", None, {"program_name": "demo-cuda"}),
+        _checkpoint(invalid_thread_id, "tail-invalid", "root-invalid", {"program_name": "demo-cuda"}),
+        _checkpoint(invalid_thread_id, "orphan-invalid", None, {"program_name": "demo-cuda"}),
+    ]
+
+    tail_result = parser.fetch_tail_checkpoints_by_thread(checkpoints=checkpoints, tolerate_errors=True)
+    attempts = {
+        valid_thread_id: {
+            "failed_attempts": 0,
+            "last_status": "completed",
+            "last_error": None,
+        },
+        invalid_thread_id: {
+            "failed_attempts": 2,
+            "last_status": "failed",
+            "last_error": "disconnected lineage",
+        },
+    }
+
+    samples_df = visualize_results._database_dataframe(tail_result["tails"], attempts, include_dry_run=False)
+
+    assert samples_df["thread_id"].tolist() == [valid_thread_id]
+    assert samples_df.iloc[0]["status"] == "completed"

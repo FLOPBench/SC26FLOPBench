@@ -3,9 +3,10 @@ import subprocess
 import time
 import re
 import os
+from collections import defaultdict
 from psycopg.errors import DuplicateDatabase, UndefinedTable
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 
@@ -250,9 +251,37 @@ class CheckpointDBParser:
 
         return checkpoints
 
-    def _tail_checkpoint_from_records(self, checkpoints: List[Dict[str, Any]], thread_id: str) -> Dict[str, Any] | None:
+    def _group_checkpoints_by_thread(self, checkpoints: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        grouped_checkpoints: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for checkpoint in checkpoints:
+            grouped_checkpoints[checkpoint["thread_id"]].append(checkpoint)
+        return dict(grouped_checkpoints)
+
+    def _checkpoint_lineage_error(
+        self,
+        thread_id: str,
+        kind: str,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "thread_id": thread_id,
+            "kind": kind,
+            "message": message,
+            "details": details or {},
+        }
+
+    def _tail_checkpoint_result_from_records(
+        self,
+        checkpoints: List[Dict[str, Any]],
+        thread_id: str,
+    ) -> Dict[str, Any]:
         if not checkpoints:
-            return None
+            return {
+                "thread_id": thread_id,
+                "tail": None,
+                "error": None,
+            }
 
         checkpoints_by_id = {
             checkpoint["checkpoint_id"]: checkpoint for checkpoint in checkpoints
@@ -264,37 +293,136 @@ class CheckpointDBParser:
 
         roots = children_by_parent.get(None, [])
         if len(roots) != 1:
-            raise ValueError(
-                f"Thread {thread_id} expected exactly one root checkpoint, found {len(roots)}"
-            )
+            return {
+                "thread_id": thread_id,
+                "tail": None,
+                "error": self._checkpoint_lineage_error(
+                    thread_id,
+                    "invalid_root_count",
+                    f"Thread {thread_id} expected exactly one root checkpoint, found {len(roots)}",
+                    {
+                        "root_count": len(roots),
+                        "root_checkpoint_ids": [checkpoint["checkpoint_id"] for checkpoint in roots],
+                        "checkpoint_count": len(checkpoints),
+                    },
+                ),
+            }
 
         current = roots[0]
         visited_checkpoint_ids = set()
         while True:
             checkpoint_id = current["checkpoint_id"]
             if checkpoint_id in visited_checkpoint_ids:
-                raise ValueError(f"Cycle detected in checkpoint chain for thread {thread_id}")
+                return {
+                    "thread_id": thread_id,
+                    "tail": None,
+                    "error": self._checkpoint_lineage_error(
+                        thread_id,
+                        "cycle_detected",
+                        f"Cycle detected in checkpoint chain for thread {thread_id}",
+                        {
+                            "checkpoint_id": checkpoint_id,
+                            "visited_checkpoint_ids": sorted(visited_checkpoint_ids),
+                        },
+                    ),
+                }
             visited_checkpoint_ids.add(checkpoint_id)
 
             if checkpoint_id not in checkpoints_by_id:
-                raise KeyError(f"Checkpoint {checkpoint_id} missing from thread index for {thread_id}")
+                return {
+                    "thread_id": thread_id,
+                    "tail": None,
+                    "error": self._checkpoint_lineage_error(
+                        thread_id,
+                        "missing_checkpoint_index",
+                        f"Checkpoint {checkpoint_id} missing from thread index for {thread_id}",
+                        {"checkpoint_id": checkpoint_id},
+                    ),
+                }
 
             children = children_by_parent.get(checkpoint_id, [])
             if not children:
                 break
             if len(children) != 1:
-                raise ValueError(
-                    f"Thread {thread_id} expected a linear checkpoint chain, found {len(children)} children for checkpoint {checkpoint_id}"
-                )
+                return {
+                    "thread_id": thread_id,
+                    "tail": None,
+                    "error": self._checkpoint_lineage_error(
+                        thread_id,
+                        "branching_history",
+                        f"Thread {thread_id} expected a linear checkpoint chain, found {len(children)} children for checkpoint {checkpoint_id}",
+                        {
+                            "checkpoint_id": checkpoint_id,
+                            "child_checkpoint_ids": [child["checkpoint_id"] for child in children],
+                        },
+                    ),
+                }
             current = children[0]
 
-        if len(visited_checkpoint_ids) != len(checkpoints):
-            unvisited = len(checkpoints) - len(visited_checkpoint_ids)
-            raise ValueError(
-                f"Thread {thread_id} has {unvisited} checkpoint entries disconnected from the root chain"
-            )
+        unvisited_checkpoint_ids = sorted(set(checkpoints_by_id) - visited_checkpoint_ids)
+        if unvisited_checkpoint_ids:
+            return {
+                "thread_id": thread_id,
+                "tail": None,
+                "error": self._checkpoint_lineage_error(
+                    thread_id,
+                    "disconnected_history",
+                    f"Thread {thread_id} has {len(unvisited_checkpoint_ids)} checkpoint entries disconnected from the root chain",
+                    {
+                        "unvisited_checkpoint_ids": unvisited_checkpoint_ids,
+                        "visited_checkpoint_count": len(visited_checkpoint_ids),
+                        "checkpoint_count": len(checkpoints),
+                    },
+                ),
+            }
 
-        return current
+        return {
+            "thread_id": thread_id,
+            "tail": current,
+            "error": None,
+        }
+
+    def _tail_checkpoint_from_records(self, checkpoints: List[Dict[str, Any]], thread_id: str) -> Dict[str, Any] | None:
+        result = self._tail_checkpoint_result_from_records(checkpoints, thread_id)
+        if result["error"] is None:
+            return result["tail"]
+
+        error = result["error"]
+        if error["kind"] == "missing_checkpoint_index":
+            raise KeyError(error["message"])
+        raise ValueError(error["message"])
+
+    def fetch_tail_checkpoints_by_thread(
+        self,
+        checkpoints: Optional[List[Dict[str, Any]]] = None,
+        tolerate_errors: bool = False,
+    ) -> Dict[str, Any]:
+        if checkpoints is None:
+            checkpoints = self.fetch_all_checkpoints()
+
+        tails: Dict[str, Dict[str, Any]] = {}
+        invalid_threads: List[Dict[str, Any]] = []
+
+        for thread_id, thread_checkpoints in self._group_checkpoints_by_thread(checkpoints).items():
+            result = self._tail_checkpoint_result_from_records(thread_checkpoints, thread_id)
+            if result["error"] is not None:
+                if tolerate_errors:
+                    invalid_threads.append(result["error"])
+                    continue
+
+                error = result["error"]
+                if error["kind"] == "missing_checkpoint_index":
+                    raise KeyError(error["message"])
+                raise ValueError(error["message"])
+
+            tail = result["tail"]
+            if tail is not None:
+                tails[thread_id] = tail
+
+        return {
+            "tails": tails,
+            "invalid_threads": invalid_threads,
+        }
 
     def fetch_all_checkpoints(self) -> List[Dict[str, Any]]:
         query = (
