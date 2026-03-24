@@ -1173,11 +1173,11 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 	if samples_df.empty:
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")
 
-	print("\nParsed database dataframe head:")
-	print(samples_df.head(10).to_string(index=False))
-	print("\nParsed database dataframe columns:")
-	for column_name in samples_df.columns:
-		print(column_name)
+	# print("\nParsed database dataframe head:")
+	# print(samples_df.head(10).to_string(index=False))
+	# print("\nParsed database dataframe columns:")
+	# for column_name in samples_df.columns:
+	# 	print(column_name)
 
 	completed_df = samples_df[samples_df["status"] == "completed"].copy()
 	failed_df = samples_df[samples_df["status"] == "failed"].copy()
