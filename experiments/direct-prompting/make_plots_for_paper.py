@@ -363,20 +363,24 @@ def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass:
 			predicted_bound = sample[predicted_column]
 			if expected_bound in counts_df.index and predicted_bound in counts_df.columns:
 				counts_df.loc[expected_bound, predicted_bound] += 1.0
-		total = float(counts_df.to_numpy().sum())
-		if total > 0.0:
-			counts_df = counts_df / total * 100.0
+		for expected_bound in BOUND_CLASS_ORDER:
+			row_total = float(counts_df.loc[expected_bound].sum())
+			if row_total > 0.0:
+				counts_df.loc[expected_bound] = counts_df.loc[expected_bound] / row_total * 100.0
 		per_precision_matrices[precision] = counts_df
 
 	mean_matrix = pd.DataFrame(0.0, index=BOUND_CLASS_ORDER, columns=BOUND_CLASS_ORDER)
-	valid_precision_count = 0
+	valid_counts = pd.DataFrame(0.0, index=BOUND_CLASS_ORDER, columns=BOUND_CLASS_ORDER)
 	for precision in AI_PRECISIONS:
 		precision_matrix = per_precision_matrices[precision]
-		if float(precision_matrix.to_numpy().sum()) > 0.0:
-			mean_matrix = mean_matrix + precision_matrix
-			valid_precision_count += 1
-	if valid_precision_count > 0:
-		mean_matrix = mean_matrix / valid_precision_count
+		for expected_bound in BOUND_CLASS_ORDER:
+			row_total = float(precision_matrix.loc[expected_bound].sum())
+			if row_total > 0.0:
+				mean_matrix.loc[expected_bound] = mean_matrix.loc[expected_bound] + precision_matrix.loc[expected_bound]
+				valid_counts.loc[expected_bound] = valid_counts.loc[expected_bound] + 1.0
+	with np.errstate(invalid="ignore", divide="ignore"):
+		mean_matrix = mean_matrix.divide(valid_counts.where(valid_counts > 0.0))
+	mean_matrix = mean_matrix.fillna(0.0)
 
 	annotation = np.empty((len(BOUND_CLASS_ORDER), len(BOUND_CLASS_ORDER)), dtype=object)
 	for row_index, expected_bound in enumerate(BOUND_CLASS_ORDER):
@@ -499,7 +503,7 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 				axis.set_ylabel("Expected Bound Class")
 
 	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
-		cbar_ax.set_ylabel("Mean row-normalized share across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
+		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
 
 	fig.suptitle("AI Bound Classification by Expected vs Predicted Class")
 	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.35, wspace=0.28)
