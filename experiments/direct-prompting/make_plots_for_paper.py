@@ -329,12 +329,13 @@ def _prepare_ai_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 				{
 					"model_name": row["model_name"],
 					"gpu": row["gpu"],
+					"runtime": row["runtime"],
 					"use_sass": bool(row["use_sass"]),
 					"precision": AI_LABELS[precision],
 					"ai_diff": float(ai_diff),
 				}
 			)
-	return pd.DataFrame(rows, columns=["model_name", "gpu", "use_sass", "precision", "ai_diff"])
+	return pd.DataFrame(rows, columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_diff"])
 
 
 def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass: bool) -> tuple[pd.DataFrame, np.ndarray]:
@@ -466,6 +467,16 @@ def _save_figure3_ai_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -
 	)
 
 
+def _save_figure4_ai_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
+	_save_ai_difference_boxplots(
+		plot_df,
+		output_path,
+		group_field="runtime",
+		group_label="Runtime",
+		title="Arithmetic Intensity Difference by Runtime",
+	)
+
+
 def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> None:
 	model_order = sorted(plot_df["model_name"].dropna().unique().tolist())
 	row_count = max(len(model_order), 1)
@@ -528,15 +539,18 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> N
 	figure1_path = output_dir / "figure1_ai_difference_boxplots.png"
 	figure2_path = output_dir / "figure2_ai_bound_confusion_heatmaps.png"
 	figure3_path = output_dir / "figure3_ai_difference_boxplots_by_gpu.png"
+	figure4_path = output_dir / "figure4_ai_difference_boxplots_by_runtime.png"
 
 	_save_figure1_ai_boxplots(plot_df, figure1_path)
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
+	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
 
 	print("Paper plot artifacts written to:")
 	print(f"- {figure1_path}")
 	print(f"- {figure2_path}")
 	print(f"- {figure3_path}")
+	print(f"- {figure4_path}")
 
 
 def main() -> None:
