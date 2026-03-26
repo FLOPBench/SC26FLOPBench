@@ -67,3 +67,5 @@ htmlcov/
 
 # ignore PostgreSQL dump files
 *.dump
+
+/**/research-paper/*

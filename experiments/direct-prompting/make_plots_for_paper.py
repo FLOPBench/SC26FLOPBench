@@ -46,8 +46,8 @@ AI_LABELS = {
 BOUND_LABELS = ["TP", "FP", "FN", "TN"]
 SASS_PANEL_ORDER = [False, True]
 SASS_PANEL_LABELS = {
-	False: "No SASS / No IMIX",
-	True: "SASS Only / No IMIX",
+	False: "Source-Only",
+	True: "Source+SASS",
 }
 POSITIVE_CLASS = "compute-bound"
 NEGATIVE_CLASS = "bandwidth-bound"
@@ -338,6 +338,218 @@ def _prepare_ai_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	return pd.DataFrame(rows, columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_diff"])
 
 
+def _ordered_columns(df: pd.DataFrame, preferred_columns: List[str]) -> List[str]:
+	ordered = [column for column in preferred_columns if column in df.columns]
+	remaining = [column for column in df.columns if column not in ordered]
+	return ordered + remaining
+
+
+def _summarize_ai_error(ai_long_df: pd.DataFrame, group_fields: List[str]) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	if ai_long_df.empty:
+		return pd.DataFrame(
+			columns=_ordered_columns(
+				pd.DataFrame(columns=[]),
+				group_fields
+				+ [
+					"use_sass",
+					"sass_setting",
+					"precision",
+					"n",
+					"median_ai_diff",
+					"q1_ai_diff",
+					"q3_ai_diff",
+					"p10_ai_diff",
+					"p90_ai_diff",
+					"mean_ai_diff",
+					"median_abs_ai_diff",
+					"mean_abs_ai_diff",
+				],
+			),
+		)
+
+	summary_fields = group_fields + ["use_sass", "precision"]
+	for group_key, group_df in ai_long_df.groupby(summary_fields, dropna=False):
+		key_tuple = group_key if isinstance(group_key, tuple) else (group_key,)
+		row: Dict[str, Any] = {}
+		for field_name, field_value in zip(summary_fields, key_tuple):
+			row[field_name] = field_value
+
+		ai_diff = pd.to_numeric(group_df["ai_diff"], errors="coerce").dropna()
+		if ai_diff.empty:
+			continue
+		abs_ai_diff = ai_diff.abs()
+		row["sass_setting"] = SASS_PANEL_LABELS[bool(row["use_sass"])]
+		row["n"] = int(ai_diff.shape[0])
+		row["median_ai_diff"] = float(ai_diff.median())
+		row["q1_ai_diff"] = float(ai_diff.quantile(0.25))
+		row["q3_ai_diff"] = float(ai_diff.quantile(0.75))
+		row["p10_ai_diff"] = float(ai_diff.quantile(0.10))
+		row["p90_ai_diff"] = float(ai_diff.quantile(0.90))
+		row["mean_ai_diff"] = float(ai_diff.mean())
+		row["median_abs_ai_diff"] = float(abs_ai_diff.median())
+		row["mean_abs_ai_diff"] = float(abs_ai_diff.mean())
+		rows.append(row)
+
+	result = pd.DataFrame(rows)
+	if result.empty:
+		return result
+	result = result.sort_values(summary_fields).reset_index(drop=True)
+	preferred_columns = _ordered_columns(
+		result,
+		group_fields
+		+ [
+			"use_sass",
+			"sass_setting",
+			"precision",
+			"n",
+			"median_ai_diff",
+			"q1_ai_diff",
+			"q3_ai_diff",
+			"p10_ai_diff",
+			"p90_ai_diff",
+			"mean_ai_diff",
+			"median_abs_ai_diff",
+			"mean_abs_ai_diff",
+		],
+	)
+	return result[preferred_columns]
+
+
+def _summarize_bound_metrics(plot_df: pd.DataFrame, group_fields: List[str]) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	if plot_df.empty:
+		return pd.DataFrame()
+
+	summary_fields = group_fields + ["use_sass"]
+	for group_key, group_df in plot_df.groupby(summary_fields, dropna=False):
+		key_tuple = group_key if isinstance(group_key, tuple) else (group_key,)
+		base_row: Dict[str, Any] = {}
+		for field_name, field_value in zip(summary_fields, key_tuple):
+			base_row[field_name] = field_value
+		base_row["sass_setting"] = SASS_PANEL_LABELS[bool(base_row["use_sass"])]
+
+		for precision in AI_PRECISIONS:
+			expected_ai_column = f"expected_ai_{precision}"
+			expected_column = f"expected_bound_{precision}"
+			predicted_column = f"predicted_bound_{precision}"
+			precision_df = group_df[
+				[expected_ai_column, expected_column, predicted_column]
+			].copy()
+			precision_df = precision_df[
+				precision_df[expected_ai_column].apply(_is_nonzero_expected_ai)
+			].dropna(subset=[expected_column, predicted_column])
+			if precision_df.empty:
+				continue
+
+			expected_series = precision_df[expected_column]
+			predicted_series = precision_df[predicted_column]
+			total_count = int(precision_df.shape[0])
+			compute_count = int((expected_series == POSITIVE_CLASS).sum())
+			bandwidth_count = int((expected_series == NEGATIVE_CLASS).sum())
+			tp = int(((expected_series == POSITIVE_CLASS) & (predicted_series == POSITIVE_CLASS)).sum())
+			tn = int(((expected_series == NEGATIVE_CLASS) & (predicted_series == NEGATIVE_CLASS)).sum())
+			fp = int(((expected_series == NEGATIVE_CLASS) & (predicted_series == POSITIVE_CLASS)).sum())
+			fn = int(((expected_series == POSITIVE_CLASS) & (predicted_series == NEGATIVE_CLASS)).sum())
+			recall_compute = float(tp / compute_count) if compute_count > 0 else float("nan")
+			recall_bandwidth = float(tn / bandwidth_count) if bandwidth_count > 0 else float("nan")
+			accuracy = float((tp + tn) / total_count) if total_count > 0 else float("nan")
+			balanced_accuracy = float((recall_compute + recall_bandwidth) / 2.0)
+
+			row = dict(base_row)
+			row["precision"] = AI_LABELS[precision]
+			row["n"] = total_count
+			row["compute_bound_n"] = compute_count
+			row["bandwidth_bound_n"] = bandwidth_count
+			row["tp"] = tp
+			row["tn"] = tn
+			row["fp"] = fp
+			row["fn"] = fn
+			row["accuracy"] = accuracy
+			row["balanced_accuracy"] = balanced_accuracy
+			row["recall_compute"] = recall_compute
+			row["recall_bandwidth"] = recall_bandwidth
+			rows.append(row)
+
+	result = pd.DataFrame(rows)
+	if result.empty:
+		return result
+	result = result.sort_values(summary_fields + ["precision"]).reset_index(drop=True)
+	preferred_columns = _ordered_columns(
+		result,
+		group_fields
+		+ [
+			"use_sass",
+			"sass_setting",
+			"precision",
+			"n",
+			"compute_bound_n",
+			"bandwidth_bound_n",
+			"accuracy",
+			"balanced_accuracy",
+			"recall_compute",
+			"recall_bandwidth",
+			"tp",
+			"tn",
+			"fp",
+			"fn",
+		],
+	)
+	return result[preferred_columns]
+
+
+def _write_summary_csv(df: pd.DataFrame, output_path: Path) -> None:
+	if df.empty:
+		pd.DataFrame().to_csv(output_path, index=False)
+		return
+	df.to_csv(output_path, index=False)
+
+
+def _print_summary_table(title: str, df: pd.DataFrame) -> None:
+	print(f"\n{title}")
+	if df.empty:
+		print("  No rows")
+		return
+	print(df.to_string(index=False))
+
+
+def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None:
+	ai_long_df = _prepare_ai_long_df(plot_df)
+	ai_by_model = _summarize_ai_error(ai_long_df, ["model_name"])
+	ai_by_gpu = _summarize_ai_error(ai_long_df, ["gpu"])
+	ai_by_runtime = _summarize_ai_error(ai_long_df, ["runtime"])
+	bound_by_model = _summarize_bound_metrics(plot_df, ["model_name"])
+	bound_by_gpu = _summarize_bound_metrics(plot_df, ["gpu"])
+	bound_by_runtime = _summarize_bound_metrics(plot_df, ["runtime"])
+
+	summary_paths = {
+		"AI error summary by model": output_dir / "table_rq1_ai_error_by_model.csv",
+		"AI error summary by GPU": output_dir / "table_rq1_ai_error_by_gpu.csv",
+		"AI error summary by runtime": output_dir / "table_rq1_ai_error_by_runtime.csv",
+		"Bound-class summary by model": output_dir / "table_rq1_bound_metrics_by_model.csv",
+		"Bound-class summary by GPU": output_dir / "table_rq1_bound_metrics_by_gpu.csv",
+		"Bound-class summary by runtime": output_dir / "table_rq1_bound_metrics_by_runtime.csv",
+	}
+
+	_write_summary_csv(ai_by_model, summary_paths["AI error summary by model"])
+	_write_summary_csv(ai_by_gpu, summary_paths["AI error summary by GPU"])
+	_write_summary_csv(ai_by_runtime, summary_paths["AI error summary by runtime"])
+	_write_summary_csv(bound_by_model, summary_paths["Bound-class summary by model"])
+	_write_summary_csv(bound_by_gpu, summary_paths["Bound-class summary by GPU"])
+	_write_summary_csv(bound_by_runtime, summary_paths["Bound-class summary by runtime"])
+
+	_print_summary_table("AI error summary by model / SASS / precision:", ai_by_model)
+	_print_summary_table("AI error summary by GPU / SASS / precision:", ai_by_gpu)
+	_print_summary_table("AI error summary by runtime / SASS / precision:", ai_by_runtime)
+	_print_summary_table("Bound-class summary by model / SASS / precision:", bound_by_model)
+	_print_summary_table("Bound-class summary by GPU / SASS / precision:", bound_by_gpu)
+	_print_summary_table("Bound-class summary by runtime / SASS / precision:", bound_by_runtime)
+
+	print("\nPaper summary tables written to:")
+	for summary_name, summary_path in summary_paths.items():
+		print(f"- {summary_name}: {summary_path}")
+
+
 def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass: bool) -> tuple[pd.DataFrame, np.ndarray]:
 	model_subset = plot_df[(plot_df["model_name"] == model_name) & (plot_df["use_sass"] == use_sass)]
 	row_labels = [BOUND_CLASS_DISPLAY[label] for label in BOUND_CLASS_ORDER]
@@ -545,6 +757,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> N
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
+	_write_paper_summary_tables(plot_df, output_dir)
 
 	print("Paper plot artifacts written to:")
 	print(f"- {figure1_path}")
