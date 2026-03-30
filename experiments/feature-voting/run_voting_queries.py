@@ -1,4 +1,3 @@
-import ast
 import json
 import math
 import os
@@ -29,7 +28,7 @@ build_openrouter_llm = llm_models.build_openrouter_llm
 OpenRouterLLMSettings = llm_models.OpenRouterLLMSettings
 
 # Import graph
-graph_path = os.path.join(WORKSPACE_ROOT, "experiments", "direct-prompting", "graph.py")
+graph_path = os.path.join(WORKSPACE_ROOT, "experiments", "feature-voting", "graph.py")
 graph_spec = importlib.util.spec_from_file_location("graph", graph_path)
 graph_mod = importlib.util.module_from_spec(graph_spec)
 if graph_spec and graph_spec.loader:
@@ -37,7 +36,7 @@ if graph_spec and graph_spec.loader:
 build_graph = graph_mod.build_graph
 
 # Import db manager for checking runs
-db_manager_path = os.path.join(WORKSPACE_ROOT, "experiments", "direct-prompting", "db_manager.py")
+db_manager_path = os.path.join(WORKSPACE_ROOT, "experiments", "feature-voting", "db_manager.py")
 db_manager_spec = importlib.util.spec_from_file_location("db_manager", db_manager_path)
 db_manager_mod = importlib.util.module_from_spec(db_manager_spec)
 if db_manager_spec and db_manager_spec.loader:
@@ -70,149 +69,49 @@ def _query_timeout(timeout_seconds: int):
         signal.signal(signal.SIGALRM, previous_handler)
 
 def print_run_result(state: dict):
-    # Support both raw dictionary states (from app.invoke) and DB checkpoint parsings
     if "checkpoint" in state:
         state = state.get("checkpoint", {}).get("channel_values", {})
 
-    def parse_dim_triplet(value):
-        if isinstance(value, (list, tuple)) and len(value) == 3:
-            try:
-                return [int(component) for component in value]
-            except (TypeError, ValueError):
-                return None
+    def format_feature_label(name: str) -> str:
+        if name.startswith("predicted_"):
+            name = name[len("predicted_"):]
+        return name.replace("_", " ").strip().title()
 
-        if isinstance(value, str):
-            try:
-                parsed = ast.literal_eval(value)
-            except (SyntaxError, ValueError):
-                return None
+    feature_fields = [
+        ("predicted_has_branching", "has_branching"),
+        ("predicted_has_data_dependent_branching", "has_data_dependent_branching"),
+        ("predicted_has_flop_division", "has_flop_division"),
+        ("predicted_has_preprocessor_defines", "has_preprocessor_defines"),
+        ("predicted_has_common_float_subexpr", "has_common_float_subexpr"),
+        ("predicted_has_special_math_functions", "has_special_math_functions"),
+        ("predicted_calls_device_function", "calls_device_function"),
+        ("predicted_has_rng_input_data", "has_rng_input_data"),
+        ("predicted_reads_input_values_from_file", "reads_input_values_from_file"),
+        ("predicted_has_hardcoded_gridsz", "has_hardcoded_gridsz"),
+        ("predicted_has_hardcoded_blocksz", "has_hardcoded_blocksz"),
+    ]
 
-            if isinstance(parsed, (list, tuple)) and len(parsed) == 3:
-                try:
-                    return [int(component) for component in parsed]
-                except (TypeError, ValueError):
-                    return None
-
-        return None
-
-    def dim_total(value):
-        triplet = parse_dim_triplet(value)
-        if triplet is None:
-            return None
-        return math.prod(triplet)
-
-    def percent_diff(expected_value, predicted_value):
-        if expected_value is None or predicted_value is None:
-            return "N/A"
-        if expected_value == 0:
-            return "0.00%" if predicted_value == 0 else "inf"
-        return f"{(abs(predicted_value - expected_value) / expected_value) * 100.0:.2f}%"
-    
     print("\n" + "="*70)
     print(" RUN COMPLETE ")
     print("="*70)
     print(f"Program: {state.get('program_name')}")
     print(f"Kernel Mangled: {state.get('kernel_mangled_name')}")
     print(f"Kernel Demangled: {state.get('kernel_demangled_name')}")
-    print(f"GPU Target: {state.get('gpu_roofline_specs', {}).get('gpu_target')}")
-    print(f"Architecture: {state.get('gpu_roofline_specs', {}).get('arch')}")
-    
+
     predicted = state.get("prediction", {})
     if not isinstance(predicted, dict):
         predicted = vars(predicted) if hasattr(predicted, '__dict__') else {}
-    diff = state.get("metrics_pct_diff", {})
-    metrics_explanations = state.get("metrics_explanations", {})
-    if not isinstance(metrics_explanations, dict):
-        metrics_explanations = {}
-    
-    def get_diff(name_hints):
-        for k, v in diff.items():
-            if any(hint.lower() in k.lower() for hint in name_hints):
-                return f"{v:.2f}%" if v is not None else "N/A"
-        return "N/A"
 
-    def get_explanation(state_key: str, prediction_key: str):
-        explanation = metrics_explanations.get(state_key)
-        if explanation:
-            return explanation
-        return predicted.get(prediction_key) or "N/A"
+    display_features = []
+    for predicted_key, fallback_key in feature_fields:
+        if predicted_key in state:
+            display_features.append((format_feature_label(predicted_key), state.get(predicted_key)))
+        elif fallback_key in predicted:
+            display_features.append((format_feature_label(fallback_key), predicted.get(fallback_key)))
 
-    expected_block_total = dim_total(state.get('expected_block_size'))
-    predicted_block_total = dim_total(predicted.get('blockSz'))
-    expected_grid_total = dim_total(state.get('expected_grid_size'))
-    predicted_grid_total = dim_total(predicted.get('gridSz'))
-        
-    metrics_data = [
-        (
-            "FP64",
-            state.get('expected_fp64'),
-            predicted.get('fp64_flop_count'),
-            get_diff(["fp64", "dp"]),
-            get_explanation("fp64_flop_explanation", "fp64_flop_explanation"),
-        ),
-        (
-            "FP32",
-            state.get('expected_fp32'),
-            predicted.get('fp32_flop_count'),
-            get_diff(["fp32", "sp"]),
-            get_explanation("fp32_flop_explanation", "fp32_flop_explanation"),
-        ),
-        (
-            "FP16",
-            state.get('expected_fp16'),
-            predicted.get('fp16_flop_count'),
-            get_diff(["fp16", "hp"]),
-            get_explanation("fp16_flop_explanation", "fp16_flop_explanation"),
-        ),
-        (
-            "Bytes Read",
-            state.get('expected_read_bytes'),
-            predicted.get('dram_bytes_read_count'),
-            get_diff(["read"]),
-            get_explanation("dram_bytes_read_explanation", "dram_bytes_read_explanation"),
-        ),
-        (
-            "Bytes Written",
-            state.get('expected_write_bytes'),
-            predicted.get('dram_bytes_written_count'),
-            get_diff(["write", "written"]),
-            get_explanation("dram_bytes_written_explanation", "dram_bytes_written_explanation"),
-        ),
-        (
-            "Block Threads",
-            expected_block_total,
-            predicted_block_total,
-            percent_diff(expected_block_total, predicted_block_total),
-            get_explanation("blockSz_explanation", "blockSz_explanation"),
-        ),
-        (
-            "Grid Threads",
-            expected_grid_total,
-            predicted_grid_total,
-            percent_diff(expected_grid_total, predicted_grid_total),
-            get_explanation("gridSz_explanation", "gridSz_explanation"),
-        )
-    ]
-    
-    print("\n--- Metric Results ---")
-    print(f"{'Metric':<15} | {'Expected':<15} | {'Predicted':<15} | {'% Diff':>10}")
-    print("-" * 65)
-    for name, exp, pred, pct, _ in metrics_data:
-        exp_str = str(exp) if exp is not None else "N/A"
-        pred_str = str(pred) if pred is not None else "N/A"
-        print(f"{name:<15} | {exp_str:<15} | {pred_str:<15} | {pct:>10}")
-
-    print("\n--- Metric Explanations ---")
-    for name, exp, pred, _, explanation in metrics_data:
-        exp_str = str(exp) if exp is not None else "N/A"
-        pred_str = str(pred) if pred is not None else "N/A"
-        print(f">>>>>> {name}: Expected={exp_str} | Predicted={pred_str}")
-        print(f"Explanation: {explanation}")
-        print()
-        
-    print(f"\n--- Dimension Results ---")
-    print(f"Block Size      | Expected: {str(state.get('expected_block_size')):<20} | Predicted: {str(predicted.get('blockSz'))}")
-    print(f"Grid Size       | Expected: {str(state.get('expected_grid_size')):<20} | Predicted: {str(predicted.get('gridSz'))}")
+    print("\n--- Code Feature Flags ---")
+    for label, value in display_features:
+        print(f"{label}: {value}")
 
     print("\n--- LLM Query Performance ---")
     print(f"Model: {state.get('llm_model_name')}")
@@ -227,106 +126,6 @@ def print_run_result(state: dict):
         print(f"Estimated Cost ($): {cost:.8f}")
 
     print("="*70 + "\n")
-
-def get_architecture(gpu: str) -> str:
-    mapping = {
-        "A100": "sm_80",
-        "3080": "sm_86",
-        "H100": "sm_90",
-        "A10": "sm_86"
-    }
-    return mapping.get(gpu, "sm_80")
-
-
-GPU_ROOFLINE_SPECS = {
-    "3080": {
-        "gpu_target": "RTX 3080 (PCIe)",
-        "dataset_gpu_key": "3080",
-        "architecture_family": "Ampere",
-        "architecture_chip": "GA102",
-        "arch": "sm_86",
-        "compute_capability": "8.6",
-        "sm_count": 68,
-        "memory_type": "GDDR6X",
-        "global_memory_size_gb": 10,
-        "memory_bandwidth_gb_per_s": 760,
-        "l2_cache_size_mb": 5,
-        "per_sm": {
-            "l1_cache_size_kb": 128,
-            "cuda_cores": 128,
-            "shared_memory_bytes": 102400,
-            "shared_memory_human": "up to 100 KB"
-        }
-    },
-    "A10": {
-        "gpu_target": "A10 (PCIe)",
-        "dataset_gpu_key": "A10",
-        "architecture_family": "Ampere",
-        "architecture_chip": "GA102",
-        "arch": "sm_86",
-        "compute_capability": "8.6",
-        "sm_count": 72,
-        "memory_type": "GDDR6",
-        "global_memory_size_gb": 24,
-        "memory_bandwidth_gb_per_s": 600,
-        "l2_cache_size_mb": 6,
-        "per_sm": {
-            "l1_cache_size_kb": 128,
-            "cuda_cores": 128,
-            "shared_memory_bytes": 102400,
-            "shared_memory_human": "up to 100 KB"
-        }
-    },
-    "A100": {
-        "gpu_target": "A100 (SXM4)",
-        "dataset_gpu_key": "A100",
-        "architecture_family": "Ampere",
-        "architecture_chip": "GA100",
-        "arch": "sm_80",
-        "compute_capability": "8.0",
-        "sm_count": 108,
-        "memory_type": "HBM2e",
-        "global_memory_size_gb": 40,
-        "memory_bandwidth_gb_per_s": 1555,
-        "l2_cache_size_mb": 40,
-        "per_sm": {
-            "l1_cache_size_kb": 192,
-            "cuda_cores": 64,
-            "shared_memory_bytes": 167936,
-            "shared_memory_human": "up to 164 KB"
-        }
-    },
-    "H100": {
-        "gpu_target": "H100 (SXM5)",
-        "dataset_gpu_key": "H100",
-        "architecture_family": "Hopper",
-        "architecture_chip": "GH100",
-        "arch": "sm_90",
-        "compute_capability": "9.0",
-        "sm_count": 132,
-        "memory_type": "HBM3",
-        "global_memory_size_gb": 80,
-        "memory_bandwidth_gb_per_s": 3360,
-        "l2_cache_size_mb": 50,
-        "per_sm": {
-            "l1_cache_size_kb": 256,
-            "cuda_cores": 128,
-            "shared_memory_bytes": 233472,
-            "shared_memory_human": "up to 228 KB"
-        }
-    }
-}
-
-
-def get_gpu_roofline_specs(gpu: str) -> dict[str, object]:
-    specs = GPU_ROOFLINE_SPECS.get(gpu)
-    if specs is None:
-        return {
-            "gpu_target": gpu,
-            "dataset_gpu_key": gpu,
-            "arch": get_architecture(gpu),
-        }
-    return dict(specs)
 
 def load_dataset(path: str):
     with open(path, "r") as f:
@@ -343,37 +142,34 @@ def _sanitize_thread_part(value: str) -> str:
     return value.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
 
 
-def _evidence_thread_part(use_sass: bool, use_imix: bool) -> str:
-    if use_sass and use_imix:
-        return "sass_imix"
-    if use_sass:
-        return "sass_noimix"
-    if use_imix:
-        return "nosass_imix"
-    return "nosass_noimix"
-
-
 def _format_ratio(count: int, total: int) -> str:
     if total <= 0:
         return "0/0 (0.00%)"
     return f"{count}/{total} ({(count / total) * 100.0:.2f}%)"
 
 
-def _format_query_calculation(query_counts_by_gpu: dict[str, int], trials: int) -> list[str]:
-    if not query_counts_by_gpu:
+def _parse_model_names(model_names_arg: str) -> list[str]:
+    model_names = [name.strip() for name in model_names_arg.split(",") if name.strip()]
+    if not model_names:
+        raise ValueError("--modelNames must contain at least one model identifier")
+    return model_names
+
+
+def _format_query_calculation(query_counts_by_program: dict[str, int], model_count: int, trials: int) -> list[str]:
+    if not query_counts_by_program:
         return ["No queries defined."]
 
     lines = []
     total_terms = []
-    for gpu_name, base_query_count in query_counts_by_gpu.items():
-        gpu_total = base_query_count * trials
-        total_terms.append(str(gpu_total))
+    for program_name, base_query_count in query_counts_by_program.items():
+        program_total = base_query_count * model_count * trials
+        total_terms.append(str(program_total))
         lines.append(
-            f"{gpu_name:<25} {base_query_count} kernel/GPU pairs x {trials} trial(s) = {gpu_total} samples"
+            f"{program_name:<25} {base_query_count} kernel(s) x {model_count} model(s) x {trials} trial(s) = {program_total} samples"
         )
 
     total_expression = " + ".join(total_terms)
-    lines.append(f"{'Total formula':<25} {total_expression} = {sum(query_counts_by_gpu.values()) * trials}")
+    lines.append(f"{'Total formula':<25} {total_expression} = {sum(query_counts_by_program.values()) * model_count * trials}")
     return lines
 
 
@@ -409,12 +205,12 @@ def _iter_query_batches(queries: list[dict], batch_size: int):
 
 def _execute_query_worker(
     db_uri: str,
-    model_name: str,
     query: dict,
     print_prompts: bool,
     max_timeout: int,
 ) -> dict:
     thread_id = query["thread_id"]
+    model_name = query["model_name"]
     parser = CheckpointDBParser(db_uri)
     attempt_tracker = QueryAttemptTracker(db_uri)
     pool = None
@@ -474,97 +270,56 @@ def _execute_query_worker(
         attempt_tracker.close()
         parser.close()
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, print_prompts: bool = False, use_sass: bool = False, use_imix: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
+def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: int, single_dry_run: bool = False, verbose: bool = False, print_prompts: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
-    
-    # We will generate a list of task queries
+
     queries = []
-    query_counts_by_gpu = {}
-    
+    query_counts_by_program = {}
+
     for program_name, prog_data in data.items():
         if single_dry_run and program_name != "adam-cuda":
             continue
-            
+
         kernels = prog_data["kernels"]
         sources = prog_data["sources"]
-        compile_commands = prog_data["compile_commands"]
         exe_args = _normalize_exe_args(prog_data["exeArgs"])
-        
+
         for mangled_kernel, kernel_data in kernels.items():
             demangled_name = kernel_data["demangledName"]
-            metrics = kernel_data["metrics"]
-            
-            for gpu_name, gpu_metrics in metrics.items():
-                if single_dry_run and gpu_name != "H100":
-                    continue
-                    
-                gpu_roofline_specs = get_gpu_roofline_specs(gpu_name)
-                arch = str(gpu_roofline_specs["arch"])
-                sass_data = kernel_data["sass_code"][arch]
-                imix_data = kernel_data["imix"][arch]
-                gpu_compile_commands = compile_commands[gpu_name] if isinstance(compile_commands, dict) else compile_commands
-                
-                if use_sass:
-                    sass_dict = {mangled_kernel: sass_data}
-                else:
-                    sass_dict = None
 
-                if use_imix:
-                    imix_dict = imix_data
-                else:
-                    imix_dict = None
-                
-                # We identify a task uniquely by program + kernel + gpu
-                # Ensure no invalid characters in thread_id
-                safe_prog = _sanitize_thread_part(program_name)
-                safe_kernel = _sanitize_thread_part(mangled_kernel)
-                safe_gpu = _sanitize_thread_part(gpu_name)
+            safe_prog = _sanitize_thread_part(program_name)
+            safe_kernel = _sanitize_thread_part(mangled_kernel)
+            query_counts_by_program[program_name] = query_counts_by_program.get(program_name, 0) + 1
+
+            state_inputs = {
+                "program_name": program_name,
+                "kernel_mangled_name": mangled_kernel,
+                "kernel_demangled_name": demangled_name,
+                "source_code_files": sources,
+                "exe_args": exe_args,
+            }
+
+            for model_name in model_names:
                 safe_model = _sanitize_thread_part(model_name)
-                safe_evidence_config = _evidence_thread_part(use_sass, use_imix)
-                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_gpu}_{safe_model}_{safe_evidence_config}"
-                query_counts_by_gpu[gpu_name] = query_counts_by_gpu.get(gpu_name, 0) + 1
-                
-                state_inputs = {
-                    "program_name": program_name,
-                    "kernel_mangled_name": mangled_kernel,
-                    "kernel_demangled_name": demangled_name,
-                    "source_code_files": sources,
-                    "gpu_roofline_specs": gpu_roofline_specs,
-                    "compile_commands": gpu_compile_commands,
-                    "exe_args": exe_args,
-                    "sass_dict": sass_dict,
-                    "imix_dict": imix_dict,
-                    "expected_fp16": gpu_metrics["HP_FLOP"],
-                    "expected_fp32": gpu_metrics["SP_FLOP"],
-                    "expected_fp64": gpu_metrics["DP_FLOP"],
-                    "expected_read_bytes": gpu_metrics["bytesRead"],
-                    "expected_write_bytes": gpu_metrics["bytesWritten"],
-                    "expected_grid_size": kernel_data["gridSz"],
-                    "expected_block_size": kernel_data["blockSz"],
-                }
-                
+                base_thread_id = f"{safe_prog}_{safe_kernel}_{safe_model}"
                 for trial in range(trials):
                     target_thread_id = f"{base_thread_id}_trial{trial}"
-                    # Append dry run identifier to thread_id so it doesn't pollute real runs
                     if single_dry_run:
                         target_thread_id += "_DRYRUN"
-                        
+
                     queries.append({
                         "thread_id": target_thread_id,
-                        "state": state_inputs
+                        "model_name": model_name,
+                        "state": state_inputs,
                     })
-                
-                if single_dry_run:
-                    break
-            
+
             if single_dry_run:
                 break
-                
+
         if single_dry_run:
             break
-                
-    # Determine already completed queries by checking the DB
+
     print("Checking database for completed queries...")
     parser = CheckpointDBParser(db_uri)
     attempt_tracker = QueryAttemptTracker(db_uri)
@@ -635,7 +390,8 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         selected_count = len(queries_to_run)
 
         print(f"\n--- Query Execution Summary ---")
-        print(f"Model Name:                 {model_name}")
+        print(f"Model Names:                {', '.join(model_names)}")
+        print(f"Model Count:                {len(model_names)}")
         print(f"Trial Count:                {trials}")
         print(f"Query Batch Size:           {query_batch_size}")
         print(f"Max Timeout:                {max_timeout} seconds")
@@ -645,8 +401,6 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"Single Dry Run Enabled:     {single_dry_run}")
         print(f"Verbose Output Enabled:     {verbose}")
         print(f"Print Prompts Enabled:      {print_prompts}")
-        print(f"Use SASS Enabled:           {use_sass}")
-        print(f"Use IMIX Enabled:           {use_imix}")
         print(f"----------------------------------------------------------------")
         print(f"Database checkpoint entries: {db_stats['total_checkpoint_entries']}")
         print(f"Database completed threads:  {db_stats['completed_threads']}")
@@ -654,7 +408,7 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
         print(f"DB runs with failures:       {total_failed_runs_db}")
         print(f"----------------------------------------------------------------")
         print("Query count calculation:")
-        for calculation_line in _format_query_calculation(query_counts_by_gpu, trials):
+        for calculation_line in _format_query_calculation(query_counts_by_program, len(model_names), trials):
             print(f"  {calculation_line}")
         print(f"Total defined queries:       {total_queries}")
         print(f"Completed progress:          {_format_ratio(completed_count, total_queries)}")
@@ -706,7 +460,6 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                         executor.submit(
                             _execute_query_worker,
                             db_uri,
-                            model_name,
                             query,
                             worker_print_prompts,
                             max_timeout,
@@ -760,31 +513,30 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run FLOP prediction LLM queries")
-    parser.add_argument("--modelName", type=str, default="openai/gpt-5.1-codex-mini", help="OpenRouter model identifier")
+    parser = argparse.ArgumentParser(description="Run code-feature voting LLM queries")
+    parser.add_argument("--modelNames", type=str, default="openai/gpt-5.1-codex-mini", help="Comma-separated OpenRouter model identifiers")
     parser.add_argument("--trials", type=int, default=1, help="Number of repeat trials to run for each query")
     parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
     parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
     parser.add_argument("--maxSpend", type=float, default=None, help="Maximum USD spend allowed for queries executed during this script run; already-completed database runs do not count toward this limit")
     parser.add_argument("--queryBatchSize", type=int, default=1, help="Number of queries to execute in parallel per batch")
     parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
-    parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated gpuflops_db before execution begins")
-    parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop gpuflops_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
-    parser.add_argument("--dumpDBOnFinish", action="store_true", help="After a successful run, dump the final gpuflops_db contents to experiments/direct-prompting/gpuflops_db.dump")
-    parser.add_argument("--exportDBOnly", action="store_true", help="Skip query execution and only export the current gpuflops_db state to experiments/direct-prompting/gpuflops_db.dump after any requested wipe/restore steps")
+    parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated code_features_db before execution begins")
+    parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop code_features_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
+    parser.add_argument("--dumpDBOnFinish", action="store_true", help="After a successful run, dump the final code_features_db contents to experiments/feature-voting/code_features_db.dump")
+    parser.add_argument("--exportDBOnly", action="store_true", help="Skip query execution and only export the current code_features_db state to experiments/feature-voting/code_features_db.dump after any requested wipe/restore steps")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--printPrompts", action="store_true", help="Print the full system and human prompts for each query")
-    parser.add_argument("--useSASS", action="store_true", help="Include optional SASS data in the query input")
-    parser.add_argument("--useIMIX", action="store_true", help="Include optional static IMIX data in the query input")
     return parser
 
 if __name__ == "__main__":
     parser = build_arg_parser()
     args = parser.parse_args()
+    model_names = _parse_model_names(args.modelNames)
 
     ensure_postgres_running()
-    default_dump_file = os.path.join(os.path.dirname(__file__), "gpuflops_db.dump")
+    default_dump_file = os.path.join(os.path.dirname(__file__), "code_features_db.dump")
 
     if args.deleteDBFreshStart:
         print("Deleting PostgreSQL database for a fresh start...")
@@ -810,7 +562,7 @@ if __name__ == "__main__":
 
     run_succeeded = False
     try:
-        run_queries(DB_URI, DATASET_PATH, args.modelName, args.trials, args.singleDryRun, args.verbose, args.printPrompts, args.useSASS, args.useIMIX, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend, args.queryBatchSize)
+        run_queries(DB_URI, DATASET_PATH, model_names, args.trials, args.singleDryRun, args.verbose, args.printPrompts, args.maxTimeout, args.maxQueries, vars(args), args.maxFailedAttempts, skip_completed_check, args.maxSpend, args.queryBatchSize)
         run_succeeded = True
     finally:
         if args.dumpDBOnFinish and run_succeeded:

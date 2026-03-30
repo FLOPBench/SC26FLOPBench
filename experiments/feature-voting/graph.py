@@ -4,15 +4,16 @@ import time
 import json
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from langgraph.graph import StateGraph, START, END
-from typing_extensions import TypedDict
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres import PostgresSaver
-import psycopg
+from psycopg_pool import ConnectionPool
+from typing_extensions import TypedDict
 
 import importlib.util
 
@@ -20,54 +21,37 @@ import importlib.util
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.append(WORKSPACE_ROOT)
 
-# Import llm_models dynamically because of the hyphen in directory name
-llm_models_path = os.path.join(WORKSPACE_ROOT, "gpuFLOPBench-agentic", "agents", "llm_models.py")
-llm_models_spec = importlib.util.spec_from_file_location("llm_models", llm_models_path)
-llm_models = importlib.util.module_from_spec(llm_models_spec)
-sys.modules["llm_models"] = llm_models
-if llm_models_spec and llm_models_spec.loader:
-    llm_models_spec.loader.exec_module(llm_models)
-
-build_openrouter_llm = llm_models.build_openrouter_llm
-OpenRouterLLMSettings = llm_models.OpenRouterLLMSettings
-
 # Import prompts dynamically because of the hyphen in directory name
-prompts_path = os.path.join(WORKSPACE_ROOT, "experiments", "direct-prompting", "prompts.py")
+prompts_path = os.path.join(WORKSPACE_ROOT, "experiments", "feature-voting", "prompts.py")
 prompts_spec = importlib.util.spec_from_file_location("prompts", prompts_path)
 prompts = importlib.util.module_from_spec(prompts_spec)
 sys.modules["prompts"] = prompts
 if prompts_spec and prompts_spec.loader:
     prompts_spec.loader.exec_module(prompts)
 
+CodeFeatureFlags = prompts.CodeFeatureFlags
 DirectPromptGenerator = prompts.DirectPromptGenerator
-SYSTEM_PROMPT = prompts.SYSTEM_PROMPT
-KernelMetricsPrediction = prompts.KernelMetricsPrediction
 
 class GraphState(TypedDict):
     program_name: str
     kernel_mangled_name: str
     kernel_demangled_name: str
     source_code_files: Dict[str, str]
-    gpu_roofline_specs: Dict[str, Any]
-    compile_commands: list
     exe_args: str
-    sass_dict: Optional[Dict[str, str]]
-    imix_dict: Optional[Dict[str, str]]
-    
-    # Expected metrics
-    expected_fp16: int
-    expected_fp32: int
-    expected_fp64: int
-    expected_read_bytes: int
-    expected_write_bytes: int
-    expected_grid_size: str
-    expected_block_size: str
 
-    # Outputs
     raw_response: Optional[Dict[str, Any]]
     prediction: Optional[Dict[str, Any]]
-    
-    # Metadata
+    predicted_has_branching: Optional[bool]
+    predicted_has_data_dependent_branching: Optional[bool]
+    predicted_has_flop_division: Optional[bool]
+    predicted_has_preprocessor_defines: Optional[bool]
+    predicted_has_common_float_subexpr: Optional[bool]
+    predicted_has_special_math_functions: Optional[bool]
+    predicted_calls_device_function: Optional[bool]
+    predicted_has_rng_input_data: Optional[bool]
+    predicted_reads_input_values_from_file: Optional[bool]
+    predicted_has_hardcoded_gridsz: Optional[bool]
+    predicted_has_hardcoded_blocksz: Optional[bool]
     query_time: Optional[float]
     input_tokens: Optional[int]
     output_tokens: Optional[int]
@@ -77,14 +61,6 @@ class GraphState(TypedDict):
     llm_provider: Optional[str]
     llm_response_id: Optional[str]
     llm_response_metadata: Optional[Dict[str, Any]]
-    
-    # Validation results
-    metrics_diff: Optional[Dict[str, int]]
-    metrics_pct_diff: Optional[Dict[str, float]]
-    metrics_explanations: Optional[Dict[str, str]]
-
-
-from langchain_core.runnables import RunnableConfig
 
 
 @lru_cache(maxsize=1)
@@ -148,25 +124,17 @@ def _calculate_cost_usd(response_metadata: Dict[str, Any], usage: Dict[str, Any]
     return float(cost)
 
 def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
-    
-    # Initialize PromptGenerator
     generator = DirectPromptGenerator(
         program_name=state["program_name"],
         kernel_mangled_name=state["kernel_mangled_name"],
         kernel_demangled_name=state["kernel_demangled_name"],
         source_code_files=state["source_code_files"],
-        gpu_roofline_specs=state["gpu_roofline_specs"],
-        compile_commands=state["compile_commands"],
         exe_args=state["exe_args"],
-        sass_dict=state.get("sass_dict"),
-        imix_dict=state.get("imix_dict")
     )
-    
-    system_prompt = generator.generate_system_prompt()
 
-    # Generate human prompt
+    system_prompt = generator.generate_system_prompt()
     human_prompt = generator.generate_prompt()
-    
+
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=human_prompt)
@@ -183,11 +151,10 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
         print(human_prompt)
         print("=" * 70 + "\n")
     
-    # Retrieve LLM from configurable context setup globally in compilation
     llm = config["configurable"]["llm"]
-    
+
     llm_with_structure_raw = llm.with_structured_output(
-        KernelMetricsPrediction,
+        CodeFeatureFlags,
         method="function_calling",
         include_raw=True,
     )
@@ -214,85 +181,50 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
     raw = state.get("raw_response", {})
     usage = raw.get("usage_metadata", {})
     response_metadata = raw.get("response_metadata", {})
+    prediction = state.get("prediction") or {}
 
     input_tokens = usage.get("input_tokens", 0)
     output_tokens = usage.get("output_tokens", 0)
     total_tokens = usage.get("total_tokens", 0)
     cost_usd = _calculate_cost_usd(response_metadata, usage)
-    
-    prediction = state.get("prediction")
-    metrics_diff = {}
-    metrics_pct_diff = {}
-    metrics_explanations = {}
-    
-    if prediction:
-        predicted = {
-            "fp16": prediction.get("fp16_flop_count", 0),
-            "fp32": prediction.get("fp32_flop_count", 0),
-            "fp64": prediction.get("fp64_flop_count", 0),
-            "read_bytes": prediction.get("dram_bytes_read_count", 0),
-            "write_bytes": prediction.get("dram_bytes_written_count", 0),
-        }
-        
-        expected = {
-            "fp16": state.get("expected_fp16", 0),
-            "fp32": state.get("expected_fp32", 0),
-            "fp64": state.get("expected_fp64", 0),
-            "read_bytes": state.get("expected_read_bytes", 0),
-            "write_bytes": state.get("expected_write_bytes", 0)
-        }
-        
-        for k in expected:
-            diff = predicted[k] - expected[k]
-            metrics_diff[k] = diff
-            
-            if expected[k] == 0:
-                metrics_pct_diff[k] = 0.0 if predicted[k] == 0 else float('inf')
-            else:
-                metrics_pct_diff[k] = (abs(diff) / expected[k]) * 100.0
-
-        metrics_explanations = {
-            "gridSz_explanation": prediction.get("gridSz_explanation", ""),
-            "blockSz_explanation": prediction.get("blockSz_explanation", ""),
-            "fp32_flop_explanation": prediction.get("fp32_flop_explanation", ""),
-            "fp64_flop_explanation": prediction.get("fp64_flop_explanation", ""),
-            "fp16_flop_explanation": prediction.get("fp16_flop_explanation", ""),
-            "dram_bytes_read_explanation": prediction.get("dram_bytes_read_explanation", ""),
-            "dram_bytes_written_explanation": prediction.get("dram_bytes_written_explanation", ""),
-        }
 
     return {
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": total_tokens,
         "cost_usd": cost_usd,
+        "predicted_has_branching": prediction.get("has_branching"),
+        "predicted_has_data_dependent_branching": prediction.get("has_data_dependent_branching"),
+        "predicted_has_flop_division": prediction.get("has_flop_division"),
+        "predicted_has_preprocessor_defines": prediction.get("has_preprocessor_defines"),
+        "predicted_has_common_float_subexpr": prediction.get("has_common_float_subexpr"),
+        "predicted_has_special_math_functions": prediction.get("has_special_math_functions"),
+        "predicted_calls_device_function": prediction.get("calls_device_function"),
+        "predicted_has_rng_input_data": prediction.get("has_rng_input_data"),
+        "predicted_reads_input_values_from_file": prediction.get("reads_input_values_from_file"),
+        "predicted_has_hardcoded_gridsz": prediction.get("has_hardcoded_gridsz"),
+        "predicted_has_hardcoded_blocksz": prediction.get("has_hardcoded_blocksz"),
         "llm_model_name": response_metadata.get("model_name") or response_metadata.get("model"),
         "llm_provider": response_metadata.get("model_provider"),
         "llm_response_id": response_metadata.get("id") or raw.get("id"),
         "llm_response_metadata": response_metadata,
-        "metrics_diff": metrics_diff,
-        "metrics_pct_diff": metrics_pct_diff,
-        "metrics_explanations": metrics_explanations,
     }
 
 def build_graph():
     builder = StateGraph(GraphState)
     builder.add_node("query", query_node)
     builder.add_node("validator", validator_node)
-    
+
     builder.add_edge(START, "query")
     builder.add_edge("query", "validator")
     builder.add_edge("validator", END)
-    
+
     return builder
 
-from psycopg_pool import ConnectionPool
-
 def compile_graph_with_postgres(db_uri: str):
-    # E.g., db_uri = "postgresql://user:password@localhost:5432/mydb"
     pool = ConnectionPool(conninfo=db_uri)
     checkpointer = PostgresSaver(pool)
     checkpointer.setup()
-    
+
     builder = build_graph()
     return builder.compile(checkpointer=checkpointer)

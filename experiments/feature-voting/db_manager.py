@@ -92,7 +92,7 @@ def ensure_postgres_running(
     raise RuntimeError(f"PostgreSQL did not become ready on {host}:{port} after {action}.")
 
 def setup_default_database(
-    db_name: str = "gpuflops_db",
+    db_name: str = "code_features_db",
     user: str = "postgres",
     password: str = "postgres",
     host: str = "localhost",
@@ -128,7 +128,7 @@ def _postgres_command_env(password: str) -> Dict[str, str]:
 
 
 def wipe_database(
-    db_name: str = "gpuflops_db",
+    db_name: str = "code_features_db",
     user: str = "postgres",
     password: str = "postgres",
     host: str = "localhost",
@@ -150,7 +150,7 @@ def wipe_database(
 
 def dump_database(
     dump_file_path: str,
-    db_name: str = "gpuflops_db",
+    db_name: str = "code_features_db",
     user: str = "postgres",
     password: str = "postgres",
     host: str = "localhost",
@@ -187,7 +187,7 @@ def dump_database(
 
 def restore_database_from_dump(
     dump_file_path: str,
-    db_name: str = "gpuflops_db",
+    db_name: str = "code_features_db",
     user: str = "postgres",
     password: str = "postgres",
     host: str = "localhost",
