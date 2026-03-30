@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 import importlib.util
 
 import matplotlib
+from matplotlib import ticker as mticker
+from matplotlib.lines import Line2D
 
 matplotlib.use("Agg")
 
@@ -48,6 +50,10 @@ SASS_PANEL_ORDER = [False, True]
 SASS_PANEL_LABELS = {
 	False: "Source-Only",
 	True: "Source+SASS",
+}
+TOKEN_COLUMN_LABELS = {
+	"input_tokens": "Input Tokens",
+	"output_tokens": "Output Tokens",
 }
 POSITIVE_CLASS = "compute-bound"
 NEGATIVE_CLASS = "bandwidth-bound"
@@ -336,6 +342,40 @@ def _prepare_ai_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 				}
 			)
 	return pd.DataFrame(rows, columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_diff"])
+
+
+def _prepare_token_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	for _, row in completed_df.iterrows():
+		for token_column, token_label in TOKEN_COLUMN_LABELS.items():
+			token_value = pd.to_numeric(row.get(token_column), errors="coerce")
+			if pd.isna(token_value) or not math.isfinite(float(token_value)):
+				continue
+			rows.append(
+				{
+					"model_name": row["model_name"],
+					"use_sass": bool(row["use_sass"]),
+					"token_type": token_label,
+					"token_count": float(token_value),
+				}
+			)
+	return pd.DataFrame(rows, columns=["model_name", "use_sass", "token_type", "token_count"])
+
+
+def _token_axis_limits(token_long_df: pd.DataFrame) -> Dict[str, tuple[float, float]]:
+	axis_limits: Dict[str, tuple[float, float]] = {}
+	for token_label in TOKEN_COLUMN_LABELS.values():
+		token_values = pd.to_numeric(
+			token_long_df.loc[token_long_df["token_type"] == token_label, "token_count"],
+			errors="coerce",
+		).dropna()
+		if token_values.empty:
+			axis_limits[token_label] = (0.0, 1.0)
+			continue
+		max_value = float(token_values.max())
+		padding = max(1.0, max_value * 0.02)
+		axis_limits[token_label] = (0.0, max_value + padding)
+	return axis_limits
 
 
 def _ordered_columns(df: pd.DataFrame, preferred_columns: List[str]) -> List[str]:
@@ -689,6 +729,75 @@ def _save_figure4_ai_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Pat
 	)
 
 
+def _save_figure5_token_count_histograms(plot_df: pd.DataFrame, output_path: Path) -> None:
+	token_long_df = _prepare_token_long_df(plot_df)
+	model_order = sorted(plot_df["model_name"].dropna().unique().tolist()) if not plot_df.empty else []
+	token_type_order = [TOKEN_COLUMN_LABELS["input_tokens"], TOKEN_COLUMN_LABELS["output_tokens"]]
+	token_axis_limits = _token_axis_limits(token_long_df)
+	sns.set_theme(style="whitegrid")
+	fig, axes = plt.subplots(2, 2, figsize=(16.0, 10.0), sharey="col")
+	palette = sns.color_palette("tab10", n_colors=max(len(model_order), 1))
+	legend_handles = [
+		Line2D([0], [0], color=color, lw=2.0, label=model_name)
+		for color, model_name in zip(palette, model_order)
+	]
+	scientific_formatter = mticker.FuncFormatter(lambda value, _: f"{value:.1e}")
+
+	for row_index, use_sass in enumerate(SASS_PANEL_ORDER):
+		for col_index, token_type in enumerate(token_type_order):
+			axis = axes[row_index][col_index]
+			subset = token_long_df[
+				(token_long_df["use_sass"] == use_sass) & (token_long_df["token_type"] == token_type)
+			].copy()
+			if subset.empty:
+				axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+				axis.set_axis_off()
+				continue
+
+			for color, model_name in zip(palette, model_order):
+				model_subset = subset[subset["model_name"] == model_name]
+				if model_subset.empty:
+					continue
+				sns.histplot(
+					data=model_subset,
+					x="token_count",
+					bins=1000,
+					stat="count",
+					element="step",
+					fill=False,
+					common_bins=True,
+					ax=axis,
+					label=model_name,
+					color=color,
+				)
+
+			axis.set_title(f"{SASS_PANEL_LABELS[use_sass]} | {token_type}")
+			axis.set_xlabel(token_type)
+			axis.set_ylabel("Count")
+			axis.set_xlim(token_axis_limits[token_type])
+			axis.xaxis.set_major_formatter(scientific_formatter)
+			axis.tick_params(axis="x", labelsize=8)
+			axis.xaxis.offsetText.set_visible(False)
+			legend = axis.get_legend()
+			if legend is not None:
+				legend.remove()
+
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			[handle.get_label() for handle in legend_handles],
+			title="Model Name",
+			loc="center left",
+			bbox_to_anchor=(1.01, 0.5),
+			ncol=1,
+		)
+
+	fig.suptitle("Token Count Distributions by Evidence Mode and Token Type", y=0.98)
+	fig.tight_layout(rect=(0, 0, 0.84, 0.95))
+	fig.savefig(output_path, dpi=220, bbox_inches="tight")
+	plt.close(fig)
+
+
 def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> None:
 	model_order = sorted(plot_df["model_name"].dropna().unique().tolist())
 	row_count = max(len(model_order), 1)
@@ -752,11 +861,13 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> N
 	figure2_path = output_dir / "figure2_ai_bound_confusion_heatmaps.png"
 	figure3_path = output_dir / "figure3_ai_difference_boxplots_by_gpu.png"
 	figure4_path = output_dir / "figure4_ai_difference_boxplots_by_runtime.png"
+	figure5_path = output_dir / "figure5_token_count_histograms.png"
 
 	_save_figure1_ai_boxplots(plot_df, figure1_path)
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
+	_save_figure5_token_count_histograms(plot_df, figure5_path)
 	_write_paper_summary_tables(plot_df, output_dir)
 
 	print("Paper plot artifacts written to:")
@@ -764,6 +875,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> N
 	print(f"- {figure2_path}")
 	print(f"- {figure3_path}")
 	print(f"- {figure4_path}")
+	print(f"- {figure5_path}")
 
 
 def main() -> None:
