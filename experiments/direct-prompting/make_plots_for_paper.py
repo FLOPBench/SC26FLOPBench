@@ -65,8 +65,8 @@ BOUND_OUTCOME_LABELS = {
 }
 BOUND_CLASS_ORDER = [NEGATIVE_CLASS, POSITIVE_CLASS]
 BOUND_CLASS_DISPLAY = {
-	NEGATIVE_CLASS: "Bandwidth-bound",
-	POSITIVE_CLASS: "Compute-bound",
+	NEGATIVE_CLASS: "BB",
+	POSITIVE_CLASS: "CB",
 }
 DEFAULT_OUTPUT_DIR = os.path.join(
 	WORKSPACE_ROOT,
@@ -856,15 +856,15 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 					linewidths=0.5,
 					linecolor="white",
 				)
-				axis.set_title(f"{model_name} | {SASS_PANEL_LABELS[use_sass]}")
-				axis.set_xlabel("Predicted Bound Class")
+				axis.set_title(f"{model_name} | {SASS_PANEL_LABELS[use_sass]}", pad=8)
+				axis.set_xlabel("Predicted Bound Class", labelpad=4)
 				axis.set_ylabel("Expected Bound Class")
 
 	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
 		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
 
 	fig.suptitle("AI Bound Classification by Expected vs Predicted Class")
-	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.35, wspace=0.28)
+	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.5, wspace=0.28)
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 

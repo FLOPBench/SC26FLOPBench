@@ -1,4 +1,4 @@
-- Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and evidence configuration.
+- Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and prompt type.
 - ECDF plots for query_time and cost_usd to compare tail latency and tail cost behavior across models.
 - Heatmap of median percent error by program_name and model_name to find benchmarks that are consistently easy or hard.
 - Boxplots of sample_mean_pct_diff grouped by GPU target to show whether some architectures are systematically harder to predict.

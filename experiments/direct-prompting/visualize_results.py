@@ -42,6 +42,11 @@ THREAD_PATTERN = re.compile(
 MODEL_DATE_SUFFIX_PATTERN = re.compile(r"-\d{8}$")
 DEFAULT_EVIDENCE_CONFIGURATION = "No SASS / No IMIX"
 FIGURE_SIZE_SCALE = 0.78
+PROMPT_TYPE_LABEL = "Prompt Type"
+BOTTOM_LEGEND_Y = -0.2
+BOTTOM_LEGEND_RECT = 0.18
+METRIC_GRID_LEGEND_Y = 0.01
+METRIC_GRID_RECT_BOTTOM = 0.14
 MODEL_DISPLAY_NAME_MAP = {
 	"anthropic/claude-4.6-opus": "Opus 4.6",
 	"openai/gpt-5.4": "GPT 5.4",
@@ -167,6 +172,10 @@ def _display_model_name(safe_model_name: str) -> str:
 
 def _scaled_figsize(width: float, height: float) -> tuple[float, float]:
 	return (width * FIGURE_SIZE_SCALE, height * FIGURE_SIZE_SCALE)
+
+
+def _legend_ncols(item_count: int, max_columns: int = 4) -> int:
+	return max(1, min(item_count, max_columns))
 
 
 def _runtime_from_program_name(program_name: Optional[str]) -> str:
@@ -719,14 +728,15 @@ def _annotate_boxplot_group_sums(
 			if total_cost is None or not math.isfinite(float(total_cost)):
 				continue
 			ax.text(
-				1.02,
+				0.985,
 				model_index + offset_by_hue[hue_label],
 				f"${float(total_cost):.4f}",
 				transform=trans,
-				ha="left",
+				ha="right",
 				va="center",
 				fontsize=8,
 				color=annotation_colors[hue_label],
+				bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 0.3},
 			)
 
 
@@ -763,7 +773,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 
 	sns.set_theme(style="whitegrid")
 	fig_height = _bounded_plot_height(len(model_names), min_height=6.5, per_item=0.45, padding=1.5, max_height=9.5)
-	fig, ax = plt.subplots(figsize=_scaled_figsize(10.5, fig_height))
+	fig, ax = plt.subplots(figsize=_scaled_figsize(10.0, fig_height))
 	lefts = np.zeros(len(model_names))
 
 	for segment in segment_order:
@@ -786,7 +796,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 	for model_index, total in enumerate(lefts):
 		ax.text(total + 0.5, model_index, f"{int(total)}", ha="left", va="center", fontsize=10, fontweight="bold")
 
-	ax.set_title("Database Sample Counts by Model and Evidence Configuration")
+	ax.set_title("Database Sample Counts by Model and Prompt Type")
 	ax.set_xlabel("Sample Count")
 	ax.set_ylabel("Model Name")
 	handles, labels = ax.get_legend_handles_labels()
@@ -795,15 +805,16 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 		[handle_by_label[label] for label in legend_order if label in handle_by_label],
 		[label for label in legend_order if label in handle_by_label],
 		title="Sample Type",
-		bbox_to_anchor=(1.18, 1),
-		loc="upper left",
+		loc="upper center",
+		bbox_to_anchor=(0.5, BOTTOM_LEGEND_Y),
+		ncol=_legend_ncols(len(legend_order)),
 	)
 	ax.tick_params(axis="y", pad=12)
 	for label in ax.get_yticklabels():
 		label.set_rotation(0)
 		label.set_horizontalalignment("right")
 	ax.margins(x=0.05)
-	fig.tight_layout(rect=(0, 0, 0.84, 1))
+	fig.tight_layout(rect=(0, BOTTOM_LEGEND_RECT, 1, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -820,7 +831,7 @@ def _save_histogram_by_sass(
 	sns.set_theme(style="whitegrid")
 	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
 	fig_height = _bounded_plot_height(model_count, min_height=6.0, per_item=0.45, padding=1.25, max_height=9.0)
-	fig, ax = plt.subplots(figsize=_scaled_figsize(10.5, fig_height))
+	fig, ax = plt.subplots(figsize=_scaled_figsize(10.25, fig_height))
 	hue_order = evidence_order
 
 	if completed_df.empty or value_column not in completed_df.columns or "evidence_configuration" not in completed_df.columns or "model_name" not in completed_df.columns:
@@ -865,14 +876,12 @@ def _save_histogram_by_sass(
 		ax.legend(
 			handles,
 			labels,
-			title="Evidence Configuration",
-			bbox_to_anchor=(1.18, 1.0),
-			loc="upper left",
+			title=PROMPT_TYPE_LABEL,
+			loc="upper center",
+			bbox_to_anchor=(0.5, BOTTOM_LEGEND_Y),
+			ncol=_legend_ncols(len(labels)),
 		)
-	if annotate_group_sums:
-		fig.tight_layout(rect=(0, 0, 0.8, 1))
-	else:
-		fig.tight_layout(rect=(0, 0, 0.84, 1))
+	fig.tight_layout(rect=(0, BOTTOM_LEGEND_RECT, 1, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -939,7 +948,7 @@ def _save_metric_hist_grid(
 	sns.set_theme(style="whitegrid")
 	row_height = _bounded_plot_height(model_count, min_height=3.5, per_item=0.4, padding=0.75, max_height=5.5)
 	fig_height = min(16.5, max(10.5, row_height * len(runtime_rows)))
-	fig_width = max(18.0, 5.0 * len(evidence_order))
+	fig_width = max(15.5, 4.3 * len(evidence_order))
 	fig, axes = plt.subplots(3, len(evidence_order), figsize=_scaled_figsize(fig_width, fig_height), squeeze=False, sharey="row")
 	legend_handles: List[Any] = []
 	legend_labels: List[str] = []
@@ -1015,12 +1024,13 @@ def _save_metric_hist_grid(
 			legend_handles,
 			legend_labels,
 			title="Metric",
-			loc="upper left",
-			bbox_to_anchor=(1.01, 0.98),
+			loc="lower center",
+			bbox_to_anchor=(0.5, METRIC_GRID_LEGEND_Y),
+			ncol=_legend_ncols(len(legend_labels)),
 		)
 
-	fig.suptitle(title)
-	fig.tight_layout(rect=(0, 0, 0.8, 0.98))
+	fig.suptitle(title, y=0.995)
+	fig.tight_layout(rect=(0, METRIC_GRID_RECT_BOTTOM, 1, 0.95))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -1225,7 +1235,7 @@ def _save_table2_group_figures(table2_df: pd.DataFrame, output_dir: Path) -> Non
 
 def _write_suggestions(output_path: Path) -> None:
 	suggestions = [
-		"Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and evidence configuration.",
+		"Scatter plot of cost_usd versus sample_mean_pct_diff to show the accuracy-cost frontier for each model and prompt type.",
 		"ECDF plots for query_time and cost_usd to compare tail latency and tail cost behavior across models.",
 		"Heatmap of median percent error by program_name and model_name to find benchmarks that are consistently easy or hard.",
 		"Boxplots of sample_mean_pct_diff grouped by GPU target to show whether some architectures are systematically harder to predict.",
@@ -1312,7 +1322,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	_save_histogram_by_sass(
 		plot_completed_df,
 		"query_time",
-		"Query Time Distribution by Model and Evidence Configuration",
+		"Query Time Distribution by Model and Prompt Type",
 		"Query Time (seconds)",
 		plot2_path,
 		plot_evidence_order,
@@ -1322,7 +1332,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	_save_histogram_by_sass(
 		plot_completed_df,
 		"cost_usd",
-		"Query Cost Distribution by Model and Evidence Configuration",
+		"Query Cost Distribution by Model and Prompt Type",
 		"Cost (USD)",
 		plot3_path,
 		plot_evidence_order,
@@ -1335,7 +1345,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	plot4a_path = output_dir / "plot4a_metrics_diff_distribution.png"
 	_save_metric_hist_grid(
 		metric_diff_df,
-		"Metric Difference Distribution by Model and Evidence Configuration",
+		"Metric Difference Distribution by Model and Prompt Type",
 		"Predicted - Expected",
 		plot4a_path,
 		plot_evidence_order,
@@ -1344,7 +1354,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	plot4b_path = output_dir / "plot4b_metrics_pct_diff_distribution.png"
 	_save_metric_hist_grid(
 		metric_pct_diff_df,
-		"Metric Percent Difference Distribution by Model and Evidence Configuration",
+		"Metric Percent Difference Distribution by Model and Prompt Type",
 		"Percent Difference",
 		plot4b_path,
 		plot_evidence_order,
@@ -1357,10 +1367,10 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	_write_booktabs_latex_table(
 		table1_df,
 		table1_tex,
-		"Mean and Median Percent Difference by Model and Evidence Configuration",
+		"Mean and Median Percent Difference by Model and Prompt Type",
 		"tab:model_percent_diff_summary",
 	)
-	_save_table_figure(table1_df, "Table 1: Mean and Median Percent Difference by Model and Evidence Configuration", table1_png)
+	_save_table_figure(table1_df, "Table 1: Mean and Median Percent Difference by Model and Prompt Type", table1_png)
 
 	table2_df = _table2_best_worst(completed_df)
 	table2_csv = output_dir / "table2_best_and_worst_predictions.csv"
