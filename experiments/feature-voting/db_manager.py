@@ -225,6 +225,26 @@ def restore_database_from_dump(
 
     return target_uri
 
+
+def delete_thread_history(db_uri: str, thread_ids: List[str]) -> None:
+    if not thread_ids:
+        return
+
+    delete_statements = [
+        "DELETE FROM checkpoint_writes WHERE thread_id = ANY(%s)",
+        "DELETE FROM checkpoint_blobs WHERE thread_id = ANY(%s)",
+        "DELETE FROM checkpoints WHERE thread_id = ANY(%s)",
+        "DELETE FROM query_attempts WHERE thread_id = ANY(%s)",
+    ]
+
+    with psycopg.connect(db_uri, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            for statement in delete_statements:
+                try:
+                    cur.execute(statement, (thread_ids,))
+                except UndefinedTable:
+                    conn.rollback()
+
 class CheckpointDBParser:
     def __init__(self, db_uri: str):
         self.db_uri = db_uri

@@ -123,6 +123,71 @@ def _calculate_cost_usd(response_metadata: Dict[str, Any], usage: Dict[str, Any]
     )
     return float(cost)
 
+
+def _try_validate_prediction(candidate: Any) -> Optional[CodeFeatureFlags]:
+    if candidate is None:
+        return None
+
+    try:
+        if isinstance(candidate, CodeFeatureFlags):
+            return candidate
+        if isinstance(candidate, str):
+            return CodeFeatureFlags.model_validate_json(candidate)
+        if isinstance(candidate, dict):
+            return CodeFeatureFlags.model_validate(candidate)
+    except Exception:
+        return None
+
+    return None
+
+
+def _parse_prediction_from_raw_response(raw_response: Any) -> Optional[CodeFeatureFlags]:
+    if raw_response is None:
+        return None
+
+    tool_calls = getattr(raw_response, "tool_calls", None) or []
+    for tool_call in tool_calls:
+        parsed = _try_validate_prediction(tool_call.get("args"))
+        if parsed is not None:
+            return parsed
+
+    additional_kwargs = getattr(raw_response, "additional_kwargs", {}) or {}
+    for tool_call in additional_kwargs.get("tool_calls", []) or []:
+        function_payload = tool_call.get("function", {}) or {}
+        parsed = _try_validate_prediction(function_payload.get("arguments"))
+        if parsed is not None:
+            return parsed
+
+    content = getattr(raw_response, "content", None)
+    if isinstance(content, str):
+        return _try_validate_prediction(content)
+
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict):
+                parsed = _try_validate_prediction(item.get("text"))
+                if parsed is not None:
+                    return parsed
+
+    return None
+
+
+def _extract_prediction_from_response(response: Dict[str, Any]) -> CodeFeatureFlags:
+    parsed = _try_validate_prediction(response.get("parsed"))
+    if parsed is not None:
+        return parsed
+
+    raw_response = response.get("raw")
+    parsed = _parse_prediction_from_raw_response(raw_response)
+    if parsed is not None:
+        return parsed
+
+    parsing_error = response.get("parsing_error")
+    if parsing_error is not None:
+        raise ValueError(f"Structured output parsing failed: {parsing_error}") from parsing_error
+
+    raise ValueError("Structured output did not contain a parsed response or recoverable tool-call arguments.")
+
 def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     generator = DirectPromptGenerator(
         program_name=state["program_name"],
@@ -163,13 +228,7 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     response = llm_with_structure_raw.invoke(messages)
     end_time = time.time()
 
-    parsing_error = response.get("parsing_error")
-    if parsing_error is not None:
-        raise parsing_error
-
-    parsed = response.get("parsed")
-    if parsed is None:
-        raise ValueError("Structured output did not contain a parsed response.")
+    parsed = _extract_prediction_from_response(response)
     
     return {
         "prediction": parsed.model_dump(),

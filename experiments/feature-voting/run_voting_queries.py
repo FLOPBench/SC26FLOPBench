@@ -48,6 +48,22 @@ ensure_postgres_running = db_manager_mod.ensure_postgres_running
 wipe_database = db_manager_mod.wipe_database
 restore_database_from_dump = db_manager_mod.restore_database_from_dump
 dump_database = db_manager_mod.dump_database
+delete_thread_history = db_manager_mod.delete_thread_history
+
+
+FEATURE_FIELDS = [
+    ("predicted_has_branching", "has_branching"),
+    ("predicted_has_data_dependent_branching", "has_data_dependent_branching"),
+    ("predicted_has_flop_division", "has_flop_division"),
+    ("predicted_has_preprocessor_defines", "has_preprocessor_defines"),
+    ("predicted_has_common_float_subexpr", "has_common_float_subexpr"),
+    ("predicted_has_special_math_functions", "has_special_math_functions"),
+    ("predicted_calls_device_function", "calls_device_function"),
+    ("predicted_has_rng_input_data", "has_rng_input_data"),
+    ("predicted_reads_input_values_from_file", "reads_input_values_from_file"),
+    ("predicted_has_hardcoded_gridsz", "has_hardcoded_gridsz"),
+    ("predicted_has_hardcoded_blocksz", "has_hardcoded_blocksz"),
+]
 
 
 @contextmanager
@@ -69,27 +85,12 @@ def _query_timeout(timeout_seconds: int):
         signal.signal(signal.SIGALRM, previous_handler)
 
 def print_run_result(state: dict):
-    if "checkpoint" in state:
-        state = state.get("checkpoint", {}).get("channel_values", {})
+    state = _unwrap_channel_values(state)
 
     def format_feature_label(name: str) -> str:
         if name.startswith("predicted_"):
             name = name[len("predicted_"):]
         return name.replace("_", " ").strip().title()
-
-    feature_fields = [
-        ("predicted_has_branching", "has_branching"),
-        ("predicted_has_data_dependent_branching", "has_data_dependent_branching"),
-        ("predicted_has_flop_division", "has_flop_division"),
-        ("predicted_has_preprocessor_defines", "has_preprocessor_defines"),
-        ("predicted_has_common_float_subexpr", "has_common_float_subexpr"),
-        ("predicted_has_special_math_functions", "has_special_math_functions"),
-        ("predicted_calls_device_function", "calls_device_function"),
-        ("predicted_has_rng_input_data", "has_rng_input_data"),
-        ("predicted_reads_input_values_from_file", "reads_input_values_from_file"),
-        ("predicted_has_hardcoded_gridsz", "has_hardcoded_gridsz"),
-        ("predicted_has_hardcoded_blocksz", "has_hardcoded_blocksz"),
-    ]
 
     print("\n" + "="*70)
     print(" RUN COMPLETE ")
@@ -103,7 +104,7 @@ def print_run_result(state: dict):
         predicted = vars(predicted) if hasattr(predicted, '__dict__') else {}
 
     display_features = []
-    for predicted_key, fallback_key in feature_fields:
+    for predicted_key, fallback_key in FEATURE_FIELDS:
         if predicted_key in state:
             display_features.append((format_feature_label(predicted_key), state.get(predicted_key)))
         elif fallback_key in predicted:
@@ -203,6 +204,144 @@ def _iter_query_batches(queries: list[dict], batch_size: int):
         yield queries[start_index:start_index + batch_size]
 
 
+def _unwrap_channel_values(state: dict | None) -> dict:
+    if state is None:
+        return {}
+    if "checkpoint" in state:
+        return state.get("checkpoint", {}).get("channel_values", {})
+    return state
+
+
+def _format_feature_label(name: str) -> str:
+    if name.startswith("predicted_"):
+        name = name[len("predicted_"):]
+    return name.replace("_", " ").strip().title()
+
+
+def _extract_feature_vote(state: dict, predicted_key: str, fallback_key: str) -> bool | None:
+    channel_values = _unwrap_channel_values(state)
+    if predicted_key in channel_values:
+        value = channel_values.get(predicted_key)
+        return None if value is None else bool(value)
+
+    prediction = channel_values.get("prediction", {})
+    if not isinstance(prediction, dict):
+        prediction = vars(prediction) if hasattr(prediction, "__dict__") else {}
+
+    if fallback_key in prediction:
+        value = prediction.get(fallback_key)
+        return None if value is None else bool(value)
+
+    return None
+
+
+def _short_model_label(model_name: str) -> str:
+    return model_name.rsplit("/", 1)[-1]
+
+
+def _load_completed_states(parser: CheckpointDBParser, thread_ids: set[str]) -> dict[str, dict]:
+    completed_states: dict[str, dict] = {}
+    for thread_id in sorted(thread_ids):
+        checkpoint = parser.fetch_tail_checkpoint_for_thread(thread_id)
+        if checkpoint is None:
+            continue
+
+        channel_values = checkpoint.get("checkpoint", {}).get("channel_values", {})
+        if "total_tokens" in channel_values:
+            completed_states[thread_id] = channel_values
+
+    return completed_states
+
+
+def _print_kernel_vote_consensus(kernel_group: dict, completed_states: dict[str, dict]) -> None:
+    vote_queries = sorted(
+        kernel_group["queries"],
+        key=lambda query: (query["model_name"], query["trial_index"]),
+    )
+
+    vote_labels = [
+        f"{_short_model_label(query['model_name'])} t{query['trial_index'] + 1}"
+        for query in vote_queries
+    ]
+
+    headers = ["Feature", "Yes/Total", "% Yes", *vote_labels]
+    rows: list[list[str]] = []
+
+    for predicted_key, fallback_key in FEATURE_FIELDS:
+        yes_votes = 0
+        total_votes = 0
+        vote_cells: list[str] = []
+
+        for query in vote_queries:
+            vote_value = _extract_feature_vote(completed_states.get(query["thread_id"], {}), predicted_key, fallback_key)
+            if vote_value is True:
+                yes_votes += 1
+                total_votes += 1
+                vote_cells.append("X")
+            elif vote_value is False:
+                total_votes += 1
+                vote_cells.append("")
+            else:
+                vote_cells.append("?")
+
+        percent_yes = (yes_votes / total_votes * 100.0) if total_votes else 0.0
+        row = [
+            _format_feature_label(fallback_key),
+            f"{yes_votes}/{total_votes}",
+            f"{percent_yes:.1f}%",
+            *vote_cells,
+        ]
+        rows.append(row)
+
+    column_widths = []
+    for column_index, header in enumerate(headers):
+        width = len(header)
+        for row in rows:
+            width = max(width, len(row[column_index]))
+        column_widths.append(width)
+
+    def _format_row(values: list[str]) -> str:
+        return " | ".join(value.ljust(column_widths[index]) for index, value in enumerate(values))
+
+    separator = "-+-".join("-" * width for width in column_widths)
+
+    print("\n" + "=" * 70)
+    print(" KERNEL VOTING CONSENSUS ")
+    print("=" * 70)
+    print(f"Program: {kernel_group['program_name']}")
+    print(f"Kernel Mangled: {kernel_group['kernel_mangled_name']}")
+    print(f"Kernel Demangled: {kernel_group['kernel_demangled_name']}")
+    print(_format_row(headers))
+    print(separator)
+    for row in rows:
+        print(_format_row(row))
+    print("=" * 70 + "\n")
+
+
+def _maybe_print_kernel_consensus(
+    kernel_key: tuple[str, str],
+    kernel_groups: dict[tuple[str, str], dict],
+    completed_states: dict[str, dict],
+) -> None:
+    kernel_group = kernel_groups[kernel_key]
+    if kernel_group["consensus_printed"]:
+        return
+
+    expected_thread_ids = kernel_group["expected_thread_ids"]
+    if all(thread_id in completed_states for thread_id in expected_thread_ids):
+        _print_kernel_vote_consensus(kernel_group, completed_states)
+        kernel_group["consensus_printed"] = True
+
+
+def _ensure_checkpoint_schema(db_uri: str) -> None:
+    pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
+    try:
+        checkpointer = PostgresSaver(pool)
+        checkpointer.setup()
+    finally:
+        pool.close()
+
+
 def _execute_query_worker(
     db_uri: str,
     query: dict,
@@ -221,7 +360,6 @@ def _execute_query_worker(
 
         pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
         checkpointer = PostgresSaver(pool)
-        checkpointer.setup()
 
         graph_builder = build_graph()
         app = graph_builder.compile(checkpointer=checkpointer)
@@ -274,8 +412,11 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
     print("Loading dataset...")
     data = load_dataset(dataset_path)
 
+    _ensure_checkpoint_schema(db_uri)
+
     queries = []
     query_counts_by_program = {}
+    kernel_groups: dict[tuple[str, str], dict] = {}
 
     for program_name, prog_data in data.items():
         if single_dry_run and program_name != "adam-cuda":
@@ -287,10 +428,20 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
 
         for mangled_kernel, kernel_data in kernels.items():
             demangled_name = kernel_data["demangledName"]
+            kernel_key = (program_name, mangled_kernel)
 
             safe_prog = _sanitize_thread_part(program_name)
             safe_kernel = _sanitize_thread_part(mangled_kernel)
             query_counts_by_program[program_name] = query_counts_by_program.get(program_name, 0) + 1
+
+            kernel_groups[kernel_key] = {
+                "program_name": program_name,
+                "kernel_mangled_name": mangled_kernel,
+                "kernel_demangled_name": demangled_name,
+                "queries": [],
+                "expected_thread_ids": set(),
+                "consensus_printed": False,
+            }
 
             state_inputs = {
                 "program_name": program_name,
@@ -308,11 +459,16 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                     if single_dry_run:
                         target_thread_id += "_DRYRUN"
 
-                    queries.append({
+                    query_record = {
                         "thread_id": target_thread_id,
                         "model_name": model_name,
+                        "trial_index": trial,
+                        "kernel_key": kernel_key,
                         "state": state_inputs,
-                    })
+                    }
+                    queries.append(query_record)
+                    kernel_groups[kernel_key]["queries"].append(query_record)
+                    kernel_groups[kernel_key]["expected_thread_ids"].add(target_thread_id)
 
             if single_dry_run:
                 break
@@ -325,7 +481,11 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
     attempt_tracker = QueryAttemptTracker(db_uri)
     try:
         query_thread_ids = {query["thread_id"] for query in queries}
-        if skip_completed_check:
+        if single_dry_run:
+            delete_thread_history(db_uri, sorted(query_thread_ids))
+
+        ignore_db_state = single_dry_run or skip_completed_check
+        if ignore_db_state:
             checkpoints = []
             db_stats = {
                 "total_checkpoint_entries": 0,
@@ -354,16 +514,16 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                 if "total_tokens" in state_data["channel_values"]:
                     completed_threads.add(cp["thread_id"])
 
-        attempt_data = attempt_tracker.fetch_attempts(list(query_thread_ids))
+        attempt_data = {} if single_dry_run else attempt_tracker.fetch_attempts(list(query_thread_ids))
         completed_for_run = completed_threads.intersection(query_thread_ids)
         failed_for_run = (checkpoint_threads.intersection(query_thread_ids) - completed_for_run)
-        total_failed_runs_db = sum(
+        total_failed_runs_db = 0 if single_dry_run else sum(
             1
             for info in attempt_data.values()
             if info.get("failed_attempts", 0) > 0 or info.get("last_status") == "failed"
         )
 
-        skipped_thread_ids = {
+        skipped_thread_ids = set() if single_dry_run else {
             thread_id
             for thread_id, info in attempt_data.items()
             if thread_id not in completed_for_run and info.get("failed_attempts", 0) >= max_failed_attempts
@@ -381,6 +541,15 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
             queries_to_run = remaining_queries[:max_queries]
         else:
             queries_to_run = remaining_queries
+
+        active_kernel_keys = {query["kernel_key"] for query in queries_to_run}
+        if single_dry_run:
+            completed_states = {}
+        else:
+            preload_thread_ids = set()
+            for kernel_key in active_kernel_keys:
+                preload_thread_ids.update(kernel_groups[kernel_key]["expected_thread_ids"])
+            completed_states = _load_completed_states(parser, completed_for_run.intersection(preload_thread_ids))
 
         total_queries = len(queries)
         completed_count = len(completed_for_run)
@@ -435,7 +604,9 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                 print("All queries have been successfully completed! Exiting.")
             return
 
-        if not single_dry_run:
+        if single_dry_run:
+            input("Press 'Enter' to continue and run the dry-run query...")
+        else:
             input("Press 'Enter' to continue and run the remaining queries...")
 
         session_spend_usd = 0.0
@@ -456,19 +627,20 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                     max_workers=query_batch_size,
                     mp_context=multiprocessing.get_context("spawn"),
                 ) as executor:
-                    future_to_thread_id = {
+                    future_to_query = {
                         executor.submit(
                             _execute_query_worker,
                             db_uri,
                             query,
                             worker_print_prompts,
                             max_timeout,
-                        ): query["thread_id"]
+                        ): query
                         for query in query_batch
                     }
 
-                    for future in as_completed(future_to_thread_id):
-                        thread_id = future_to_thread_id[future]
+                    for future in as_completed(future_to_query):
+                        query = future_to_query[future]
+                        thread_id = query["thread_id"]
                         try:
                             result = future.result()
                         except Exception as e:
@@ -485,8 +657,15 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                             session_spend_usd += query_cost_usd
 
                         if result["status"] == "completed":
+                            completed_states[thread_id] = _unwrap_channel_values(result["final_state"])
                             if single_dry_run or verbose:
                                 print_run_result(result["final_state"])
+                            if not single_dry_run:
+                                _maybe_print_kernel_consensus(
+                                    query["kernel_key"],
+                                    kernel_groups,
+                                    completed_states,
+                                )
                         else:
                             error_message = result.get("error") or "Unknown error"
                             failed_queries.append((thread_id, error_message))
@@ -498,6 +677,14 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                         f"with limit ${max_spend:.8f}. Stopping execution."
                     )
                     break
+
+        if single_dry_run:
+            for kernel_key in sorted(active_kernel_keys):
+                _maybe_print_kernel_consensus(
+                    kernel_key,
+                    kernel_groups,
+                    completed_states,
+                )
 
         if failed_queries:
             failed_thread_ids = ", ".join(thread_id for thread_id, _ in failed_queries[:10])
@@ -519,7 +706,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--maxQueries", type=int, default=None, help="Maximum number of graph queries to execute during this script run")
     parser.add_argument("--maxTimeout", type=int, default=240, help="Maximum time in seconds allowed for each query before it is interrupted")
     parser.add_argument("--maxSpend", type=float, default=None, help="Maximum USD spend allowed for queries executed during this script run; already-completed database runs do not count toward this limit")
-    parser.add_argument("--queryBatchSize", type=int, default=1, help="Number of queries to execute in parallel per batch")
+    parser.add_argument("--queryBatchSize", type=int, default=4, help="Number of queries to execute in parallel per batch")
     parser.add_argument("--maxFailedAttempts", type=int, default=3, help="Maximum number of failed attempts allowed for a query before it is skipped")
     parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated code_features_db before execution begins")
     parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop code_features_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
