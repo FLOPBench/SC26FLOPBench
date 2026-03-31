@@ -176,6 +176,19 @@ def test_thread_metadata_parses_new_and_legacy_configurations(
 
 
 @pytest.mark.parametrize(
+    ("raw_model_name", "expected_display_name"),
+    [
+        ("anthropic/claude-4.6-opus", "Opus 4.6"),
+        ("openai/gpt-5.4", "GPT 5.4"),
+        ("openai/gpt-oss-120B", "GPT OSS"),
+        ("some/other-model", "some/other-model"),
+    ],
+)
+def test_display_plot_model_name_shortens_supported_models(raw_model_name, expected_display_name):
+    assert visualize_results._display_plot_model_name(raw_model_name) == expected_display_name
+
+
+@pytest.mark.parametrize(
     ("sass_dict", "imix_dict", "expect_sass", "expect_imix"),
     [
         (None, None, False, False),

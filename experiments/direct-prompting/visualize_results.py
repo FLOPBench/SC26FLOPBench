@@ -41,6 +41,12 @@ THREAD_PATTERN = re.compile(
 )
 MODEL_DATE_SUFFIX_PATTERN = re.compile(r"-\d{8}$")
 DEFAULT_EVIDENCE_CONFIGURATION = "No SASS / No IMIX"
+FIGURE_SIZE_SCALE = 0.78
+MODEL_DISPLAY_NAME_MAP = {
+	"anthropic/claude-4.6-opus": "Opus 4.6",
+	"openai/gpt-5.4": "GPT 5.4",
+	"openai/gpt-oss-120b": "GPT OSS",
+}
 PLOT_EVIDENCE_CONFIGURATION_LABELS = {
 	(False, False): "Source-Only",
 	(True, False): "Source+SASS",
@@ -150,8 +156,17 @@ def _normalize_model_name(value: Optional[str]) -> str:
 	return MODEL_DATE_SUFFIX_PATTERN.sub("", value)
 
 
+def _display_plot_model_name(value: Optional[str]) -> str:
+	normalized_value = _normalize_model_name(value)
+	return MODEL_DISPLAY_NAME_MAP.get(normalized_value.casefold(), normalized_value)
+
+
 def _display_model_name(safe_model_name: str) -> str:
-	return _normalize_model_name(safe_model_name.replace("_", "/"))
+	return _display_plot_model_name(safe_model_name.replace("_", "/"))
+
+
+def _scaled_figsize(width: float, height: float) -> tuple[float, float]:
+	return (width * FIGURE_SIZE_SCALE, height * FIGURE_SIZE_SCALE)
 
 
 def _runtime_from_program_name(program_name: Optional[str]) -> str:
@@ -381,7 +396,7 @@ def _extract_completed_records(
 			"runtime": runtime,
 			"kernel_mangled_name": state["kernel_mangled_name"],
 			"kernel_demangled_name": state["kernel_demangled_name"],
-			"model_name": _normalize_model_name(state["llm_model_name"] or metadata["model_name"]),
+			"model_name": _display_plot_model_name(state["llm_model_name"] or metadata["model_name"]),
 			"safe_model_name": metadata["safe_model_name"],
 			"use_sass": metadata["use_sass"],
 				"use_imix": metadata["use_imix"],
@@ -455,7 +470,7 @@ def _extract_failed_records(
 				"runtime": _runtime_from_program_name(partial_state["program_name"]),
 				"kernel_mangled_name": partial_state["kernel_mangled_name"],
 				"kernel_demangled_name": partial_state["kernel_demangled_name"],
-				"model_name": _normalize_model_name(partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"]),
+				"model_name": _display_plot_model_name(partial_state["llm_model_name"] if "llm_model_name" in partial_state else metadata["model_name"]),
 				"safe_model_name": metadata["safe_model_name"],
 				"use_sass": metadata["use_sass"],
 				"use_imix": metadata["use_imix"],
@@ -748,7 +763,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 
 	sns.set_theme(style="whitegrid")
 	fig_height = _bounded_plot_height(len(model_names), min_height=6.5, per_item=0.45, padding=1.5, max_height=9.5)
-	fig, ax = plt.subplots(figsize=(10.5, fig_height))
+	fig, ax = plt.subplots(figsize=_scaled_figsize(10.5, fig_height))
 	lefts = np.zeros(len(model_names))
 
 	for segment in segment_order:
@@ -780,7 +795,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 		[handle_by_label[label] for label in legend_order if label in handle_by_label],
 		[label for label in legend_order if label in handle_by_label],
 		title="Sample Type",
-		bbox_to_anchor=(1.02, 1),
+		bbox_to_anchor=(1.18, 1),
 		loc="upper left",
 	)
 	ax.tick_params(axis="y", pad=12)
@@ -788,7 +803,7 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path,
 		label.set_rotation(0)
 		label.set_horizontalalignment("right")
 	ax.margins(x=0.05)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, 0, 0.84, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -805,7 +820,7 @@ def _save_histogram_by_sass(
 	sns.set_theme(style="whitegrid")
 	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
 	fig_height = _bounded_plot_height(model_count, min_height=6.0, per_item=0.45, padding=1.25, max_height=9.0)
-	fig, ax = plt.subplots(figsize=(10.5, fig_height))
+	fig, ax = plt.subplots(figsize=_scaled_figsize(10.5, fig_height))
 	hue_order = evidence_order
 
 	if completed_df.empty or value_column not in completed_df.columns or "evidence_configuration" not in completed_df.columns or "model_name" not in completed_df.columns:
@@ -845,11 +860,19 @@ def _save_histogram_by_sass(
 	ax.set_ylabel("Model Name")
 	legend = ax.get_legend()
 	if legend is not None:
-		legend.set_title("Evidence Configuration")
+		handles, labels = ax.get_legend_handles_labels()
+		legend.remove()
+		ax.legend(
+			handles,
+			labels,
+			title="Evidence Configuration",
+			bbox_to_anchor=(1.18, 1.0),
+			loc="upper left",
+		)
 	if annotate_group_sums:
-		fig.tight_layout(rect=(0, 0, 0.9, 1))
+		fig.tight_layout(rect=(0, 0, 0.8, 1))
 	else:
-		fig.tight_layout()
+		fig.tight_layout(rect=(0, 0, 0.84, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -894,7 +917,7 @@ def _save_metric_hist_grid(
 ) -> None:
 	if metric_df.empty or "model_name" not in metric_df.columns:
 		sns.set_theme(style="whitegrid")
-		fig, axes = plt.subplots(3, len(evidence_order), figsize=(22, 10), squeeze=False)
+		fig, axes = plt.subplots(3, len(evidence_order), figsize=_scaled_figsize(22, 10), squeeze=False)
 		for ax in axes.flatten():
 			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 			ax.set_axis_off()
@@ -917,7 +940,7 @@ def _save_metric_hist_grid(
 	row_height = _bounded_plot_height(model_count, min_height=3.5, per_item=0.4, padding=0.75, max_height=5.5)
 	fig_height = min(16.5, max(10.5, row_height * len(runtime_rows)))
 	fig_width = max(18.0, 5.0 * len(evidence_order))
-	fig, axes = plt.subplots(3, len(evidence_order), figsize=(fig_width, fig_height), squeeze=False, sharey="row")
+	fig, axes = plt.subplots(3, len(evidence_order), figsize=_scaled_figsize(fig_width, fig_height), squeeze=False, sharey="row")
 	legend_handles: List[Any] = []
 	legend_labels: List[str] = []
 
@@ -993,11 +1016,11 @@ def _save_metric_hist_grid(
 			legend_labels,
 			title="Metric",
 			loc="upper left",
-			bbox_to_anchor=(0.87, 0.97),
+			bbox_to_anchor=(1.01, 0.98),
 		)
 
 	fig.suptitle(title)
-	fig.tight_layout(rect=(0, 0, 0.86, 0.98))
+	fig.tight_layout(rect=(0, 0, 0.8, 0.98))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -1007,7 +1030,7 @@ def _save_table_figure(dataframe: pd.DataFrame, title: str, output_path: Path) -
 	fig_width = max(12, 1.4 * len(display_df.columns))
 	fig_height = max(2.5, 0.42 * len(display_df) + 1.6)
 
-	fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+	fig, ax = plt.subplots(figsize=_scaled_figsize(fig_width, fig_height))
 	ax.axis("off")
 	table = ax.table(
 		cellText=display_df.values,

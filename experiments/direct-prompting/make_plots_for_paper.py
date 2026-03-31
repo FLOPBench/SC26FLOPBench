@@ -74,6 +74,9 @@ DEFAULT_OUTPUT_DIR = os.path.join(
 	"direct-prompting",
 	"paper-figure-output",
 )
+FIGURE_SIZE_SCALE = 0.78
+PAPER_LEGEND_RIGHT_MARGIN = 0.88
+PAPER_LEGEND_X = 0.89
 
 GPU_ROOFLINE_TABLE = {
 	"3080": {
@@ -124,6 +127,10 @@ def _bounded_plot_height(
 	max_height: float,
 ) -> float:
 	return min(max_height, max(min_height, per_item * max(item_count, 1) + padding))
+
+
+def _scaled_figsize(width: float, height: float) -> tuple[float, float]:
+	return (width * FIGURE_SIZE_SCALE, height * FIGURE_SIZE_SCALE)
 
 
 def _safe_divide(numerator: Any, denominator: Any) -> float:
@@ -662,9 +669,11 @@ def _save_ai_difference_boxplots(
 	group_order = sorted(plot_df[group_field].dropna().unique().tolist()) if not plot_df.empty else []
 	sns.set_theme(style="whitegrid")
 	fig_height = _bounded_plot_height(len(group_order), min_height=8.0, per_item=0.6, padding=2.0, max_height=12.0)
-	fig, axes = plt.subplots(2, 1, figsize=(12.0, fig_height), sharex=True, sharey=True)
+	fig, axes = plt.subplots(2, 1, figsize=_scaled_figsize(10.0, fig_height), sharex=True, sharey=True)
 	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
 	linthresh = _symlog_linthresh(ai_long_df["ai_diff"]) if not ai_long_df.empty else 1.0
+	legend_handles: List[Any] = []
+	legend_labels: List[str] = []
 
 	for axis, use_sass in zip(axes, SASS_PANEL_ORDER):
 		subset = ai_long_df[ai_long_df["use_sass"] == use_sass].copy()
@@ -681,21 +690,38 @@ def _save_ai_difference_boxplots(
 				orient="h",
 				ax=axis,
 			)
+		axis.axvline(-1.0, color="red", linestyle="--", linewidth=1.5)
 		axis.axvline(0.0, color="green", linestyle="--", linewidth=1.5)
+		axis.axvline(1.0, color="red", linestyle="--", linewidth=1.5)
 		axis.set_xscale("symlog", linthresh=linthresh)
 		axis.set_title(SASS_PANEL_LABELS[use_sass])
 		axis.set_xlabel("Predicted AI - Expected AI (symmetric log scale)")
 		axis.set_ylabel(group_label)
 		axis.tick_params(axis="x", labelsize=8)
 		legend = axis.get_legend()
-		if legend is not None and use_sass is False:
-			legend.set_title("Precision")
-		elif legend is not None:
+		if legend is not None:
+			if not legend_handles:
+				handle_by_label = {}
+				handles, labels = axis.get_legend_handles_labels()
+				for handle, label in zip(handles, labels):
+					if label in precision_order and label not in handle_by_label:
+						handle_by_label[label] = handle
+				legend_labels = [label for label in precision_order if label in handle_by_label]
+				legend_handles = [handle_by_label[label] for label in legend_labels]
 			legend.remove()
 
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			legend_labels,
+			title="Precision",
+			loc="center left",
+			bbox_to_anchor=(PAPER_LEGEND_X, 0.5),
+		)
+
 	fig.suptitle(title)
-	fig.tight_layout(rect=(0, 0, 1, 0.97))
-	fig.savefig(output_path, dpi=220, bbox_inches="tight")
+	fig.tight_layout(rect=(0, 0, PAPER_LEGEND_RIGHT_MARGIN, 0.97))
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 
@@ -735,7 +761,7 @@ def _save_figure5_token_count_histograms(plot_df: pd.DataFrame, output_path: Pat
 	token_type_order = [TOKEN_COLUMN_LABELS["input_tokens"], TOKEN_COLUMN_LABELS["output_tokens"]]
 	token_axis_limits = _token_axis_limits(token_long_df)
 	sns.set_theme(style="whitegrid")
-	fig, axes = plt.subplots(2, 2, figsize=(16.0, 10.0), sharey="col")
+	fig, axes = plt.subplots(2, 2, figsize=_scaled_figsize(16.0, 10.0), sharey="col")
 	palette = sns.color_palette("tab10", n_colors=max(len(model_order), 1))
 	legend_handles = [
 		Line2D([0], [0], color=color, lw=2.0, label=model_name)
@@ -788,13 +814,13 @@ def _save_figure5_token_count_histograms(plot_df: pd.DataFrame, output_path: Pat
 			[handle.get_label() for handle in legend_handles],
 			title="Model Name",
 			loc="center left",
-			bbox_to_anchor=(1.01, 0.5),
+			bbox_to_anchor=(PAPER_LEGEND_X, 0.5),
 			ncol=1,
 		)
 
 	fig.suptitle("Token Count Distributions by Evidence Mode and Token Type", y=0.98)
-	fig.tight_layout(rect=(0, 0, 0.84, 0.95))
-	fig.savefig(output_path, dpi=220, bbox_inches="tight")
+	fig.tight_layout(rect=(0, 0, PAPER_LEGEND_RIGHT_MARGIN, 0.95))
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 
@@ -803,7 +829,7 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 	row_count = max(len(model_order), 1)
 	sns.set_theme(style="whitegrid")
 	fig_height = max(8.5, 3.2 * row_count)
-	fig, axes = plt.subplots(row_count, 2, figsize=(12.5, fig_height), squeeze=False)
+	fig, axes = plt.subplots(row_count, 2, figsize=_scaled_figsize(12.5, fig_height), squeeze=False)
 	cbar_ax = fig.add_axes([0.92, 0.18, 0.02, 0.64])
 	vmin = 0.0
 	vmax = 100.0
@@ -839,7 +865,7 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 
 	fig.suptitle("AI Bound Classification by Expected vs Predicted Class")
 	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.35, wspace=0.28)
-	fig.savefig(output_path, dpi=220, bbox_inches="tight")
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 
