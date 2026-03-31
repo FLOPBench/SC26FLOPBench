@@ -40,12 +40,13 @@ THREAD_PATTERN = re.compile(
 	r"_(?P<gpu>A100|3080|H100|A10)_(?P<safe_model>.+)_(?P<config>withsass|nosass|sass_imix|sass_noimix|nosass_imix|nosass_noimix)_trial(?P<trial>\d+)(?:_DRYRUN(?:\d+)?)?$"
 )
 MODEL_DATE_SUFFIX_PATTERN = re.compile(r"-\d{8}$")
-EVIDENCE_CONFIGURATION_ORDER = [
-	"No SASS / No IMIX",
-	"SASS Only",
-	"IMIX Only",
-	"SASS + IMIX",
-]
+DEFAULT_EVIDENCE_CONFIGURATION = "No SASS / No IMIX"
+PLOT_EVIDENCE_CONFIGURATION_LABELS = {
+	(False, False): "Source-Only",
+	(True, False): "Source+SASS",
+	(False, True): "Source+IMIX",
+	(True, True): "Source+SASS+IMIX",
+}
 
 METRIC_LABELS = {
 	"fp16": "FP16 FLOPs",
@@ -262,7 +263,7 @@ def _thread_metadata(thread_id: str) -> Dict[str, Any]:
 	elif use_imix:
 		evidence_configuration = "IMIX Only"
 	else:
-		evidence_configuration = "No SASS / No IMIX"
+		evidence_configuration = DEFAULT_EVIDENCE_CONFIGURATION
 
 	return {
 		"gpu": match.group("gpu"),
@@ -504,11 +505,49 @@ def _database_dataframe(latest_checkpoints: Dict[str, Dict[str, Any]], attempts:
 	if "use_imix" in full_df.columns:
 		full_df["use_imix"] = full_df["use_imix"].fillna(False)
 	if "evidence_configuration" in full_df.columns:
-		full_df["evidence_configuration"] = full_df["evidence_configuration"].fillna("No SASS / No IMIX")
+		full_df["evidence_configuration"] = full_df["evidence_configuration"].fillna(DEFAULT_EVIDENCE_CONFIGURATION)
 	if "runtime" in full_df.columns:
 		full_df["runtime"] = full_df["runtime"].fillna("unknown")
 
 	return full_df
+
+
+def _plot_evidence_configuration_label(use_sass: Any, use_imix: Any) -> str:
+	return PLOT_EVIDENCE_CONFIGURATION_LABELS[(bool(use_sass), bool(use_imix))]
+
+
+def _plot_evidence_configuration_order(include_imix: bool) -> List[str]:
+	order = [
+		PLOT_EVIDENCE_CONFIGURATION_LABELS[(False, False)],
+		PLOT_EVIDENCE_CONFIGURATION_LABELS[(True, False)],
+	]
+	if include_imix:
+		order.extend(
+			[
+				PLOT_EVIDENCE_CONFIGURATION_LABELS[(False, True)],
+				PLOT_EVIDENCE_CONFIGURATION_LABELS[(True, True)],
+			]
+		)
+	return order
+
+
+def _prepare_plot_dataframe(dataframe: pd.DataFrame, include_imix: bool) -> pd.DataFrame:
+	if dataframe.empty:
+		return dataframe.copy()
+
+	plot_df = dataframe.copy()
+	if "use_sass" in plot_df.columns:
+		plot_df["use_sass"] = plot_df["use_sass"].fillna(False).astype(bool)
+	if "use_imix" in plot_df.columns:
+		plot_df["use_imix"] = plot_df["use_imix"].fillna(False).astype(bool)
+	if not include_imix and "use_imix" in plot_df.columns:
+		plot_df = plot_df[plot_df["use_imix"] == False].copy()
+	if "use_sass" in plot_df.columns and "use_imix" in plot_df.columns:
+		plot_df["evidence_configuration"] = plot_df.apply(
+			lambda row: _plot_evidence_configuration_label(row["use_sass"], row["use_imix"]),
+			axis=1,
+		)
+	return plot_df
 
 
 def _prepare_metric_long_df(completed_df: pd.DataFrame, prefix: str) -> pd.DataFrame:
@@ -635,7 +674,7 @@ def _annotate_boxplot_group_sums(
 			)
 
 
-def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path) -> None:
+def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path, evidence_order: List[str]) -> None:
 	plot_df = samples_df.copy()
 	plot_df["status_segment"] = plot_df.apply(
 		lambda row: f"{row['status'].title()} | {row['evidence_configuration']}",
@@ -643,21 +682,21 @@ def _save_stacked_sample_count_plot(samples_df: pd.DataFrame, output_path: Path)
 	)
 
 	segment_order = []
-	for evidence_configuration in reversed(EVIDENCE_CONFIGURATION_ORDER):
+	for evidence_configuration in reversed(evidence_order):
 		segment_order.append(f"Failed | {evidence_configuration}")
 		segment_order.append(f"Completed | {evidence_configuration}")
 	segment_colors = {
-		"Completed | SASS + IMIX": "#1b5e20",
-		"Failed | SASS + IMIX": "#b71c1c",
-		"Completed | SASS Only": "#388e3c",
-		"Failed | SASS Only": "#d32f2f",
-		"Completed | IMIX Only": "#66bb6a",
-		"Failed | IMIX Only": "#ef5350",
-		"Completed | No SASS / No IMIX": "#a5d6a7",
-		"Failed | No SASS / No IMIX": "#ffcdd2",
+		"Completed | Source+SASS+IMIX": "#1b5e20",
+		"Failed | Source+SASS+IMIX": "#b71c1c",
+		"Completed | Source+SASS": "#388e3c",
+		"Failed | Source+SASS": "#d32f2f",
+		"Completed | Source+IMIX": "#66bb6a",
+		"Failed | Source+IMIX": "#ef5350",
+		"Completed | Source-Only": "#a5d6a7",
+		"Failed | Source-Only": "#ffcdd2",
 	}
 	legend_order = []
-	for evidence_configuration in EVIDENCE_CONFIGURATION_ORDER:
+	for evidence_configuration in evidence_order:
 		legend_order.append(f"Completed | {evidence_configuration}")
 		legend_order.append(f"Failed | {evidence_configuration}")
 	counts = (
@@ -719,13 +758,14 @@ def _save_histogram_by_sass(
 	title: str,
 	x_label: str,
 	output_path: Path,
+	evidence_order: List[str],
 	annotate_group_sums: bool = False,
 ) -> None:
 	sns.set_theme(style="whitegrid")
 	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
 	fig_height = _bounded_plot_height(model_count, min_height=6.0, per_item=0.45, padding=1.25, max_height=9.0)
 	fig, ax = plt.subplots(figsize=(10.5, fig_height))
-	hue_order = EVIDENCE_CONFIGURATION_ORDER
+	hue_order = evidence_order
 
 	if completed_df.empty or value_column not in completed_df.columns or "evidence_configuration" not in completed_df.columns or "model_name" not in completed_df.columns:
 		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
@@ -808,11 +848,12 @@ def _save_metric_hist_grid(
 	title: str,
 	x_label: str,
 	output_path: Path,
+	evidence_order: List[str],
 	x_left_limit: Optional[float] = None,
 ) -> None:
 	if metric_df.empty or "model_name" not in metric_df.columns:
 		sns.set_theme(style="whitegrid")
-		fig, axes = plt.subplots(3, len(EVIDENCE_CONFIGURATION_ORDER), figsize=(22, 10), squeeze=False)
+		fig, axes = plt.subplots(3, len(evidence_order), figsize=(22, 10), squeeze=False)
 		for ax in axes.flatten():
 			ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes)
 			ax.set_axis_off()
@@ -834,8 +875,8 @@ def _save_metric_hist_grid(
 	sns.set_theme(style="whitegrid")
 	row_height = _bounded_plot_height(model_count, min_height=3.5, per_item=0.4, padding=0.75, max_height=5.5)
 	fig_height = min(16.5, max(10.5, row_height * len(runtime_rows)))
-	fig_width = max(18.0, 5.0 * len(EVIDENCE_CONFIGURATION_ORDER))
-	fig, axes = plt.subplots(3, len(EVIDENCE_CONFIGURATION_ORDER), figsize=(fig_width, fig_height), squeeze=False, sharey="row")
+	fig_width = max(18.0, 5.0 * len(evidence_order))
+	fig, axes = plt.subplots(3, len(evidence_order), figsize=(fig_width, fig_height), squeeze=False, sharey="row")
 	legend_handles: List[Any] = []
 	legend_labels: List[str] = []
 
@@ -845,7 +886,7 @@ def _save_metric_hist_grid(
 			ax.set_axis_off()
 	else:
 		for row_index, (runtime_key, runtime_label) in enumerate(runtime_rows):
-			for col_index, evidence_configuration in enumerate(EVIDENCE_CONFIGURATION_ORDER):
+			for col_index, evidence_configuration in enumerate(evidence_order):
 				ax = axes[row_index][col_index]
 				subset = metric_df[metric_df["evidence_configuration"] == evidence_configuration].copy()
 				if runtime_key != "combined":
@@ -1130,7 +1171,7 @@ def _write_suggestions(output_path: Path) -> None:
 	output_path.write_text("\n".join(f"- {item}" for item in suggestions) + "\n", encoding="utf-8")
 
 
-def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -> None:
+def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, include_imix: bool) -> None:
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	parser = CheckpointDBParser(db_uri)
@@ -1190,13 +1231,16 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		failed_df["use_imix"] = failed_df["use_imix"].astype(bool)
 	samples_df["use_sass"] = samples_df["use_sass"].fillna(False).astype(bool)
 	samples_df["use_imix"] = samples_df["use_imix"].fillna(False).astype(bool)
-	samples_df["evidence_configuration"] = samples_df["evidence_configuration"].fillna("No SASS / No IMIX")
-	plot_models = _models_with_completed_runs(samples_df)
-	plot_samples_df = _filter_plot_models(samples_df, plot_models)
-	plot_completed_df = _filter_plot_models(completed_df, plot_models)
+	samples_df["evidence_configuration"] = samples_df["evidence_configuration"].fillna(DEFAULT_EVIDENCE_CONFIGURATION)
+	plot_evidence_order = _plot_evidence_configuration_order(include_imix)
+	plot_samples_df = _prepare_plot_dataframe(samples_df, include_imix)
+	plot_completed_df = _prepare_plot_dataframe(completed_df, include_imix)
+	plot_models = _models_with_completed_runs(plot_samples_df)
+	plot_samples_df = _filter_plot_models(plot_samples_df, plot_models)
+	plot_completed_df = _filter_plot_models(plot_completed_df, plot_models)
 
 	plot1_path = output_dir / "plot1_sample_counts_by_model.png"
-	_save_stacked_sample_count_plot(plot_samples_df, plot1_path)
+	_save_stacked_sample_count_plot(plot_samples_df, plot1_path, plot_evidence_order)
 
 	plot2_path = output_dir / "plot2_query_time_distribution.png"
 	_save_histogram_by_sass(
@@ -1205,6 +1249,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		"Query Time Distribution by Model and Evidence Configuration",
 		"Query Time (seconds)",
 		plot2_path,
+		plot_evidence_order,
 	)
 
 	plot3_path = output_dir / "plot3_cost_distribution.png"
@@ -1214,6 +1259,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		"Query Cost Distribution by Model and Evidence Configuration",
 		"Cost (USD)",
 		plot3_path,
+		plot_evidence_order,
 		annotate_group_sums=True,
 	)
 
@@ -1226,6 +1272,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		"Metric Difference Distribution by Model and Evidence Configuration",
 		"Predicted - Expected",
 		plot4a_path,
+		plot_evidence_order,
 	)
 
 	plot4b_path = output_dir / "plot4b_metrics_pct_diff_distribution.png"
@@ -1234,6 +1281,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool) -
 		"Metric Percent Difference Distribution by Model and Evidence Configuration",
 		"Percent Difference",
 		plot4b_path,
+		plot_evidence_order,
 		x_left_limit=-200.0,
 	)
 
@@ -1285,11 +1333,16 @@ def main() -> None:
 		action="store_true",
 		help="Include dry-run thread IDs in the visualizations. By default they are excluded.",
 	)
+	parser.add_argument(
+		"--includeIMIX",
+		action="store_true",
+		help="Include Source+IMIX and Source+SASS+IMIX categories in the plots. By default, plots show only Source-Only and Source+SASS.",
+	)
 	args = parser.parse_args()
 
 	ensure_postgres_running()
 	db_uri = args.dbUri or setup_default_database()
-	build_visualizations(db_uri, Path(args.outputDir), args.includeDryRun)
+	build_visualizations(db_uri, Path(args.outputDir), args.includeDryRun, args.includeIMIX)
 
 
 if __name__ == "__main__":

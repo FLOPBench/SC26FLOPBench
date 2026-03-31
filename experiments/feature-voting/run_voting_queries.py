@@ -5,7 +5,7 @@ import sys
 import argparse
 import multiprocessing
 import signal
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import contextmanager
 from tqdm import tqdm
 from psycopg_pool import ConnectionPool
@@ -198,11 +198,6 @@ def _extract_cost_usd_from_tail_checkpoint(parser: CheckpointDBParser, thread_id
         return None
 
     return float(cost_usd)
-
-
-def _iter_query_batches(queries: list[dict], batch_size: int):
-    for start_index in range(0, len(queries), batch_size):
-        yield queries[start_index:start_index + batch_size]
 
 
 def _unwrap_channel_values(state: dict | None) -> dict:
@@ -623,33 +618,46 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
 
         failed_queries: list[tuple[str, str]] = []
         worker_print_prompts = print_prompts
+        next_query_index = 0
+        future_to_query = {}
+        spend_limit_reached = False
 
         with tqdm(total=total_queries, initial=completed_count, desc="Running Queries") as progress_bar:
-            for batch_number, query_batch in enumerate(_iter_query_batches(queries_to_run, query_batch_size), start=1):
-                if max_spend is not None and session_spend_usd >= max_spend:
-                    print(
-                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
-                        f"with limit ${max_spend:.8f}. Stopping execution before batch {batch_number}."
-                    )
-                    break
+            with ProcessPoolExecutor(
+                max_workers=query_batch_size,
+                mp_context=multiprocessing.get_context("spawn"),
+            ) as executor:
+                def _fill_inflight_slots() -> None:
+                    nonlocal next_query_index, spend_limit_reached
 
-                with ProcessPoolExecutor(
-                    max_workers=query_batch_size,
-                    mp_context=multiprocessing.get_context("spawn"),
-                ) as executor:
-                    future_to_query = {
-                        executor.submit(
+                    while next_query_index < len(queries_to_run) and len(future_to_query) < query_batch_size:
+                        if max_spend is not None and session_spend_usd >= max_spend:
+                            if not spend_limit_reached:
+                                print(
+                                    f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
+                                    f"with limit ${max_spend:.8f}. Stopping new submissions and waiting for in-flight queries to finish."
+                                )
+                                spend_limit_reached = True
+                            return
+
+                        query = queries_to_run[next_query_index]
+                        future = executor.submit(
                             _execute_query_worker,
                             db_uri,
                             query,
                             worker_print_prompts,
                             max_timeout,
-                        ): query
-                        for query in query_batch
-                    }
+                        )
+                        future_to_query[future] = query
+                        next_query_index += 1
 
-                    for future in as_completed(future_to_query):
-                        query = future_to_query[future]
+                _fill_inflight_slots()
+
+                while future_to_query:
+                    done_futures, _ = wait(tuple(future_to_query), return_when=FIRST_COMPLETED)
+
+                    for future in done_futures:
+                        query = future_to_query.pop(future)
                         thread_id = query["thread_id"]
                         try:
                             result = future.result()
@@ -665,6 +673,7 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                                 completed_states,
                                 terminal_thread_ids,
                             )
+                            _fill_inflight_slots()
                             continue
 
                         progress_bar.update(1)
@@ -696,12 +705,7 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                                 terminal_thread_ids,
                             )
 
-                if max_spend is not None and session_spend_usd >= max_spend:
-                    print(
-                        f"Max spend limit reached or surpassed: spent ${session_spend_usd:.8f} "
-                        f"with limit ${max_spend:.8f}. Stopping execution."
-                    )
-                    break
+                        _fill_inflight_slots()
 
         for kernel_key in sorted(active_kernel_keys):
             _maybe_print_kernel_consensus(
