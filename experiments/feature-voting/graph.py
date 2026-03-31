@@ -44,14 +44,15 @@ class GraphState(TypedDict):
     predicted_has_branching: Optional[bool]
     predicted_has_data_dependent_branching: Optional[bool]
     predicted_has_flop_division: Optional[bool]
-    predicted_has_preprocessor_defines: Optional[bool]
+    predicted_uses_preprocessor_defines: Optional[bool]
     predicted_has_common_float_subexpr: Optional[bool]
+    predicted_has_loop_invariant_flops: Optional[bool]
     predicted_has_special_math_functions: Optional[bool]
     predicted_calls_device_function: Optional[bool]
     predicted_has_rng_input_data: Optional[bool]
     predicted_reads_input_values_from_file: Optional[bool]
-    predicted_has_hardcoded_gridsz: Optional[bool]
-    predicted_has_hardcoded_blocksz: Optional[bool]
+    predicted_has_constant_propagatable_gridsz: Optional[bool]
+    predicted_has_constant_propagatable_blocksz: Optional[bool]
     query_time: Optional[float]
     input_tokens: Optional[int]
     output_tokens: Optional[int]
@@ -255,14 +256,15 @@ def validator_node(state: GraphState) -> Dict[str, Any]:
         "predicted_has_branching": prediction.get("has_branching"),
         "predicted_has_data_dependent_branching": prediction.get("has_data_dependent_branching"),
         "predicted_has_flop_division": prediction.get("has_flop_division"),
-        "predicted_has_preprocessor_defines": prediction.get("has_preprocessor_defines"),
+        "predicted_uses_preprocessor_defines": prediction.get("uses_preprocessor_defines"),
         "predicted_has_common_float_subexpr": prediction.get("has_common_float_subexpr"),
+        "predicted_has_loop_invariant_flops": prediction.get("has_loop_invariant_flops"),
         "predicted_has_special_math_functions": prediction.get("has_special_math_functions"),
         "predicted_calls_device_function": prediction.get("calls_device_function"),
         "predicted_has_rng_input_data": prediction.get("has_rng_input_data"),
         "predicted_reads_input_values_from_file": prediction.get("reads_input_values_from_file"),
-        "predicted_has_hardcoded_gridsz": prediction.get("has_hardcoded_gridsz"),
-        "predicted_has_hardcoded_blocksz": prediction.get("has_hardcoded_blocksz"),
+        "predicted_has_constant_propagatable_gridsz": prediction.get("has_constant_propagatable_gridsz"),
+        "predicted_has_constant_propagatable_blocksz": prediction.get("has_constant_propagatable_blocksz"),
         "llm_model_name": response_metadata.get("model_name") or response_metadata.get("model"),
         "llm_provider": response_metadata.get("model_provider"),
         "llm_response_id": response_metadata.get("id") or raw.get("id"),

@@ -57,14 +57,15 @@ The LLM returns a `CodeFeatureFlags` object from [prompts.py](/gpuFLOPBench-upda
 - `has_branching`
 - `has_data_dependent_branching`
 - `has_flop_division`
-- `has_preprocessor_defines`
+- `uses_preprocessor_defines`
 - `has_common_float_subexpr`
+- `has_loop_invariant_flops`
 - `has_special_math_functions`
 - `calls_device_function`
 - `has_rng_input_data`
 - `reads_input_values_from_file`
-- `has_hardcoded_gridsz`
-- `has_hardcoded_blocksz`
+- `has_constant_propagatable_gridsz`
+- `has_constant_propagatable_blocksz`
 
 The graph also stores top-level `predicted_*` copies of these fields in the checkpoint tail so they can be queried without unpacking the nested `prediction` object.
 

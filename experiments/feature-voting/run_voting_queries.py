@@ -55,14 +55,15 @@ FEATURE_FIELDS = [
     ("predicted_has_branching", "has_branching"),
     ("predicted_has_data_dependent_branching", "has_data_dependent_branching"),
     ("predicted_has_flop_division", "has_flop_division"),
-    ("predicted_has_preprocessor_defines", "has_preprocessor_defines"),
+    ("predicted_uses_preprocessor_defines", "uses_preprocessor_defines"),
     ("predicted_has_common_float_subexpr", "has_common_float_subexpr"),
+    ("predicted_has_loop_invariant_flops", "has_loop_invariant_flops"),
     ("predicted_has_special_math_functions", "has_special_math_functions"),
     ("predicted_calls_device_function", "calls_device_function"),
     ("predicted_has_rng_input_data", "has_rng_input_data"),
     ("predicted_reads_input_values_from_file", "reads_input_values_from_file"),
-    ("predicted_has_hardcoded_gridsz", "has_hardcoded_gridsz"),
-    ("predicted_has_hardcoded_blocksz", "has_hardcoded_blocksz"),
+    ("predicted_has_constant_propagatable_gridsz", "has_constant_propagatable_gridsz"),
+    ("predicted_has_constant_propagatable_blocksz", "has_constant_propagatable_blocksz"),
 ]
 
 
@@ -253,7 +254,11 @@ def _load_completed_states(parser: CheckpointDBParser, thread_ids: set[str]) -> 
     return completed_states
 
 
-def _print_kernel_vote_consensus(kernel_group: dict, completed_states: dict[str, dict]) -> None:
+def _print_kernel_vote_consensus(
+    kernel_group: dict,
+    completed_states: dict[str, dict],
+    total_cost_usd: float | None = None,
+) -> None:
     vote_queries = sorted(
         kernel_group["queries"],
         key=lambda query: (query["model_name"], query["trial_index"]),
@@ -315,6 +320,8 @@ def _print_kernel_vote_consensus(kernel_group: dict, completed_states: dict[str,
     print(separator)
     for row in rows:
         print(_format_row(row))
+    if total_cost_usd is not None:
+        print(f"Total Query Cost (USD): {total_cost_usd:.8f}")
     print("=" * 70 + "\n")
 
 
@@ -322,14 +329,16 @@ def _maybe_print_kernel_consensus(
     kernel_key: tuple[str, str],
     kernel_groups: dict[tuple[str, str], dict],
     completed_states: dict[str, dict],
+    terminal_thread_ids: set[str],
+    total_cost_usd: float | None = None,
 ) -> None:
     kernel_group = kernel_groups[kernel_key]
     if kernel_group["consensus_printed"]:
         return
 
     expected_thread_ids = kernel_group["expected_thread_ids"]
-    if all(thread_id in completed_states for thread_id in expected_thread_ids):
-        _print_kernel_vote_consensus(kernel_group, completed_states)
+    if all(thread_id in terminal_thread_ids for thread_id in expected_thread_ids):
+        _print_kernel_vote_consensus(kernel_group, completed_states, total_cost_usd=total_cost_usd)
         kernel_group["consensus_printed"] = True
 
 
@@ -550,6 +559,7 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
             for kernel_key in active_kernel_keys:
                 preload_thread_ids.update(kernel_groups[kernel_key]["expected_thread_ids"])
             completed_states = _load_completed_states(parser, completed_for_run.intersection(preload_thread_ids))
+        terminal_thread_ids = set(completed_states)
 
         total_queries = len(queries)
         completed_count = len(completed_for_run)
@@ -648,9 +658,17 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                             failed_queries.append((thread_id, str(e)))
                             print(f"\nError running query {thread_id}: {e}")
                             progress_bar.update(1)
+                            terminal_thread_ids.add(thread_id)
+                            _maybe_print_kernel_consensus(
+                                query["kernel_key"],
+                                kernel_groups,
+                                completed_states,
+                                terminal_thread_ids,
+                            )
                             continue
 
                         progress_bar.update(1)
+                        terminal_thread_ids.add(thread_id)
 
                         query_cost_usd = result.get("cost_usd")
                         if query_cost_usd is not None:
@@ -665,11 +683,18 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                                     query["kernel_key"],
                                     kernel_groups,
                                     completed_states,
+                                    terminal_thread_ids,
                                 )
                         else:
                             error_message = result.get("error") or "Unknown error"
                             failed_queries.append((thread_id, error_message))
                             print(f"\nError running query {thread_id}: {error_message}")
+                            _maybe_print_kernel_consensus(
+                                query["kernel_key"],
+                                kernel_groups,
+                                completed_states,
+                                terminal_thread_ids,
+                            )
 
                 if max_spend is not None and session_spend_usd >= max_spend:
                     print(
@@ -678,13 +703,14 @@ def run_queries(db_uri: str, dataset_path: str, model_names: list[str], trials: 
                     )
                     break
 
-        if single_dry_run:
-            for kernel_key in sorted(active_kernel_keys):
-                _maybe_print_kernel_consensus(
-                    kernel_key,
-                    kernel_groups,
-                    completed_states,
-                )
+        for kernel_key in sorted(active_kernel_keys):
+            _maybe_print_kernel_consensus(
+                kernel_key,
+                kernel_groups,
+                completed_states,
+                terminal_thread_ids,
+                total_cost_usd=session_spend_usd if single_dry_run else None,
+            )
 
         if failed_queries:
             failed_thread_ids = ", ".join(thread_id for thread_id, _ in failed_queries[:10])
