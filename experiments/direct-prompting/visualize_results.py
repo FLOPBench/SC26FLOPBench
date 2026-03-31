@@ -512,6 +512,47 @@ def _database_dataframe(latest_checkpoints: Dict[str, Dict[str, Any]], attempts:
 	return full_df
 
 
+def _shared_sample_identity_columns() -> List[str]:
+	return ["program_name", "kernel_mangled_name", "gpu", "use_sass", "use_imix"]
+
+
+def _filter_only_shared_samples(dataframe: pd.DataFrame) -> pd.DataFrame:
+	if dataframe.empty:
+		return dataframe.copy()
+
+	required_columns = _shared_sample_identity_columns() + ["model_name", "status"]
+	missing_columns = [column for column in required_columns if column not in dataframe.columns]
+	if missing_columns:
+		raise KeyError(f"Shared-sample filtering requires columns {missing_columns}")
+
+	filtered_df = dataframe.copy()
+	filtered_df["use_sass"] = filtered_df["use_sass"].fillna(False).astype(bool)
+	filtered_df["use_imix"] = filtered_df["use_imix"].fillna(False).astype(bool)
+	filtered_df = filtered_df[filtered_df["model_name"].notna()].copy()
+	if filtered_df.empty:
+		return filtered_df
+
+	all_models = set(filtered_df["model_name"].dropna().unique().tolist())
+	if not all_models:
+		return filtered_df.iloc[0:0].copy()
+
+	completed_df = filtered_df[filtered_df["status"] == "completed"].copy()
+	if completed_df.empty:
+		return filtered_df.iloc[0:0].copy()
+
+	shared_sample_counts = (
+		completed_df.groupby(_shared_sample_identity_columns(), dropna=False)["model_name"]
+		.nunique()
+		.reset_index(name="model_count")
+	)
+	shared_sample_counts = shared_sample_counts[shared_sample_counts["model_count"] == len(all_models)].copy()
+	if shared_sample_counts.empty:
+		return filtered_df.iloc[0:0].copy()
+
+	shared_sample_keys = shared_sample_counts[_shared_sample_identity_columns()].drop_duplicates()
+	return filtered_df.merge(shared_sample_keys, on=_shared_sample_identity_columns(), how="inner")
+
+
 def _plot_evidence_configuration_label(use_sass: Any, use_imix: Any) -> str:
 	return PLOT_EVIDENCE_CONFIGURATION_LABELS[(bool(use_sass), bool(use_imix))]
 
@@ -1171,7 +1212,7 @@ def _write_suggestions(output_path: Path) -> None:
 	output_path.write_text("\n".join(f"- {item}" for item in suggestions) + "\n", encoding="utf-8")
 
 
-def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, include_imix: bool) -> None:
+def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, include_imix: bool, only_shared_samples: bool) -> None:
 	output_dir.mkdir(parents=True, exist_ok=True)
 
 	parser = CheckpointDBParser(db_uri)
@@ -1210,6 +1251,8 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 			)
 
 	samples_df = _database_dataframe(tail_checkpoints, attempts, include_dry_run)
+	if only_shared_samples:
+		samples_df = _filter_only_shared_samples(samples_df)
 
 	if samples_df.empty:
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")
@@ -1319,7 +1362,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 		print(f"- {path}")
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(description="Visualize direct prompting results from PostgreSQL checkpoints")
 	parser.add_argument("--dbUri", type=str, default=None, help="Explicit PostgreSQL database URI. Defaults to the local gpuflops_db database.")
 	parser.add_argument(
@@ -1338,11 +1381,21 @@ def main() -> None:
 		action="store_true",
 		help="Include Source+IMIX and Source+SASS+IMIX categories in the plots. By default, plots show only Source-Only and Source+SASS.",
 	)
+	parser.add_argument(
+		"--onlySharedSamples",
+		action="store_true",
+		help="Keep only kernel samples that have at least one completed row for every model name, matched by program name, kernel name, GPU, and evidence configuration.",
+	)
+	return parser
+
+
+def main() -> None:
+	parser = build_arg_parser()
 	args = parser.parse_args()
 
 	ensure_postgres_running()
 	db_uri = args.dbUri or setup_default_database()
-	build_visualizations(db_uri, Path(args.outputDir), args.includeDryRun, args.includeIMIX)
+	build_visualizations(db_uri, Path(args.outputDir), args.includeDryRun, args.includeIMIX, args.onlySharedSamples)
 
 
 if __name__ == "__main__":

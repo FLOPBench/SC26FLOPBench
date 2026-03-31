@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 
@@ -19,6 +20,7 @@ def _load_module(module_name: str, relative_path: str):
 prompts = _load_module("direct_prompting_prompts", "experiments/direct-prompting/prompts.py")
 run_queries = _load_module("direct_prompting_run_queries", "experiments/direct-prompting/run_queries.py")
 visualize_results = _load_module("direct_prompting_visualize_results", "experiments/direct-prompting/visualize_results.py")
+make_plots_for_paper = _load_module("direct_prompting_make_plots_for_paper", "experiments/direct-prompting/make_plots_for_paper.py")
 db_manager = _load_module("direct_prompting_db_manager", "experiments/direct-prompting/db_manager.py")
 
 
@@ -82,6 +84,26 @@ def _completed_channel_values(**overrides):
     }
     channel_values.update(overrides)
     return channel_values
+
+
+def _shared_sample_row(**overrides):
+    row = {
+        "thread_id": "thread-0",
+        "status": "completed",
+        "program_name": "demo-cuda",
+        "runtime": "cuda",
+        "kernel_mangled_name": "_Z4demov",
+        "kernel_demangled_name": "demo()",
+        "model_name": "openai/gpt-5.4",
+        "safe_model_name": "openai_gpt-5.4",
+        "use_sass": False,
+        "use_imix": False,
+        "evidence_configuration": "No SASS / No IMIX",
+        "gpu": "A100",
+        "trial": 0,
+    }
+    row.update(overrides)
+    return row
 
 
 @pytest.mark.parametrize(
@@ -320,3 +342,80 @@ def test_database_dataframe_uses_valid_tails_and_ignores_skipped_invalid_threads
 
     assert samples_df["thread_id"].tolist() == [valid_thread_id]
     assert samples_df.iloc[0]["status"] == "completed"
+
+
+def test_filter_only_shared_samples_keeps_only_identities_present_for_all_models():
+    dataframe = pd.DataFrame(
+        [
+            _shared_sample_row(thread_id="model-a-shared", model_name="model-a"),
+            _shared_sample_row(thread_id="model-b-shared", model_name="model-b"),
+            _shared_sample_row(thread_id="model-a-missing", model_name="model-a", kernel_mangled_name="_Z7missedv"),
+        ]
+    )
+
+    filtered = visualize_results._filter_only_shared_samples(dataframe)
+
+    assert set(filtered["thread_id"].tolist()) == {"model-a-shared", "model-b-shared"}
+    assert set(filtered["model_name"].tolist()) == {"model-a", "model-b"}
+    assert set(filtered["kernel_mangled_name"].tolist()) == {"_Z4demov"}
+
+
+def test_filter_only_shared_samples_uses_completed_rows_for_eligibility():
+    dataframe = pd.DataFrame(
+        [
+            _shared_sample_row(thread_id="model-a-completed", model_name="model-a"),
+            _shared_sample_row(thread_id="model-b-failed", model_name="model-b", status="failed"),
+            _shared_sample_row(thread_id="model-a-other", model_name="model-a", kernel_mangled_name="_Z5otherv"),
+            _shared_sample_row(thread_id="model-b-other", model_name="model-b", kernel_mangled_name="_Z5otherv"),
+        ]
+    )
+
+    filtered = visualize_results._filter_only_shared_samples(dataframe)
+
+    assert set(filtered["thread_id"].tolist()) == {"model-a-other", "model-b-other"}
+    assert "model-b-failed" not in filtered["thread_id"].tolist()
+
+
+def test_filter_only_shared_samples_keeps_gpu_and_evidence_configuration_in_key():
+    dataframe = pd.DataFrame(
+        [
+            _shared_sample_row(thread_id="a100-model-a", model_name="model-a"),
+            _shared_sample_row(thread_id="a100-model-b", model_name="model-b"),
+            _shared_sample_row(thread_id="h100-model-a", model_name="model-a", gpu="H100"),
+            _shared_sample_row(thread_id="sass-model-a", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="sass-model-b", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="imix-model-a", model_name="model-a", use_imix=True, evidence_configuration="IMIX Only"),
+        ]
+    )
+
+    filtered = visualize_results._filter_only_shared_samples(dataframe)
+
+    assert set(filtered["thread_id"].tolist()) == {
+        "a100-model-a",
+        "a100-model-b",
+        "sass-model-a",
+        "sass-model-b",
+    }
+    assert "h100-model-a" not in filtered["thread_id"].tolist()
+    assert "imix-model-a" not in filtered["thread_id"].tolist()
+
+
+def test_visualize_results_parser_accepts_only_shared_samples_flag():
+    parser = visualize_results.build_arg_parser()
+
+    default_args = parser.parse_args([])
+    flagged_args = parser.parse_args(["--onlySharedSamples", "--includeIMIX"])
+
+    assert default_args.onlySharedSamples is False
+    assert flagged_args.onlySharedSamples is True
+    assert flagged_args.includeIMIX is True
+
+
+def test_make_plots_for_paper_parser_accepts_only_shared_samples_flag():
+    parser = make_plots_for_paper.build_arg_parser()
+
+    default_args = parser.parse_args([])
+    flagged_args = parser.parse_args(["--onlySharedSamples"])
+
+    assert default_args.onlySharedSamples is False
+    assert flagged_args.onlySharedSamples is True

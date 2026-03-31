@@ -843,13 +843,15 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 	plt.close(fig)
 
 
-def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> None:
+def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only_shared_samples: bool) -> None:
 	output_dir.mkdir(parents=True, exist_ok=True)
 	samples_df = _load_samples_dataframe(db_uri, include_dry_run)
 	if samples_df.empty:
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")
 
 	completed_df = _enrich_completed_dataframe(samples_df)
+	if only_shared_samples:
+		completed_df = visualize_results._filter_only_shared_samples(completed_df)
 	plot_df = _paper_subset(completed_df)
 	if plot_df.empty:
 		raise RuntimeError(
@@ -878,7 +880,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool) -> N
 	print(f"- {figure5_path}")
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
 	arg_parser = argparse.ArgumentParser(description="Generate paper plots from direct-prompting PostgreSQL checkpoints")
 	arg_parser.add_argument(
 		"--dbUri",
@@ -897,12 +899,22 @@ def main() -> None:
 		action="store_true",
 		help="Include dry-run thread IDs in the paper plots. By default they are excluded.",
 	)
+	arg_parser.add_argument(
+		"--onlySharedSamples",
+		action="store_true",
+		help="Keep only kernel samples that have at least one completed row for every model name, matched by program name, kernel name, GPU, and evidence configuration.",
+	)
+	return arg_parser
+
+
+def main() -> None:
+	arg_parser = build_arg_parser()
 	args = arg_parser.parse_args()
 
 	_print_roofline_specs()
 	visualize_results.ensure_postgres_running()
 	db_uri = args.dbUri or visualize_results.setup_default_database()
-	build_paper_plots(db_uri, Path(args.outputDir), args.includeDryRun)
+	build_paper_plots(db_uri, Path(args.outputDir), args.includeDryRun, args.onlySharedSamples)
 
 
 if __name__ == "__main__":
