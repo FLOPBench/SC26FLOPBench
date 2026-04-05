@@ -206,3 +206,45 @@ def test_build_association_dataframe_supports_collapsed_variants():
 		summary_mode="collapsed_precision",
 	)
 	assert set(collapsed_precision_df["precision"].unique().tolist()) == {paper_plots.ALL_PRECISIONS_LABEL}
+
+
+def test_build_runtime_feature_summary_dataframe_collapses_all_but_runtime():
+	base_df = _sample_rows()
+	omp_df = base_df.copy()
+	omp_df["runtime"] = "omp"
+	omp_df["abs_ai_pct_error"] = [40.0, 35.0, 30.0, 20.0, 18.0, 16.0]
+	sass_df = base_df.copy()
+	sass_df["use_sass"] = True
+	sass_df["evidence_configuration"] = "Source+SASS"
+	combined_df = pd.concat([base_df, omp_df, sass_df], ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	runtime_summary_df = paper_plots._build_runtime_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+
+	assert set(runtime_summary_df["runtime"].unique().tolist()) == {"cuda", "omp"}
+	assert set(runtime_summary_df["prompt_type"].unique().tolist()) == {"Source-Only", "Source+SASS"}
+	assert set(runtime_summary_df["summary_mode"].unique().tolist()) == {"collapsed_runtime_feature"}
+
+
+def test_runtime_feature_order_sorts_by_signed_error_association():
+	runtime_summary_df = pd.DataFrame(
+		[
+			{"feature_label": "Branching", "association_score": 0.8},
+			{"feature_label": "Branching", "association_score": 0.4},
+			{"feature_label": "Division", "association_score": 0.2},
+			{"feature_label": "Division", "association_score": 0.1},
+			{"feature_label": "Special Math", "association_score": -0.3},
+			{"feature_label": "Special Math", "association_score": -0.5},
+		]
+	)
+
+	assert paper_plots._runtime_feature_order(runtime_summary_df) == [
+		"Branching",
+		"Division",
+		"Special Math",
+	]
