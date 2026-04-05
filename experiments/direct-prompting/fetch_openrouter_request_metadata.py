@@ -652,7 +652,7 @@ def _build_request_metadata_plot_dataframe(
 	)
 
 	if only_shared_samples:
-		plot_df = visualize_results._filter_only_shared_samples(plot_df)
+		plot_df = visualize_results._filter_only_shared_samples(plot_df, include_imix=False)
 		if plot_df.empty:
 			raise RuntimeError("No joined samples remained after applying --onlySharedSamples.")
 
@@ -699,6 +699,7 @@ def _format_metric_summary_table(
 		summary_df.groupby(["model_name", "evidence_configuration"], dropna=False)[value_column]
 		.agg(
 			n="count",
+			total_sum="sum",
 			q1=lambda values: values.quantile(0.25),
 			median="median",
 			q3=lambda values: values.quantile(0.75),
@@ -723,13 +724,14 @@ def _format_metric_summary_table(
 				"Model": str(row.model_name),
 				"Prompt Type": str(row.evidence_configuration),
 				"N": str(int(row.n)),
+				"Cumulative Sum": f"{float(row.total_sum):.6g}",
 				"Q1": f"{float(row.q1):.6g}",
 				"Median": f"{float(row.median):.6g}",
 				"Q3": f"{float(row.q3):.6g}",
 			}
 		)
 
-	headers = ["Model", "Prompt Type", "N", "Q1", "Median", "Q3"]
+	headers = ["Model", "Prompt Type", "N", "Cumulative Sum", "Q1", "Median", "Q3"]
 	widths = {
 		header: max(len(header), *(len(row[header]) for row in rows))
 		for header in headers
@@ -741,6 +743,146 @@ def _format_metric_summary_table(
 	for row in rows:
 		lines.append(" | ".join(row[header].ljust(widths[header]) for header in headers))
 	return "\n".join(lines)
+
+
+def _annotate_request_metadata_group_sums(
+	ax,
+	plot_df,
+	value_column: str,
+	model_order: list[str],
+	hue_order: list[str],
+) -> None:
+	import math
+	import matplotlib.transforms as mtransforms
+
+	if plot_df.empty:
+		return
+
+	trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
+	if len(hue_order) == 1:
+		offsets = [0.0]
+	else:
+		step = 0.6 / max(len(hue_order) - 1, 1)
+		offsets = [(-0.3 + step * index) for index in range(len(hue_order))]
+	offset_by_hue = {label: offsets[index] for index, label in enumerate(hue_order)}
+	annotation_colors = {
+		label: color
+		for label, color in zip(hue_order, ["#424242", "#111111", "#616161", "#000000"], strict=False)
+	}
+	group_sums = (
+		plot_df.groupby(["model_name", "evidence_configuration"], dropna=False)[value_column].sum().to_dict()
+	)
+
+	for model_index, model_name in enumerate(model_order):
+		for hue_label in hue_order:
+			total_value = group_sums.get((model_name, hue_label))
+			if total_value is None or not math.isfinite(float(total_value)):
+				continue
+			ax.text(
+				0.982,
+				model_index + offset_by_hue[hue_label],
+				f"${float(total_value):.4f}",
+				transform=trans,
+				ha="right",
+				va="center",
+				fontsize=9.5,
+				color=annotation_colors.get(hue_label, "#111111"),
+				bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.92, "pad": 0.35},
+			)
+
+
+def _save_request_metadata_histogram(
+	visualize_results,
+	completed_df,
+	value_column: str,
+	title: str,
+	x_label: str,
+	output_path: Path,
+	evidence_order: list[str],
+	*,
+	annotate_group_sums: bool = False,
+) -> None:
+	import matplotlib.pyplot as plt
+	import numpy as np
+	import pandas as pd
+	import seaborn as sns
+
+	sns.set_theme(
+		style="whitegrid",
+		rc={
+			"axes.titlesize": 15,
+			"axes.labelsize": 13,
+			"xtick.labelsize": 11,
+			"ytick.labelsize": 12,
+			"legend.fontsize": 11,
+			"legend.title_fontsize": 12,
+		},
+	)
+	model_count = completed_df["model_name"].nunique() if "model_name" in completed_df.columns else 0
+	fig_height = visualize_results._bounded_plot_height(
+		model_count,
+		min_height=6.5,
+		per_item=0.55,
+		padding=1.3,
+		max_height=9.5,
+	)
+	fig, ax = plt.subplots(figsize=visualize_results._scaled_figsize(8.6, fig_height))
+	hue_order = evidence_order
+
+	if completed_df.empty or value_column not in completed_df.columns or "evidence_configuration" not in completed_df.columns or "model_name" not in completed_df.columns:
+		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes, fontsize=13)
+		ax.set_xlabel(x_label)
+		ax.set_ylabel("Model Name")
+		ax.set_title(title)
+		fig.tight_layout()
+		fig.savefig(output_path, dpi=220, bbox_inches="tight")
+		plt.close(fig)
+		return
+
+	plot_df = completed_df.copy()
+	plot_df[value_column] = pd.to_numeric(plot_df[value_column], errors="coerce")
+	plot_df = plot_df[plot_df[value_column].notna()]
+	plot_df = plot_df[np.isfinite(plot_df[value_column].to_numpy())]
+	model_order = visualize_results._sorted_model_names(plot_df)
+
+	if plot_df.empty:
+		ax.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=ax.transAxes, fontsize=13)
+	else:
+		sns.boxplot(
+			data=plot_df,
+			x=value_column,
+			y="model_name",
+			hue="evidence_configuration",
+			order=model_order,
+			hue_order=hue_order,
+			orient="h",
+			width=0.6,
+			linewidth=1.35,
+			ax=ax,
+		)
+		if annotate_group_sums:
+			_annotate_request_metadata_group_sums(ax, plot_df, value_column, model_order, hue_order)
+
+	ax.set_title(title, pad=10)
+	ax.set_xlabel(x_label)
+	ax.set_ylabel("Model Name")
+	ax.tick_params(axis="y", pad=6)
+	legend = ax.get_legend()
+	if legend is not None:
+		handles, labels = ax.get_legend_handles_labels()
+		legend.remove()
+		ax.legend(
+			handles,
+			labels,
+			title=visualize_results.PROMPT_TYPE_LABEL,
+			loc="upper center",
+			bbox_to_anchor=(0.5, visualize_results.BOTTOM_LEGEND_Y),
+			ncol=visualize_results._legend_ncols(len(labels)),
+			frameon=False,
+		)
+	fig.tight_layout(rect=(0, visualize_results.BOTTOM_LEGEND_RECT, 1, 1))
+	fig.savefig(output_path, dpi=220, bbox_inches="tight")
+	plt.close(fig)
 
 
 def make_plots_for_paper(
@@ -792,7 +934,8 @@ def make_plots_for_paper(
 		}
 
 	plot2_path = output_dir / "plot2_query_time_distribution.png"
-	visualize_results._save_histogram_by_sass(
+	_save_request_metadata_histogram(
+		visualize_results,
 		plot_completed_df,
 		"query_time",
 		"Query Time Distribution by Model and Prompt Type",
@@ -802,7 +945,8 @@ def make_plots_for_paper(
 	)
 
 	plot3_path = output_dir / "plot3_cost_distribution.png"
-	visualize_results._save_histogram_by_sass(
+	_save_request_metadata_histogram(
+		visualize_results,
 		plot_completed_df,
 		"cost_usd",
 		"Query Cost Distribution by Model and Prompt Type",
@@ -881,7 +1025,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--overwrite", action="store_true", help="Re-fetch generation IDs that already have a successful row in the target database.")
 	parser.add_argument("--openrouterApiKey", type=str, default=None, help="OpenRouter API key. Defaults to OPENROUTER_API_KEY or OPENAI_API_KEY.")
 	parser.add_argument("--makePlotsForPaper", action="store_true", help="Join request_metadata with gpuflops_db and generate the query-time and cost plots used for paper figures.")
-	parser.add_argument("--onlySharedSamples", action="store_true", help="Keep only joined kernel samples that have at least one completed row for every model name, matched by program name, kernel name, GPU, and evidence configuration.")
+	parser.add_argument("--onlySharedSamples", action="store_true", help="Keep only joined benchmark/kernel/GPU tuples that have at least one completed row for every model name across both plotted prompt types: Source-Only and Source+SASS.")
 	parser.add_argument("--plotOutputDir", type=str, default=DEFAULT_PLOT_OUTPUT_DIR, help="Directory where --makePlotsForPaper artifacts will be written.")
 	parser.add_argument("--maxHttpErrorRepeats", type=int, default=DEFAULT_MAX_HTTP_ERROR_REPEATS, help="Maximum number of automatic repeat attempts for generation IDs whose latest stored status is http-error before they are treated as exhausted.")
 	return parser

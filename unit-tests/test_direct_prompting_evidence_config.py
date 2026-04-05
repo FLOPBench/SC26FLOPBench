@@ -362,13 +362,21 @@ def test_filter_only_shared_samples_keeps_only_identities_present_for_all_models
         [
             _shared_sample_row(thread_id="model-a-shared", model_name="model-a"),
             _shared_sample_row(thread_id="model-b-shared", model_name="model-b"),
+            _shared_sample_row(thread_id="model-a-shared-sass", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="model-b-shared-sass", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
             _shared_sample_row(thread_id="model-a-missing", model_name="model-a", kernel_mangled_name="_Z7missedv"),
+            _shared_sample_row(thread_id="model-b-missing", model_name="model-b", kernel_mangled_name="_Z7missedv"),
         ]
     )
 
     filtered = visualize_results._filter_only_shared_samples(dataframe)
 
-    assert set(filtered["thread_id"].tolist()) == {"model-a-shared", "model-b-shared"}
+    assert set(filtered["thread_id"].tolist()) == {
+        "model-a-shared",
+        "model-b-shared",
+        "model-a-shared-sass",
+        "model-b-shared-sass",
+    }
     assert set(filtered["model_name"].tolist()) == {"model-a", "model-b"}
     assert set(filtered["kernel_mangled_name"].tolist()) == {"_Z4demov"}
 
@@ -380,23 +388,34 @@ def test_filter_only_shared_samples_uses_completed_rows_for_eligibility():
             _shared_sample_row(thread_id="model-b-failed", model_name="model-b", status="failed"),
             _shared_sample_row(thread_id="model-a-other", model_name="model-a", kernel_mangled_name="_Z5otherv"),
             _shared_sample_row(thread_id="model-b-other", model_name="model-b", kernel_mangled_name="_Z5otherv"),
+            _shared_sample_row(thread_id="model-a-other-sass", model_name="model-a", kernel_mangled_name="_Z5otherv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="model-b-other-sass", model_name="model-b", kernel_mangled_name="_Z5otherv", use_sass=True, evidence_configuration="SASS Only"),
         ]
     )
 
     filtered = visualize_results._filter_only_shared_samples(dataframe)
 
-    assert set(filtered["thread_id"].tolist()) == {"model-a-other", "model-b-other"}
+    assert set(filtered["thread_id"].tolist()) == {
+        "model-a-other",
+        "model-b-other",
+        "model-a-other-sass",
+        "model-b-other-sass",
+    }
     assert "model-b-failed" not in filtered["thread_id"].tolist()
 
 
-def test_filter_only_shared_samples_keeps_gpu_and_evidence_configuration_in_key():
+def test_filter_only_shared_samples_requires_cross_prompt_matches_for_all_models():
     dataframe = pd.DataFrame(
         [
-            _shared_sample_row(thread_id="a100-model-a", model_name="model-a"),
-            _shared_sample_row(thread_id="a100-model-b", model_name="model-b"),
-            _shared_sample_row(thread_id="h100-model-a", model_name="model-a", gpu="H100"),
-            _shared_sample_row(thread_id="sass-model-a", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
-            _shared_sample_row(thread_id="sass-model-b", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-no-model-a", model_name="model-a"),
+            _shared_sample_row(thread_id="shared-no-model-b", model_name="model-b"),
+            _shared_sample_row(thread_id="shared-sass-model-a", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-sass-model-b", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="source-only-only-model-a", model_name="model-a", kernel_mangled_name="_Z11sourceonlyv"),
+            _shared_sample_row(thread_id="source-only-only-model-b", model_name="model-b", kernel_mangled_name="_Z11sourceonlyv"),
+            _shared_sample_row(thread_id="sass-only-model-a", model_name="model-a", kernel_mangled_name="_Z8sassonlyv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="sass-only-model-b", model_name="model-b", kernel_mangled_name="_Z8sassonlyv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="h100-no-model-a", model_name="model-a", gpu="H100"),
             _shared_sample_row(thread_id="imix-model-a", model_name="model-a", use_imix=True, evidence_configuration="IMIX Only"),
         ]
     )
@@ -404,13 +423,45 @@ def test_filter_only_shared_samples_keeps_gpu_and_evidence_configuration_in_key(
     filtered = visualize_results._filter_only_shared_samples(dataframe)
 
     assert set(filtered["thread_id"].tolist()) == {
-        "a100-model-a",
-        "a100-model-b",
-        "sass-model-a",
-        "sass-model-b",
+        "shared-no-model-a",
+        "shared-no-model-b",
+        "shared-sass-model-a",
+        "shared-sass-model-b",
     }
-    assert "h100-model-a" not in filtered["thread_id"].tolist()
+    assert "h100-no-model-a" not in filtered["thread_id"].tolist()
     assert "imix-model-a" not in filtered["thread_id"].tolist()
+
+
+def test_filter_only_shared_samples_with_include_imix_requires_all_prompt_types():
+    dataframe = pd.DataFrame(
+        [
+            _shared_sample_row(thread_id="full-no-model-a", model_name="model-a"),
+            _shared_sample_row(thread_id="full-no-model-b", model_name="model-b"),
+            _shared_sample_row(thread_id="full-sass-model-a", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="full-sass-model-b", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="full-imix-model-a", model_name="model-a", use_imix=True, evidence_configuration="IMIX Only"),
+            _shared_sample_row(thread_id="full-imix-model-b", model_name="model-b", use_imix=True, evidence_configuration="IMIX Only"),
+            _shared_sample_row(thread_id="full-sass-imix-model-a", model_name="model-a", use_sass=True, use_imix=True, evidence_configuration="SASS + IMIX"),
+            _shared_sample_row(thread_id="full-sass-imix-model-b", model_name="model-b", use_sass=True, use_imix=True, evidence_configuration="SASS + IMIX"),
+            _shared_sample_row(thread_id="missing-imix-no-model-a", model_name="model-a", kernel_mangled_name="_Z11missingimixv"),
+            _shared_sample_row(thread_id="missing-imix-no-model-b", model_name="model-b", kernel_mangled_name="_Z11missingimixv"),
+            _shared_sample_row(thread_id="missing-imix-sass-model-a", model_name="model-a", kernel_mangled_name="_Z11missingimixv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="missing-imix-sass-model-b", model_name="model-b", kernel_mangled_name="_Z11missingimixv", use_sass=True, evidence_configuration="SASS Only"),
+        ]
+    )
+
+    filtered = visualize_results._filter_only_shared_samples(dataframe, include_imix=True)
+
+    assert set(filtered["thread_id"].tolist()) == {
+        "full-no-model-a",
+        "full-no-model-b",
+        "full-sass-model-a",
+        "full-sass-model-b",
+        "full-imix-model-a",
+        "full-imix-model-b",
+        "full-sass-imix-model-a",
+        "full-sass-imix-model-b",
+    }
 
 
 def test_visualize_results_parser_accepts_only_shared_samples_flag():

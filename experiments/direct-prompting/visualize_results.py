@@ -537,14 +537,25 @@ def _database_dataframe(latest_checkpoints: Dict[str, Dict[str, Any]], attempts:
 
 
 def _shared_sample_identity_columns() -> List[str]:
-	return ["program_name", "kernel_mangled_name", "gpu", "use_sass", "use_imix"]
+	return ["program_name", "kernel_mangled_name", "gpu"]
 
 
-def _filter_only_shared_samples(dataframe: pd.DataFrame) -> pd.DataFrame:
+def _shared_sample_prompt_columns() -> List[str]:
+	return ["use_sass", "use_imix"]
+
+
+def _required_shared_prompt_configurations(include_imix: bool) -> List[tuple[bool, bool]]:
+	required_configurations = [(False, False), (True, False)]
+	if include_imix:
+		required_configurations.extend([(False, True), (True, True)])
+	return required_configurations
+
+
+def _filter_only_shared_samples(dataframe: pd.DataFrame, include_imix: bool = False) -> pd.DataFrame:
 	if dataframe.empty:
 		return dataframe.copy()
 
-	required_columns = _shared_sample_identity_columns() + ["model_name", "status"]
+	required_columns = _shared_sample_identity_columns() + _shared_sample_prompt_columns() + ["model_name", "status"]
 	missing_columns = [column for column in required_columns if column not in dataframe.columns]
 	if missing_columns:
 		raise KeyError(f"Shared-sample filtering requires columns {missing_columns}")
@@ -556,6 +567,13 @@ def _filter_only_shared_samples(dataframe: pd.DataFrame) -> pd.DataFrame:
 	if filtered_df.empty:
 		return filtered_df
 
+	required_prompt_configurations = set(_required_shared_prompt_configurations(include_imix))
+	filtered_df = filtered_df[
+		filtered_df.apply(lambda row: (row["use_sass"], row["use_imix"]) in required_prompt_configurations, axis=1)
+	].copy()
+	if filtered_df.empty:
+		return filtered_df
+
 	all_models = set(filtered_df["model_name"].dropna().unique().tolist())
 	if not all_models:
 		return filtered_df.iloc[0:0].copy()
@@ -564,12 +582,18 @@ def _filter_only_shared_samples(dataframe: pd.DataFrame) -> pd.DataFrame:
 	if completed_df.empty:
 		return filtered_df.iloc[0:0].copy()
 
+	completed_identity_rows = completed_df[
+		_shared_sample_identity_columns() + ["model_name"] + _shared_sample_prompt_columns()
+	].drop_duplicates()
 	shared_sample_counts = (
-		completed_df.groupby(_shared_sample_identity_columns(), dropna=False)["model_name"]
-		.nunique()
+		completed_identity_rows.groupby(_shared_sample_identity_columns(), dropna=False)
+		.size()
 		.reset_index(name="model_count")
 	)
-	shared_sample_counts = shared_sample_counts[shared_sample_counts["model_count"] == len(all_models)].copy()
+	required_combination_count = len(all_models) * len(required_prompt_configurations)
+	shared_sample_counts = shared_sample_counts[
+		shared_sample_counts["model_count"] == required_combination_count
+	].copy()
 	if shared_sample_counts.empty:
 		return filtered_df.iloc[0:0].copy()
 
@@ -884,6 +908,73 @@ def _save_histogram_by_sass(
 	fig.tight_layout(rect=(0, BOTTOM_LEGEND_RECT, 1, 1))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
+
+
+def _format_metric_summary_table(
+	plot_df: pd.DataFrame,
+	*,
+	value_column: str,
+	metric_label: str,
+	evidence_order: List[str],
+	model_order: List[str],
+) -> str:
+	if plot_df.empty or value_column not in plot_df.columns:
+		return f"{metric_label}\n(no plotted rows)"
+
+	summary_df = plot_df[["model_name", "evidence_configuration", value_column]].copy()
+	summary_df[value_column] = pd.to_numeric(summary_df[value_column], errors="coerce")
+	summary_df = summary_df[summary_df[value_column].notna()].copy()
+	if summary_df.empty:
+		return f"{metric_label}\n(no plotted rows)"
+
+	grouped = (
+		summary_df.groupby(["model_name", "evidence_configuration"], dropna=False)[value_column]
+		.agg(
+			n="count",
+			total_sum="sum",
+			q1=lambda values: values.quantile(0.25),
+			median="median",
+			q3=lambda values: values.quantile(0.75),
+		)
+		.reset_index()
+	)
+	grouped["model_sort"] = grouped["model_name"].map({name: index for index, name in enumerate(model_order)})
+	grouped["evidence_sort"] = grouped["evidence_configuration"].map(
+		{name: index for index, name in enumerate(evidence_order)}
+	)
+	grouped["model_sort"] = grouped["model_sort"].fillna(len(model_order)).astype(int)
+	grouped["evidence_sort"] = grouped["evidence_sort"].fillna(len(evidence_order)).astype(int)
+	grouped = grouped.sort_values(
+		by=["model_sort", "evidence_sort", "model_name", "evidence_configuration"],
+		kind="stable",
+	)
+
+	rows = []
+	for row in grouped.itertuples(index=False):
+		rows.append(
+			{
+				"Model": str(row.model_name),
+				"Prompt Type": str(row.evidence_configuration),
+				"N": str(int(row.n)),
+				"Cumulative Sum": f"{float(row.total_sum):.6g}",
+				"Q1": f"{float(row.q1):.6g}",
+				"Median": f"{float(row.median):.6g}",
+				"Q3": f"{float(row.q3):.6g}",
+			}
+		)
+
+	headers = ["Model", "Prompt Type", "N", "Cumulative Sum", "Q1", "Median", "Q3"]
+	widths = {
+		header: max(len(header), *(len(row[header]) for row in rows))
+		for header in headers
+	}
+
+	lines = [metric_label]
+	lines.append(" | ".join(header.ljust(widths[header]) for header in headers))
+	lines.append("-+-".join("-" * widths[header] for header in headers))
+	for row in rows:
+		lines.append(" | ".join(row[header].ljust(widths[header]) for header in headers))
+	return "\n".join(lines)
 
 
 def _apply_shared_metric_x_limits(
@@ -1285,7 +1376,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 
 	samples_df = _database_dataframe(tail_checkpoints, attempts, include_dry_run)
 	if only_shared_samples:
-		samples_df = _filter_only_shared_samples(samples_df)
+		samples_df = _filter_only_shared_samples(samples_df, include_imix=include_imix)
 
 	if samples_df.empty:
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")
@@ -1314,6 +1405,7 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	plot_models = _models_with_completed_runs(plot_samples_df)
 	plot_samples_df = _filter_plot_models(plot_samples_df, plot_models)
 	plot_completed_df = _filter_plot_models(plot_completed_df, plot_models)
+	plot_model_order = _sorted_model_names(plot_completed_df)
 
 	plot1_path = output_dir / "plot1_sample_counts_by_model.png"
 	_save_stacked_sample_count_plot(plot_samples_df, plot1_path, plot_evidence_order)
@@ -1337,6 +1429,21 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 		plot3_path,
 		plot_evidence_order,
 		annotate_group_sums=True,
+	)
+
+	query_time_summary = _format_metric_summary_table(
+		plot_completed_df,
+		value_column="query_time",
+		metric_label="query_time_summary_seconds",
+		evidence_order=plot_evidence_order,
+		model_order=plot_model_order,
+	)
+	cost_summary = _format_metric_summary_table(
+		plot_completed_df,
+		value_column="cost_usd",
+		metric_label="cost_summary_usd",
+		evidence_order=plot_evidence_order,
+		model_order=plot_model_order,
 	)
 
 	metric_diff_df = _prepare_metric_long_df(plot_completed_df, "metrics_diff")
@@ -1381,6 +1488,8 @@ def build_visualizations(db_uri: str, output_dir: Path, include_dry_run: bool, i
 	_write_suggestions(suggestions_path)
 
 	print("Visualization artifacts written to:")
+	print(query_time_summary)
+	print(cost_summary)
 	for path in [
 		plot1_path,
 		plot2_path,
@@ -1417,7 +1526,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--onlySharedSamples",
 		action="store_true",
-		help="Keep only kernel samples that have at least one completed row for every model name, matched by program name, kernel name, GPU, and evidence configuration.",
+		help="Keep only benchmark/kernel/GPU tuples that have at least one completed row for every model name and every plotted prompt type. Without --includeIMIX this intersects Source-Only and Source+SASS; with --includeIMIX it intersects all four prompt types.",
 	)
 	return parser
 

@@ -552,6 +552,76 @@ def _write_summary_csv(df: pd.DataFrame, output_path: Path) -> None:
 	df.to_csv(output_path, index=False)
 
 
+def _format_boxplot_summary_table(
+	ai_long_df: pd.DataFrame,
+	*,
+	group_field: str,
+	group_label: str,
+	table_label: str,
+) -> str:
+	if ai_long_df.empty:
+		return f"{table_label}\n(no plotted rows)"
+
+	summary_df = ai_long_df[[group_field, "use_sass", "precision", "ai_diff"]].copy()
+	summary_df["ai_diff"] = pd.to_numeric(summary_df["ai_diff"], errors="coerce")
+	summary_df = summary_df[summary_df["ai_diff"].notna()].copy()
+	if summary_df.empty:
+		return f"{table_label}\n(no plotted rows)"
+
+	group_order = sorted(summary_df[group_field].dropna().unique().tolist())
+	prompt_order = [SASS_PANEL_LABELS[use_sass] for use_sass in SASS_PANEL_ORDER]
+	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
+
+	summary_df["prompt_type"] = summary_df["use_sass"].map(lambda use_sass: SASS_PANEL_LABELS[bool(use_sass)])
+	grouped = (
+		summary_df.groupby([group_field, "prompt_type", "precision"], dropna=False)["ai_diff"]
+		.agg(
+			n="count",
+			q1=lambda values: values.quantile(0.25),
+			median="median",
+			q3=lambda values: values.quantile(0.75),
+		)
+		.reset_index()
+	)
+	grouped["group_sort"] = grouped[group_field].map({name: index for index, name in enumerate(group_order)})
+	grouped["prompt_sort"] = grouped["prompt_type"].map({name: index for index, name in enumerate(prompt_order)})
+	grouped["precision_sort"] = grouped["precision"].map({name: index for index, name in enumerate(precision_order)})
+	grouped["group_sort"] = grouped["group_sort"].fillna(len(group_order)).astype(int)
+	grouped["prompt_sort"] = grouped["prompt_sort"].fillna(len(prompt_order)).astype(int)
+	grouped["precision_sort"] = grouped["precision_sort"].fillna(len(precision_order)).astype(int)
+	grouped = grouped.sort_values(
+		by=["group_sort", "prompt_sort", "precision_sort", group_field, "prompt_type", "precision"],
+		kind="stable",
+	)
+
+	rows = []
+	for row in grouped.itertuples(index=False):
+		rows.append(
+			{
+				group_label: str(getattr(row, group_field)),
+				"Prompt Type": str(row.prompt_type),
+				"Precision": str(row.precision),
+				"N": str(int(row.n)),
+				"Q1": f"{float(row.q1):.6g}",
+				"Median": f"{float(row.median):.6g}",
+				"Q3": f"{float(row.q3):.6g}",
+			}
+		)
+
+	headers = [group_label, "Prompt Type", "Precision", "N", "Q1", "Median", "Q3"]
+	widths = {
+		header: max(len(header), *(len(row[header]) for row in rows))
+		for header in headers
+	}
+
+	lines = [table_label]
+	lines.append(" | ".join(header.ljust(widths[header]) for header in headers))
+	lines.append("-+-".join("-" * widths[header] for header in headers))
+	for row in rows:
+		lines.append(" | ".join(row[header].ljust(widths[header]) for header in headers))
+	return "\n".join(lines)
+
+
 def _print_summary_table(title: str, df: pd.DataFrame) -> None:
 	print(f"\n{title}")
 	if df.empty:
@@ -584,6 +654,29 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 	_write_summary_csv(bound_by_model, summary_paths["Bound-class summary by model"])
 	_write_summary_csv(bound_by_gpu, summary_paths["Bound-class summary by GPU"])
 	_write_summary_csv(bound_by_runtime, summary_paths["Bound-class summary by runtime"])
+
+	figure1_summary = _format_boxplot_summary_table(
+		ai_long_df,
+		group_field="model_name",
+		group_label="Model",
+		table_label="figure1_ai_difference_summary",
+	)
+	figure3_summary = _format_boxplot_summary_table(
+		ai_long_df,
+		group_field="gpu",
+		group_label="GPU",
+		table_label="figure3_ai_difference_summary",
+	)
+	figure4_summary = _format_boxplot_summary_table(
+		ai_long_df,
+		group_field="runtime",
+		group_label="Runtime",
+		table_label="figure4_ai_difference_summary",
+	)
+
+	print(figure1_summary)
+	print(figure3_summary)
+	print(figure4_summary)
 
 	_print_summary_table("AI error summary by model / SASS / precision:", ai_by_model)
 	_print_summary_table("AI error summary by GPU / SASS / precision:", ai_by_gpu)
@@ -719,7 +812,7 @@ def _save_ai_difference_boxplots(
 			bbox_to_anchor=(PAPER_LEGEND_X, 0.5),
 		)
 
-	fig.suptitle(title)
+	#fig.suptitle(title)
 	fig.tight_layout(rect=(0, 0, PAPER_LEGEND_RIGHT_MARGIN, 0.97))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
@@ -877,7 +970,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 
 	completed_df = _enrich_completed_dataframe(samples_df)
 	if only_shared_samples:
-		completed_df = visualize_results._filter_only_shared_samples(completed_df)
+		completed_df = visualize_results._filter_only_shared_samples(completed_df, include_imix=False)
 	plot_df = _paper_subset(completed_df)
 	if plot_df.empty:
 		raise RuntimeError(
@@ -928,7 +1021,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	arg_parser.add_argument(
 		"--onlySharedSamples",
 		action="store_true",
-		help="Keep only kernel samples that have at least one completed row for every model name, matched by program name, kernel name, GPU, and evidence configuration.",
+		help="Keep only benchmark/kernel/GPU tuples that have at least one completed row for every model name across both plotted prompt types: Source-Only and Source+SASS.",
 	)
 	return arg_parser
 
