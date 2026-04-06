@@ -582,6 +582,10 @@ def _build_request_metadata_plot_dataframe(
 	import pandas as pd
 
 	visualize_results, samples_df = _load_samples_dataframe(source_db_uri, include_dry_run)
+	if only_shared_samples:
+		samples_df = visualize_results._filter_only_shared_samples(samples_df, include_imix=False)
+		if samples_df.empty:
+			raise RuntimeError("No joined samples remained after applying --onlySharedSamples.")
 	completed_df = samples_df[samples_df["status"] == "completed"].copy()
 	if completed_df.empty:
 		raise RuntimeError("No completed samples were found in the source database.")
@@ -650,11 +654,6 @@ def _build_request_metadata_plot_dataframe(
 			if isinstance(generation_id, str) and generation_id.startswith("gen-")
 		}
 	)
-
-	if only_shared_samples:
-		plot_df = visualize_results._filter_only_shared_samples(plot_df, include_imix=False)
-		if plot_df.empty:
-			raise RuntimeError("No joined samples remained after applying --onlySharedSamples.")
 
 	return {
 		"visualize_results": visualize_results,
@@ -1025,7 +1024,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--overwrite", action="store_true", help="Re-fetch generation IDs that already have a successful row in the target database.")
 	parser.add_argument("--openrouterApiKey", type=str, default=None, help="OpenRouter API key. Defaults to OPENROUTER_API_KEY or OPENAI_API_KEY.")
 	parser.add_argument("--makePlotsForPaper", action="store_true", help="Join request_metadata with gpuflops_db and generate the query-time and cost plots used for paper figures.")
-	parser.add_argument("--onlySharedSamples", action="store_true", help="Keep only joined benchmark/kernel/GPU tuples that have at least one completed row for every model name across both plotted prompt types: Source-Only and Source+SASS.")
+	parser.add_argument("--onlySharedSamples", action="store_true", help="Keep only joined benchmark/kernel identities that have at least one stored row (completed or failed) for every GPU, every model name, and both plotted prompt types: Source-Only and Source+SASS.")
 	parser.add_argument("--plotOutputDir", type=str, default=DEFAULT_PLOT_OUTPUT_DIR, help="Directory where --makePlotsForPaper artifacts will be written.")
 	parser.add_argument("--maxHttpErrorRepeats", type=int, default=DEFAULT_MAX_HTTP_ERROR_REPEATS, help="Maximum number of automatic repeat attempts for generation IDs whose latest stored status is http-error before they are treated as exhausted.")
 	return parser

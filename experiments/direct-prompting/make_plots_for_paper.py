@@ -45,11 +45,31 @@ AI_LABELS = {
 	"fp32": "FP32 RAI",
 	"fp64": "FP64 RAI",
 }
+PRECISION_DISPLAY_LABELS = {
+	"fp16": "FP16",
+	"fp32": "FP32",
+	"fp64": "FP64",
+}
 BOUND_LABELS = ["TP", "FP", "FN", "TN"]
 SASS_PANEL_ORDER = [False, True]
 SASS_PANEL_LABELS = {
 	False: "Source-Only",
 	True: "Source+SASS",
+}
+EXPECTED_RAI_DISTRIBUTION_COLUMNS = [
+	"zero_rai_n",
+	"nonzero_bandwidth_bound_n",
+	"nonzero_compute_bound_n",
+]
+EXPECTED_RAI_DISTRIBUTION_LABELS = {
+	"zero_rai_n": "0 RAI",
+	"nonzero_bandwidth_bound_n": "Bandwidth-Bound (BB)",
+	"nonzero_compute_bound_n": "Compute-Bound (CB)",
+}
+EXPECTED_RAI_DISTRIBUTION_COLORS = {
+	"zero_rai_n": "#4c78a8",
+	"nonzero_bandwidth_bound_n": "#f58518",
+	"nonzero_compute_bound_n": "#54a24b",
 }
 TOKEN_COLUMN_LABELS = {
 	"input_tokens": "Input Tokens",
@@ -131,6 +151,10 @@ GPU_ROOFLINE_TABLE = {
 			"fp64": 33.45,
 		},
 	},
+}
+RUNTIME_DISPLAY_LABELS = {
+	"cuda": "CUDA",
+	"omp": "OpenMP",
 }
 
 
@@ -349,6 +373,188 @@ def _print_bound_class_distribution(plot_df: pd.DataFrame) -> None:
 				f"  {gpu_name}: bandwidth-bound={bandwidth_count} ({bandwidth_count / total * 100.0:.1f}%), "
 				f"compute-bound={compute_count} ({compute_count / total * 100.0:.1f}%), total={total}"
 			)
+
+
+def _expected_rai_distribution_category(ai_value: Any, balance_point: Any) -> str:
+	ai_numeric = pd.to_numeric(ai_value, errors="coerce")
+	balance_numeric = pd.to_numeric(balance_point, errors="coerce")
+	if pd.isna(ai_numeric) or not math.isfinite(float(ai_numeric)):
+		return "nan_rai_n"
+	if float(ai_numeric) == 0.0:
+		return "zero_rai_n"
+	if pd.isna(balance_numeric) or not math.isfinite(float(balance_numeric)):
+		return "nan_rai_n"
+	if float(ai_numeric) <= float(balance_numeric):
+		return "nonzero_bandwidth_bound_n"
+	return "nonzero_compute_bound_n"
+
+
+def _summarize_expected_rai_distribution(plot_df: pd.DataFrame) -> pd.DataFrame:
+	base_columns = ["program_name", "kernel_mangled_name", "gpu"]
+	result_columns = [
+		"gpu",
+		"precision",
+		*EXPECTED_RAI_DISTRIBUTION_COLUMNS,
+		"nonzero_rai_n",
+		"total_kernels",
+		"count_string",
+	]
+	if plot_df.empty:
+		return pd.DataFrame(columns=result_columns)
+
+	value_columns = []
+	for precision in AI_PRECISIONS:
+		value_columns.extend([f"expected_ai_{precision}", f"balance_point_{precision}"])
+
+	unique_samples_df = (
+		plot_df[base_columns + value_columns]
+		.drop_duplicates(subset=base_columns)
+		.reset_index(drop=True)
+	)
+
+	rows: List[Dict[str, Any]] = []
+	for _, row in unique_samples_df.iterrows():
+		for precision in AI_PRECISIONS:
+			rows.append(
+				{
+					"gpu": row["gpu"],
+					"precision": PRECISION_DISPLAY_LABELS[precision],
+					"rai_category": _expected_rai_distribution_category(
+						row[f"expected_ai_{precision}"],
+						row[f"balance_point_{precision}"],
+					),
+				}
+			)
+
+	distribution_long_df = pd.DataFrame(rows, columns=["gpu", "precision", "rai_category"])
+	if distribution_long_df.empty:
+		return pd.DataFrame(columns=result_columns)
+
+	distribution_df = (
+		distribution_long_df.groupby(["gpu", "precision", "rai_category"], dropna=False)
+		.size()
+		.unstack(fill_value=0)
+		.reset_index()
+	)
+	for column in EXPECTED_RAI_DISTRIBUTION_COLUMNS:
+		if column not in distribution_df.columns:
+			distribution_df[column] = 0
+	if "nan_rai_n" in distribution_df.columns:
+		nan_count = int(pd.to_numeric(distribution_df["nan_rai_n"], errors="coerce").fillna(0).sum())
+		if nan_count > 0:
+			raise RuntimeError(
+				"Figure 6 encountered expected-RAI NaN samples, but the NaN bucket is intentionally omitted. "
+				"Inspect expected_total_bytes for zero-denominator cases before plotting."
+			)
+
+	distribution_df["nonzero_rai_n"] = (
+		distribution_df["nonzero_bandwidth_bound_n"] + distribution_df["nonzero_compute_bound_n"]
+	)
+	distribution_df["total_kernels"] = distribution_df[
+		EXPECTED_RAI_DISTRIBUTION_COLUMNS
+	].sum(axis=1)
+	distribution_df["count_string"] = distribution_df.apply(
+		lambda row: (
+			f"({int(row['zero_rai_n'])}|{int(row['nonzero_bandwidth_bound_n'])}|"
+			f"{int(row['nonzero_compute_bound_n'])})"
+		),
+		axis=1,
+	)
+
+	gpu_order = {gpu_name: index for index, gpu_name in enumerate(GPU_ROOFLINE_TABLE.keys())}
+	precision_order = {
+		PRECISION_DISPLAY_LABELS[precision]: index for index, precision in enumerate(AI_PRECISIONS)
+	}
+	distribution_df["gpu_sort"] = distribution_df["gpu"].map(
+		lambda gpu_name: gpu_order.get(gpu_name, len(gpu_order))
+	)
+	distribution_df["precision_sort"] = distribution_df["precision"].map(
+		lambda precision_label: precision_order.get(precision_label, len(precision_order))
+	)
+	distribution_df = distribution_df.sort_values(
+		["gpu_sort", "gpu", "precision_sort", "precision"],
+		kind="stable",
+	).reset_index(drop=True)
+	return distribution_df[result_columns]
+
+
+def _summarize_gpu_kernel_sample_coverage(plot_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+	identity_columns = ["program_name", "kernel_mangled_name", "gpu"]
+	result = {
+		"per_gpu": pd.DataFrame(columns=["gpu", "kernel_identity_n"]),
+		"overlap_distribution": pd.DataFrame(columns=["gpu_overlap_n", "kernel_identity_n"]),
+		"unique_per_gpu": pd.DataFrame(columns=["gpu", "unique_kernel_identity_n"]),
+		"totals": pd.DataFrame(columns=["metric", "value"]),
+	}
+	if plot_df.empty:
+		return result
+
+	unique_samples_df = plot_df[identity_columns].dropna().drop_duplicates().reset_index(drop=True)
+	if unique_samples_df.empty:
+		return result
+
+	gpu_order = {gpu_name: index for index, gpu_name in enumerate(GPU_ROOFLINE_TABLE.keys())}
+	available_gpus = sorted(unique_samples_df["gpu"].unique().tolist(), key=lambda gpu: gpu_order.get(gpu, len(gpu_order)))
+	identity_membership_df = (
+		unique_samples_df.groupby(["program_name", "kernel_mangled_name"], dropna=False)["gpu"]
+		.agg(lambda values: tuple(sorted(set(values), key=lambda gpu: gpu_order.get(gpu, len(gpu_order)))))
+		.reset_index(name="gpu_membership")
+	)
+	identity_membership_df["gpu_overlap_n"] = identity_membership_df["gpu_membership"].map(len)
+
+	per_gpu_df = (
+		unique_samples_df.groupby("gpu", dropna=False)
+		.size()
+		.reset_index(name="kernel_identity_n")
+	)
+	per_gpu_df["gpu_sort"] = per_gpu_df["gpu"].map(lambda gpu: gpu_order.get(gpu, len(gpu_order)))
+	per_gpu_df = per_gpu_df.sort_values(["gpu_sort", "gpu"]).drop(columns="gpu_sort").reset_index(drop=True)
+
+	overlap_distribution_df = (
+		identity_membership_df.groupby("gpu_overlap_n", dropna=False)
+		.size()
+		.reset_index(name="kernel_identity_n")
+		.sort_values("gpu_overlap_n")
+		.reset_index(drop=True)
+	)
+
+	unique_per_gpu_rows: List[Dict[str, Any]] = []
+	for gpu_name in available_gpus:
+		unique_count = int(
+			identity_membership_df[identity_membership_df["gpu_membership"] == (gpu_name,)].shape[0]
+		)
+		unique_per_gpu_rows.append({
+			"gpu": gpu_name,
+			"unique_kernel_identity_n": unique_count,
+		})
+	unique_per_gpu_df = pd.DataFrame(unique_per_gpu_rows)
+
+	all_gpu_overlap_n = int(
+		identity_membership_df[identity_membership_df["gpu_overlap_n"] == len(available_gpus)].shape[0]
+	)
+	totals_df = pd.DataFrame(
+		[
+			{"metric": "distinct_gpu_n", "value": len(available_gpus)},
+			{"metric": "union_kernel_identity_n", "value": int(identity_membership_df.shape[0])},
+			{"metric": "all_gpu_overlap_kernel_identity_n", "value": all_gpu_overlap_n},
+		]
+	)
+
+	return {
+		"per_gpu": per_gpu_df,
+		"overlap_distribution": overlap_distribution_df,
+		"unique_per_gpu": unique_per_gpu_df,
+		"totals": totals_df,
+	}
+
+
+def _print_gpu_kernel_sample_coverage_summary(plot_df: pd.DataFrame, title_suffix: str) -> None:
+	summary = _summarize_gpu_kernel_sample_coverage(plot_df)
+	print(f"\nLLM query sample coverage summary ({title_suffix}):")
+	_print_summary_table("Distinct (program_name, kernel_mangled_name) per GPU", summary["per_gpu"])
+	_print_summary_table("Overlap distribution by GPU coverage count", summary["overlap_distribution"])
+	_print_summary_table("GPU-unique (program_name, kernel_mangled_name) counts", summary["unique_per_gpu"])
+	_print_summary_table("Coverage totals", summary["totals"])
 
 
 def _prepare_ai_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
@@ -653,7 +859,11 @@ def _print_summary_table(title: str, df: pd.DataFrame) -> None:
 	print(df.to_string(index=False))
 
 
-def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None:
+def _write_paper_summary_tables(
+	plot_df: pd.DataFrame,
+	output_dir: Path,
+	expected_rai_distribution_df: pd.DataFrame | None = None,
+) -> None:
 	ai_long_df = _prepare_ai_long_df(plot_df)
 	ai_by_model = _summarize_ai_error(ai_long_df, ["model_name"])
 	ai_by_gpu = _summarize_ai_error(ai_long_df, ["gpu"])
@@ -661,6 +871,8 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 	bound_by_model = _summarize_bound_metrics(plot_df, ["model_name"])
 	bound_by_gpu = _summarize_bound_metrics(plot_df, ["gpu"])
 	bound_by_runtime = _summarize_bound_metrics(plot_df, ["runtime"])
+	if expected_rai_distribution_df is None:
+		expected_rai_distribution_df = _summarize_expected_rai_distribution(plot_df)
 
 	summary_paths = {
 		"RAI error summary by model": output_dir / "table_rq1_ai_error_by_model.csv",
@@ -669,6 +881,7 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 		"Bound-class summary by model": output_dir / "table_rq1_bound_metrics_by_model.csv",
 		"Bound-class summary by GPU": output_dir / "table_rq1_bound_metrics_by_gpu.csv",
 		"Bound-class summary by runtime": output_dir / "table_rq1_bound_metrics_by_runtime.csv",
+		"Expected RAI distribution by GPU / precision": output_dir / "table_figure6_expected_rai_distribution_by_gpu_precision.csv",
 	}
 
 	_write_summary_csv(ai_by_model, summary_paths["RAI error summary by model"])
@@ -677,6 +890,10 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 	_write_summary_csv(bound_by_model, summary_paths["Bound-class summary by model"])
 	_write_summary_csv(bound_by_gpu, summary_paths["Bound-class summary by GPU"])
 	_write_summary_csv(bound_by_runtime, summary_paths["Bound-class summary by runtime"])
+	_write_summary_csv(
+		expected_rai_distribution_df,
+		summary_paths["Expected RAI distribution by GPU / precision"],
+	)
 
 	figure1_summary = _format_boxplot_summary_table(
 		ai_long_df,
@@ -707,6 +924,10 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 	_print_summary_table("Bound-class summary by model / SASS / precision:", bound_by_model)
 	_print_summary_table("Bound-class summary by GPU / SASS / precision:", bound_by_gpu)
 	_print_summary_table("Bound-class summary by runtime / SASS / precision:", bound_by_runtime)
+	_print_summary_table(
+		"Expected RAI distribution by GPU / precision (count string format: 0|BB|CB):",
+		expected_rai_distribution_df,
+	)
 
 	print("\nPaper summary tables written to:")
 	for summary_name, summary_path in summary_paths.items():
@@ -782,7 +1003,18 @@ def _save_ai_difference_boxplots(
 	title: str,
 ) -> None:
 	ai_long_df = _prepare_ai_long_df(plot_df)
+	plot_group_field = group_field
 	group_order = sorted(plot_df[group_field].dropna().unique().tolist()) if not plot_df.empty else []
+	if group_field == "runtime" and not ai_long_df.empty:
+		plot_group_field = "runtime_display"
+		ai_long_df[plot_group_field] = ai_long_df[group_field].map(
+			lambda runtime_name: RUNTIME_DISPLAY_LABELS.get(str(runtime_name), str(runtime_name))
+		)
+		group_order = [
+			RUNTIME_DISPLAY_LABELS[runtime_name]
+			for runtime_name in ["cuda", "omp"]
+			if runtime_name in set(ai_long_df[group_field].dropna().tolist())
+		]
 	sns.set_theme(style="whitegrid")
 	fig_height = _bounded_plot_height(len(group_order), min_height=8.0, per_item=0.6, padding=2.0, max_height=12.0)
 	fig, axes = plt.subplots(2, 1, figsize=_scaled_figsize(10.0, fig_height), sharex=True, sharey=True)
@@ -799,7 +1031,7 @@ def _save_ai_difference_boxplots(
 			sns.boxplot(
 				data=subset,
 				x="ai_diff",
-				y=group_field,
+				y=plot_group_field,
 				hue="precision",
 				order=group_order,
 				hue_order=precision_order,
@@ -836,7 +1068,6 @@ def _save_ai_difference_boxplots(
 			bbox_to_anchor=(PAPER_LEGEND_X, 0.5),
 		)
 
-	#fig.suptitle(title)
 	fig.tight_layout(rect=(0, 0, PAPER_LEGEND_RIGHT_MARGIN, 0.97))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
@@ -980,8 +1211,72 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
 		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
 
-	fig.suptitle("RAI Bound Classification by Expected vs Predicted Class")
 	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.5, wspace=0.28)
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
+	plt.close(fig)
+
+
+def _save_figure6_expected_rai_distribution(
+	expected_rai_distribution_df: pd.DataFrame,
+	output_path: Path,
+) -> None:
+	sns.set_theme(style="whitegrid")
+	fig_height = _bounded_plot_height(
+		expected_rai_distribution_df.shape[0],
+		min_height=6.5,
+		per_item=0.55,
+		padding=2.0,
+		max_height=12.5,
+	)
+	fig, axis = plt.subplots(figsize=_scaled_figsize(11.0, fig_height))
+
+	if expected_rai_distribution_df.empty:
+		axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+		axis.set_axis_off()
+	else:
+		plot_df = expected_rai_distribution_df.reset_index(drop=True).copy()
+		plot_df["gpu_precision_label"] = plot_df.apply(
+			lambda row: f"({row['gpu']}, {row['precision']})",
+			axis=1,
+		)
+		y_positions = np.arange(plot_df.shape[0])
+		left_offsets = np.zeros(plot_df.shape[0], dtype=float)
+
+		for category in EXPECTED_RAI_DISTRIBUTION_COLUMNS:
+			counts = pd.to_numeric(plot_df[category], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+			axis.barh(
+				y_positions,
+				counts,
+				left=left_offsets,
+				height=0.7,
+				label=EXPECTED_RAI_DISTRIBUTION_LABELS[category],
+				color=EXPECTED_RAI_DISTRIBUTION_COLORS[category],
+			)
+			left_offsets = left_offsets + counts
+
+		max_total = float(plot_df["total_kernels"].max()) if not plot_df.empty else 1.0
+		label_padding = max(1.0, max_total * 0.02)
+		for row_index, row in plot_df.iterrows():
+			axis.text(
+				float(row["total_kernels"]) + label_padding,
+				row_index,
+				str(row["count_string"]),
+				va="center",
+				ha="left",
+				fontsize=8,
+			)
+
+		axis.set_yticks(y_positions, plot_df["gpu_precision_label"])
+		axis.invert_yaxis()
+		axis.set_xlabel("Kernel Count")
+		axis.set_ylabel("GPU / FLOP Precision")
+		axis.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+		axis.grid(axis="x", color="#d9d9d9", linewidth=0.8)
+		axis.grid(axis="y", visible=False)
+		axis.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
+		axis.set_xlim(0.0, max_total + label_padding + max(3.0, max_total * 0.15))
+
+	fig.tight_layout(rect=(0, 0.1, 1, 0.98))
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
@@ -993,27 +1288,37 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 		raise RuntimeError("No matching checkpoint or failed-attempt records were found in the database.")
 
 	completed_df = _enrich_completed_dataframe(samples_df)
+	paper_candidate_df = _paper_subset(completed_df)
+	_print_gpu_kernel_sample_coverage_summary(paper_candidate_df, "pre-shared-filter")
+	filtered_samples_df = samples_df
 	if only_shared_samples:
-		completed_df = visualize_results._filter_only_shared_samples(completed_df, include_imix=False)
+		filtered_samples_df = visualize_results._filter_only_shared_samples(samples_df, include_imix=False)
+
+	completed_df = _enrich_completed_dataframe(filtered_samples_df)
 	plot_df = _paper_subset(completed_df)
+	if only_shared_samples:
+		_print_gpu_kernel_sample_coverage_summary(plot_df, "shared across all GPUs/models/prompt-types via completed-or-failed presence")
 	if plot_df.empty:
 		raise RuntimeError(
 			"No completed no-IMIX samples were found for the requested noSASS-noIMIX and wSASS-noIMIX plots."
 		)
 	_print_bound_class_distribution(plot_df)
+	expected_rai_distribution_df = _summarize_expected_rai_distribution(plot_df)
 
 	figure1_path = output_dir / "figure1_ai_difference_boxplots.png"
 	figure2_path = output_dir / "figure2_ai_bound_confusion_heatmaps.png"
 	figure3_path = output_dir / "figure3_ai_difference_boxplots_by_gpu.png"
 	figure4_path = output_dir / "figure4_ai_difference_boxplots_by_runtime.png"
 	figure5_path = output_dir / "figure5_token_count_histograms.png"
+	figure6_path = output_dir / "figure6_expected_rai_distribution_by_gpu_precision.png"
 
 	_save_figure1_ai_boxplots(plot_df, figure1_path)
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
 	_save_figure5_token_count_histograms(plot_df, figure5_path)
-	_write_paper_summary_tables(plot_df, output_dir)
+	_save_figure6_expected_rai_distribution(expected_rai_distribution_df, figure6_path)
+	_write_paper_summary_tables(plot_df, output_dir, expected_rai_distribution_df)
 
 	print("Paper plot artifacts written to:")
 	print(f"- {figure1_path}")
@@ -1021,6 +1326,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	print(f"- {figure3_path}")
 	print(f"- {figure4_path}")
 	print(f"- {figure5_path}")
+	print(f"- {figure6_path}")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -1045,7 +1351,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	arg_parser.add_argument(
 		"--onlySharedSamples",
 		action="store_true",
-		help="Keep only benchmark/kernel/GPU tuples that have at least one completed row for every model name across both plotted prompt types: Source-Only and Source+SASS.",
+		help="Keep only benchmark/kernel identities that have at least one stored row (completed or failed) for every GPU, every model name, and both plotted prompt types: Source-Only and Source+SASS.",
 	)
 	return arg_parser
 

@@ -537,7 +537,11 @@ def _database_dataframe(latest_checkpoints: Dict[str, Dict[str, Any]], attempts:
 
 
 def _shared_sample_identity_columns() -> List[str]:
-	return ["program_name", "kernel_mangled_name", "gpu"]
+	return ["program_name", "kernel_mangled_name"]
+
+
+def _shared_sample_gpu_column() -> str:
+	return "gpu"
 
 
 def _shared_sample_prompt_columns() -> List[str]:
@@ -551,14 +555,57 @@ def _required_shared_prompt_configurations(include_imix: bool) -> List[tuple[boo
 	return required_configurations
 
 
-def _filter_only_shared_samples(dataframe: pd.DataFrame, include_imix: bool = False) -> pd.DataFrame:
+def _shared_sample_keys(dataframe: pd.DataFrame, include_imix: bool = False) -> pd.DataFrame:
 	if dataframe.empty:
-		return dataframe.copy()
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
 
-	required_columns = _shared_sample_identity_columns() + _shared_sample_prompt_columns() + ["model_name", "status"]
+	required_columns = _shared_sample_identity_columns() + [_shared_sample_gpu_column()] + _shared_sample_prompt_columns() + ["model_name", "status"]
 	missing_columns = [column for column in required_columns if column not in dataframe.columns]
 	if missing_columns:
 		raise KeyError(f"Shared-sample filtering requires columns {missing_columns}")
+
+	filtered_df = dataframe.copy()
+	filtered_df["use_sass"] = filtered_df["use_sass"].fillna(False).astype(bool)
+	filtered_df["use_imix"] = filtered_df["use_imix"].fillna(False).astype(bool)
+	filtered_df = filtered_df[filtered_df["model_name"].notna()].copy()
+	if filtered_df.empty:
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
+
+	required_prompt_configurations = set(_required_shared_prompt_configurations(include_imix))
+	filtered_df = filtered_df[
+		filtered_df.apply(lambda row: (row["use_sass"], row["use_imix"]) in required_prompt_configurations, axis=1)
+	].copy()
+	if filtered_df.empty:
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
+
+	all_models = set(filtered_df["model_name"].dropna().unique().tolist())
+	if not all_models:
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
+	all_gpus = set(filtered_df[_shared_sample_gpu_column()].dropna().unique().tolist())
+	if not all_gpus:
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
+
+	identity_rows = filtered_df[
+		_shared_sample_identity_columns() + [_shared_sample_gpu_column(), "model_name"] + _shared_sample_prompt_columns()
+	].drop_duplicates()
+	shared_sample_counts = (
+		identity_rows.groupby(_shared_sample_identity_columns(), dropna=False)
+		.size()
+		.reset_index(name="model_count")
+	)
+	required_combination_count = len(all_models) * len(required_prompt_configurations) * len(all_gpus)
+	shared_sample_counts = shared_sample_counts[
+		shared_sample_counts["model_count"] == required_combination_count
+	].copy()
+	if shared_sample_counts.empty:
+		return pd.DataFrame(columns=_shared_sample_identity_columns())
+
+	return shared_sample_counts[_shared_sample_identity_columns()].drop_duplicates()
+
+
+def _filter_only_shared_samples(dataframe: pd.DataFrame, include_imix: bool = False) -> pd.DataFrame:
+	if dataframe.empty:
+		return dataframe.copy()
 
 	filtered_df = dataframe.copy()
 	filtered_df["use_sass"] = filtered_df["use_sass"].fillna(False).astype(bool)
@@ -574,30 +621,9 @@ def _filter_only_shared_samples(dataframe: pd.DataFrame, include_imix: bool = Fa
 	if filtered_df.empty:
 		return filtered_df
 
-	all_models = set(filtered_df["model_name"].dropna().unique().tolist())
-	if not all_models:
+	shared_sample_keys = _shared_sample_keys(dataframe, include_imix=include_imix)
+	if shared_sample_keys.empty:
 		return filtered_df.iloc[0:0].copy()
-
-	completed_df = filtered_df[filtered_df["status"] == "completed"].copy()
-	if completed_df.empty:
-		return filtered_df.iloc[0:0].copy()
-
-	completed_identity_rows = completed_df[
-		_shared_sample_identity_columns() + ["model_name"] + _shared_sample_prompt_columns()
-	].drop_duplicates()
-	shared_sample_counts = (
-		completed_identity_rows.groupby(_shared_sample_identity_columns(), dropna=False)
-		.size()
-		.reset_index(name="model_count")
-	)
-	required_combination_count = len(all_models) * len(required_prompt_configurations)
-	shared_sample_counts = shared_sample_counts[
-		shared_sample_counts["model_count"] == required_combination_count
-	].copy()
-	if shared_sample_counts.empty:
-		return filtered_df.iloc[0:0].copy()
-
-	shared_sample_keys = shared_sample_counts[_shared_sample_identity_columns()].drop_duplicates()
 	return filtered_df.merge(shared_sample_keys, on=_shared_sample_identity_columns(), how="inner")
 
 
@@ -1526,7 +1552,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		"--onlySharedSamples",
 		action="store_true",
-		help="Keep only benchmark/kernel/GPU tuples that have at least one completed row for every model name and every plotted prompt type. Without --includeIMIX this intersects Source-Only and Source+SASS; with --includeIMIX it intersects all four prompt types.",
+		help="Keep only benchmark/kernel identities that have at least one stored row (completed or failed) for every GPU, every model name, and every plotted prompt type. Without --includeIMIX this intersects Source-Only and Source+SASS; with --includeIMIX it intersects all four prompt types.",
 	)
 	return parser
 

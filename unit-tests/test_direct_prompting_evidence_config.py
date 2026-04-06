@@ -381,7 +381,7 @@ def test_filter_only_shared_samples_keeps_only_identities_present_for_all_models
     assert set(filtered["kernel_mangled_name"].tolist()) == {"_Z4demov"}
 
 
-def test_filter_only_shared_samples_uses_completed_rows_for_eligibility():
+def test_filter_only_shared_samples_uses_failed_rows_for_eligibility():
     dataframe = pd.DataFrame(
         [
             _shared_sample_row(thread_id="model-a-completed", model_name="model-a"),
@@ -389,7 +389,7 @@ def test_filter_only_shared_samples_uses_completed_rows_for_eligibility():
             _shared_sample_row(thread_id="model-a-other", model_name="model-a", kernel_mangled_name="_Z5otherv"),
             _shared_sample_row(thread_id="model-b-other", model_name="model-b", kernel_mangled_name="_Z5otherv"),
             _shared_sample_row(thread_id="model-a-other-sass", model_name="model-a", kernel_mangled_name="_Z5otherv", use_sass=True, evidence_configuration="SASS Only"),
-            _shared_sample_row(thread_id="model-b-other-sass", model_name="model-b", kernel_mangled_name="_Z5otherv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="model-b-other-sass", model_name="model-b", kernel_mangled_name="_Z5otherv", use_sass=True, evidence_configuration="SASS Only", status="failed"),
         ]
     )
 
@@ -401,21 +401,26 @@ def test_filter_only_shared_samples_uses_completed_rows_for_eligibility():
         "model-a-other-sass",
         "model-b-other-sass",
     }
+    assert int((filtered["status"] == "failed").sum()) == 1
     assert "model-b-failed" not in filtered["thread_id"].tolist()
 
 
 def test_filter_only_shared_samples_requires_cross_prompt_matches_for_all_models():
     dataframe = pd.DataFrame(
         [
-            _shared_sample_row(thread_id="shared-no-model-a", model_name="model-a"),
-            _shared_sample_row(thread_id="shared-no-model-b", model_name="model-b"),
-            _shared_sample_row(thread_id="shared-sass-model-a", model_name="model-a", use_sass=True, evidence_configuration="SASS Only"),
-            _shared_sample_row(thread_id="shared-sass-model-b", model_name="model-b", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-a100-no-model-a", model_name="model-a", gpu="A100"),
+            _shared_sample_row(thread_id="shared-a100-no-model-b", model_name="model-b", gpu="A100"),
+            _shared_sample_row(thread_id="shared-a100-sass-model-a", model_name="model-a", gpu="A100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-a100-sass-model-b", model_name="model-b", gpu="A100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-h100-no-model-a", model_name="model-a", gpu="H100"),
+            _shared_sample_row(thread_id="shared-h100-no-model-b", model_name="model-b", gpu="H100"),
+            _shared_sample_row(thread_id="shared-h100-sass-model-a", model_name="model-a", gpu="H100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="shared-h100-sass-model-b", model_name="model-b", gpu="H100", use_sass=True, evidence_configuration="SASS Only"),
             _shared_sample_row(thread_id="source-only-only-model-a", model_name="model-a", kernel_mangled_name="_Z11sourceonlyv"),
             _shared_sample_row(thread_id="source-only-only-model-b", model_name="model-b", kernel_mangled_name="_Z11sourceonlyv"),
             _shared_sample_row(thread_id="sass-only-model-a", model_name="model-a", kernel_mangled_name="_Z8sassonlyv", use_sass=True, evidence_configuration="SASS Only"),
             _shared_sample_row(thread_id="sass-only-model-b", model_name="model-b", kernel_mangled_name="_Z8sassonlyv", use_sass=True, evidence_configuration="SASS Only"),
-            _shared_sample_row(thread_id="h100-no-model-a", model_name="model-a", gpu="H100"),
+            _shared_sample_row(thread_id="h100-no-model-a", model_name="model-a", gpu="H100", kernel_mangled_name="_Z11h100onlyrowv"),
             _shared_sample_row(thread_id="imix-model-a", model_name="model-a", use_imix=True, evidence_configuration="IMIX Only"),
         ]
     )
@@ -423,13 +428,51 @@ def test_filter_only_shared_samples_requires_cross_prompt_matches_for_all_models
     filtered = visualize_results._filter_only_shared_samples(dataframe)
 
     assert set(filtered["thread_id"].tolist()) == {
-        "shared-no-model-a",
-        "shared-no-model-b",
-        "shared-sass-model-a",
-        "shared-sass-model-b",
+        "shared-a100-no-model-a",
+        "shared-a100-no-model-b",
+        "shared-a100-sass-model-a",
+        "shared-a100-sass-model-b",
+        "shared-h100-no-model-a",
+        "shared-h100-no-model-b",
+        "shared-h100-sass-model-a",
+        "shared-h100-sass-model-b",
     }
     assert "h100-no-model-a" not in filtered["thread_id"].tolist()
     assert "imix-model-a" not in filtered["thread_id"].tolist()
+
+
+def test_filter_only_shared_samples_requires_matches_for_all_gpus():
+    dataframe = pd.DataFrame(
+        [
+            _shared_sample_row(thread_id="full-a100-no-model-a", model_name="model-a", gpu="A100"),
+            _shared_sample_row(thread_id="full-a100-no-model-b", model_name="model-b", gpu="A100"),
+            _shared_sample_row(thread_id="full-a100-sass-model-a", model_name="model-a", gpu="A100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="full-a100-sass-model-b", model_name="model-b", gpu="A100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="full-h100-no-model-a", model_name="model-a", gpu="H100"),
+            _shared_sample_row(thread_id="full-h100-no-model-b", model_name="model-b", gpu="H100"),
+            _shared_sample_row(thread_id="full-h100-sass-model-a", model_name="model-a", gpu="H100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="full-h100-sass-model-b", model_name="model-b", gpu="H100", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="missing-gpu-a100-no-model-a", model_name="model-a", gpu="A100", kernel_mangled_name="_Z10missinggpuv"),
+            _shared_sample_row(thread_id="missing-gpu-a100-no-model-b", model_name="model-b", gpu="A100", kernel_mangled_name="_Z10missinggpuv"),
+            _shared_sample_row(thread_id="missing-gpu-a100-sass-model-a", model_name="model-a", gpu="A100", kernel_mangled_name="_Z10missinggpuv", use_sass=True, evidence_configuration="SASS Only"),
+            _shared_sample_row(thread_id="missing-gpu-a100-sass-model-b", model_name="model-b", gpu="A100", kernel_mangled_name="_Z10missinggpuv", use_sass=True, evidence_configuration="SASS Only"),
+        ]
+    )
+
+    filtered = visualize_results._filter_only_shared_samples(dataframe)
+
+    assert set(filtered["thread_id"].tolist()) == {
+        "full-a100-no-model-a",
+        "full-a100-no-model-b",
+        "full-a100-sass-model-a",
+        "full-a100-sass-model-b",
+        "full-h100-no-model-a",
+        "full-h100-no-model-b",
+        "full-h100-sass-model-a",
+        "full-h100-sass-model-b",
+    }
+    assert set(filtered["gpu"].tolist()) == {"A100", "H100"}
+    assert "_Z10missinggpuv" not in filtered["kernel_mangled_name"].tolist()
 
 
 def test_filter_only_shared_samples_with_include_imix_requires_all_prompt_types():
@@ -483,3 +526,131 @@ def test_make_plots_for_paper_parser_accepts_only_shared_samples_flag():
 
     assert default_args.onlySharedSamples is False
     assert flagged_args.onlySharedSamples is True
+
+
+def test_summarize_expected_rai_distribution_counts_unique_kernels_per_gpu_precision():
+    def _paper_plot_row(
+        *,
+        thread_id: str,
+        kernel_mangled_name: str,
+        model_name: str,
+        use_sass: bool,
+        expected_fp16: float,
+        expected_fp32: float,
+        expected_fp64: float,
+        expected_read_bytes: float,
+        expected_write_bytes: float,
+    ):
+        return _shared_sample_row(
+            thread_id=thread_id,
+            kernel_mangled_name=kernel_mangled_name,
+            model_name=model_name,
+            safe_model_name=model_name.replace("/", "_"),
+            use_sass=use_sass,
+            evidence_configuration="SASS Only" if use_sass else "No SASS / No IMIX",
+            expected_fp16=expected_fp16,
+            expected_fp32=expected_fp32,
+            expected_fp64=expected_fp64,
+            expected_read_bytes=expected_read_bytes,
+            expected_write_bytes=expected_write_bytes,
+            metrics_diff_fp16=0,
+            metrics_diff_fp32=0,
+            metrics_diff_fp64=0,
+            metrics_diff_read_bytes=0,
+            metrics_diff_write_bytes=0,
+        )
+
+    samples_df = pd.DataFrame(
+        [
+            _paper_plot_row(
+                thread_id="a100-zero-model-a",
+                kernel_mangled_name="_Z9zeroKernelv",
+                model_name="model-a",
+                use_sass=False,
+                expected_fp16=0,
+                expected_fp32=0,
+                expected_fp64=0,
+                expected_read_bytes=128,
+                expected_write_bytes=0,
+            ),
+            _paper_plot_row(
+                thread_id="a100-zero-model-b",
+                kernel_mangled_name="_Z9zeroKernelv",
+                model_name="model-b",
+                use_sass=True,
+                expected_fp16=0,
+                expected_fp32=0,
+                expected_fp64=0,
+                expected_read_bytes=128,
+                expected_write_bytes=0,
+            ),
+            _paper_plot_row(
+                thread_id="a100-bb-model-a",
+                kernel_mangled_name="_Z7bbKernelv",
+                model_name="model-a",
+                use_sass=False,
+                expected_fp16=10,
+                expected_fp32=10,
+                expected_fp64=10,
+                expected_read_bytes=100,
+                expected_write_bytes=0,
+            ),
+            _paper_plot_row(
+                thread_id="a100-cb-model-a",
+                kernel_mangled_name="_Z7cbKernelv",
+                model_name="model-a",
+                use_sass=False,
+                expected_fp16=6000,
+                expected_fp32=2000,
+                expected_fp64=1000,
+                expected_read_bytes=100,
+                expected_write_bytes=0,
+            ),
+        ]
+    )
+
+    completed_df = make_plots_for_paper._enrich_completed_dataframe(samples_df)
+    plot_df = make_plots_for_paper._paper_subset(completed_df)
+    distribution_df = make_plots_for_paper._summarize_expected_rai_distribution(plot_df)
+
+    assert distribution_df["precision"].tolist() == ["FP16", "FP32", "FP64"]
+    assert distribution_df["zero_rai_n"].tolist() == [1, 1, 1]
+    assert distribution_df["nonzero_bandwidth_bound_n"].tolist() == [1, 1, 1]
+    assert distribution_df["nonzero_compute_bound_n"].tolist() == [1, 1, 1]
+    assert distribution_df["nonzero_rai_n"].tolist() == [2, 2, 2]
+    assert distribution_df["total_kernels"].tolist() == [3, 3, 3]
+    assert distribution_df["count_string"].tolist() == ["(1|1|1)", "(1|1|1)", "(1|1|1)"]
+
+
+def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
+    distribution_df = pd.DataFrame(
+        [
+            {
+                "gpu": "A100",
+                "precision": "FP16",
+                "zero_rai_n": 1,
+                "nonzero_bandwidth_bound_n": 2,
+                "nonzero_compute_bound_n": 3,
+                "nonzero_rai_n": 5,
+                "total_kernels": 6,
+                "count_string": "(1|2|3)",
+            },
+            {
+                "gpu": "A100",
+                "precision": "FP32",
+                "zero_rai_n": 0,
+                "nonzero_bandwidth_bound_n": 1,
+                "nonzero_compute_bound_n": 2,
+                "nonzero_rai_n": 3,
+                "total_kernels": 3,
+                "count_string": "(0|1|2)",
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure6_expected_rai_distribution_by_gpu_precision.png"
+
+    make_plots_for_paper._save_figure6_expected_rai_distribution(distribution_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
