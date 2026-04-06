@@ -231,6 +231,124 @@ def test_build_runtime_feature_summary_dataframe_collapses_all_but_runtime():
 	assert set(runtime_summary_df["summary_mode"].unique().tolist()) == {"collapsed_runtime_feature"}
 
 
+def test_build_gpu_feature_summary_dataframe_collapses_all_but_gpu():
+	frames = []
+	for gpu_name, error_shift in [("3080", 0.0), ("A10", -5.0), ("A100", 10.0), ("H100", 20.0)]:
+		cuda_df = _sample_rows().copy()
+		cuda_df["gpu"] = gpu_name
+		cuda_df["abs_ai_pct_error"] = cuda_df["abs_ai_pct_error"] + error_shift
+		omp_df = cuda_df.copy()
+		omp_df["runtime"] = "omp"
+		omp_df["abs_ai_pct_error"] = omp_df["abs_ai_pct_error"] - 12.0
+		frames.extend([cuda_df, omp_df])
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	gpu_summary_df = paper_plots._build_gpu_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+
+	assert set(gpu_summary_df["gpu"].unique().tolist()) == {"3080", "A10", "A100", "H100"}
+	assert set(gpu_summary_df["runtime"].unique().tolist()) == {"cuda", "omp"}
+	assert set(gpu_summary_df["prompt_type"].unique().tolist()) == {paper_plots.ALL_PROMPT_TYPES_LABEL}
+	assert set(gpu_summary_df["summary_mode"].unique().tolist()) == {"collapsed_gpu_feature"}
+
+
+def test_save_gpu_feature_summary_heatmap_writes_output(tmp_path: Path):
+	frames = []
+	for gpu_name, error_shift in [("3080", 0.0), ("A10", -5.0), ("A100", 10.0), ("H100", 20.0)]:
+		cuda_df = _sample_rows().copy()
+		cuda_df["gpu"] = gpu_name
+		cuda_df["abs_ai_pct_error"] = cuda_df["abs_ai_pct_error"] + error_shift
+		omp_df = cuda_df.copy()
+		omp_df["runtime"] = "omp"
+		omp_df["abs_ai_pct_error"] = omp_df["abs_ai_pct_error"] - 12.0
+		frames.extend([cuda_df, omp_df])
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	gpu_summary_df = paper_plots._build_gpu_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+	paper_plots._save_gpu_feature_summary_heatmap(
+		gpu_summary_df,
+		tmp_path,
+		feature_order=paper_plots._runtime_feature_order(gpu_summary_df),
+	)
+
+	assert (tmp_path / "gpu_feature_association_heatmap.png").exists()
+
+
+def test_build_model_feature_summary_dataframe_collapses_all_but_model():
+	frames = []
+	for model_name, safe_model_name, error_shift in [
+		("openai/gpt-5.4", "openai_gpt-5.4", 0.0),
+		("openai/gpt-oss-120b", "openai_gpt-oss-120b", 8.0),
+		("anthropic/claude-4.6-opus", "anthropic_claude-4.6-opus", 16.0),
+	]:
+		cuda_df = _sample_rows().copy()
+		cuda_df["model_name"] = model_name
+		cuda_df["safe_model_name"] = safe_model_name
+		cuda_df["abs_ai_pct_error"] = cuda_df["abs_ai_pct_error"] + error_shift
+		omp_df = cuda_df.copy()
+		omp_df["runtime"] = "omp"
+		omp_df["abs_ai_pct_error"] = omp_df["abs_ai_pct_error"] - 12.0
+		frames.extend([cuda_df, omp_df])
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	model_summary_df = paper_plots._build_model_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+
+	assert set(model_summary_df["model_label"].unique().tolist()) == {"GPT 5.4", "GPT OSS", "Opus 4.6"}
+	assert set(model_summary_df["runtime"].unique().tolist()) == {"cuda", "omp"}
+	assert set(model_summary_df["prompt_type"].unique().tolist()) == {paper_plots.ALL_PROMPT_TYPES_LABEL}
+	assert set(model_summary_df["summary_mode"].unique().tolist()) == {"collapsed_model_feature"}
+
+
+def test_save_model_feature_summary_heatmap_writes_output(tmp_path: Path):
+	frames = []
+	for model_name, safe_model_name, error_shift in [
+		("openai/gpt-5.4", "openai_gpt-5.4", 0.0),
+		("openai/gpt-oss-120b", "openai_gpt-oss-120b", 8.0),
+		("anthropic/claude-4.6-opus", "anthropic_claude-4.6-opus", 16.0),
+	]:
+		cuda_df = _sample_rows().copy()
+		cuda_df["model_name"] = model_name
+		cuda_df["safe_model_name"] = safe_model_name
+		cuda_df["abs_ai_pct_error"] = cuda_df["abs_ai_pct_error"] + error_shift
+		omp_df = cuda_df.copy()
+		omp_df["runtime"] = "omp"
+		omp_df["abs_ai_pct_error"] = omp_df["abs_ai_pct_error"] - 12.0
+		frames.extend([cuda_df, omp_df])
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	model_summary_df = paper_plots._build_model_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+	paper_plots._save_model_feature_summary_heatmap(
+		model_summary_df,
+		tmp_path,
+		feature_order=paper_plots._runtime_feature_order(model_summary_df),
+	)
+
+	assert (tmp_path / "model_feature_association_heatmap.png").exists()
+
+
 def test_runtime_feature_order_sorts_by_signed_error_association():
 	runtime_summary_df = pd.DataFrame(
 		[

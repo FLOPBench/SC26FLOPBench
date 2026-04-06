@@ -26,6 +26,7 @@ DEFAULT_OUTPUT_DIR = os.path.join(
 	"paper-figure-output",
 )
 RUNTIME_ORDER = ["cuda", "omp"]
+GPU_ORDER = ["3080", "A10", "A100", "H100"]
 DEFAULT_MIN_PRESENT = 5
 DEFAULT_MIN_ABSENT = 5
 PROMPT_TYPE_LABEL = "Prompt Type"
@@ -407,6 +408,21 @@ def _runtime_feature_order(runtime_summary_df: pd.DataFrame) -> list[str]:
 	return feature_scores["feature_label"].tolist()
 
 
+def _ordered_gpu_values(gpu_values: pd.Series) -> list[str]:
+	available_gpus = [gpu_name for gpu_name in gpu_values.dropna().unique().tolist() if isinstance(gpu_name, str) and gpu_name.strip()]
+	preferred_gpu_order = [gpu_name for gpu_name in GPU_ORDER if gpu_name in available_gpus]
+	remaining_gpus = sorted(gpu_name for gpu_name in available_gpus if gpu_name not in preferred_gpu_order)
+	return preferred_gpu_order + remaining_gpus
+
+
+def _ordered_model_values(model_values: pd.Series) -> list[str]:
+	return sorted(
+		model_name
+		for model_name in model_values.dropna().unique().tolist()
+		if isinstance(model_name, str) and model_name.strip()
+	)
+
+
 def _column_order(association_df: pd.DataFrame) -> list[str]:
 	if association_df.empty:
 		return []
@@ -460,8 +476,8 @@ def _save_runtime_feature_summary_heatmap(
 	if not available_prompt_types:
 		return
 
-	fig_width = max(9, 0.72 * len(feature_order) + 2.5)
-	fig_height = max(5.8, 2.6 * len(available_prompt_types) + 0.8)
+	fig_width = max(9.4, 0.64 * len(feature_order) + 1.8)
+	fig_height = max(6.4, 2.9 * len(available_prompt_types) + 1.0)
 	fig, axes = plt.subplots(len(available_prompt_types), 1, figsize=(fig_width, fig_height), squeeze=False, sharex=True)
 
 	first_heatmap = None
@@ -486,16 +502,16 @@ def _save_runtime_feature_summary_heatmap(
 			linecolor="#ffffff",
 			cbar=False,
 			ax=ax,
-			annot_kws={"fontsize": 8},
+			annot_kws={"fontsize": 11},
 		)
 		if first_heatmap is None:
 			first_heatmap = heatmap.collections[0]
 
-		ax.set_ylabel(f"{PROMPT_TYPE_LABEL}\n{prompt_type}")
-		ax.tick_params(axis="y", labelrotation=0, labelsize=9)
-		ax.tick_params(axis="x", labelrotation=35, labelsize=8)
+		ax.set_ylabel(prompt_type, fontsize=15, labelpad=8)
+		ax.tick_params(axis="y", labelrotation=0, labelsize=13)
+		ax.tick_params(axis="x", labelrotation=35, labelsize=13)
 		if row_index == len(available_prompt_types) - 1:
-			ax.set_xlabel("Feature")
+			ax.set_xlabel("Feature", fontsize=16)
 		else:
 			ax.set_xlabel("")
 			ax.tick_params(axis="x", labelbottom=False)
@@ -503,17 +519,285 @@ def _save_runtime_feature_summary_heatmap(
 			tick_label.set_ha("right")
 			tick_label.set_rotation_mode("anchor")
 
-	colorbar_axis = fig.add_axes([0.92, 0.18, 0.018, 0.64])
+	colorbar_axis = fig.add_axes([0.90, 0.16, 0.024, 0.68])
 	colorbar = fig.colorbar(first_heatmap, cax=colorbar_axis)
-	colorbar.set_label("Cliff's Delta: Positive Means Higher AI Error When Feature Is Present")
+	colorbar.set_label("Cliff's Delta", fontsize=15)
+	colorbar.ax.tick_params(labelsize=12)
 
-	fig.suptitle(
-		"Feature Association With AI Misprediction by Prompt Type\nCollapsed Across GPU, Model, And Precision",
-		fontsize=13,
-		y=0.98,
-	)
-	fig.subplots_adjust(left=0.16, right=0.90, bottom=0.24, top=0.86, hspace=0.34)
+	fig.subplots_adjust(left=0.20, right=0.87, bottom=0.24, top=0.97, hspace=0.38)
 	fig.savefig(output_dir / "runtime_feature_association_heatmap.png", bbox_inches="tight")
+	plt.close(fig)
+
+
+def _build_gpu_feature_summary_dataframe(
+	feature_long_df: pd.DataFrame,
+	*,
+	min_present: int,
+	min_absent: int,
+) -> pd.DataFrame:
+	if feature_long_df.empty:
+		return pd.DataFrame()
+
+	group_columns = ["gpu", "runtime", "feature_name", "feature_label"]
+	records: list[dict[str, Any]] = []
+	for group_key, group_df in feature_long_df.groupby(group_columns, dropna=False):
+		group_values = dict(zip(group_columns, group_key if isinstance(group_key, tuple) else (group_key,)))
+		present_errors = pd.to_numeric(
+			group_df.loc[group_df["feature_present"], "abs_ai_pct_error"],
+			errors="coerce",
+		)
+		present_errors = present_errors[np.isfinite(present_errors.to_numpy())]
+		absent_errors = pd.to_numeric(
+			group_df.loc[~group_df["feature_present"], "abs_ai_pct_error"],
+			errors="coerce",
+		)
+		absent_errors = absent_errors[np.isfinite(absent_errors.to_numpy())]
+
+		n_present = int(present_errors.shape[0])
+		n_absent = int(absent_errors.shape[0])
+		is_valid = n_present >= min_present and n_absent >= min_absent
+		median_present = float(present_errors.median()) if n_present else float("nan")
+		median_absent = float(absent_errors.median()) if n_absent else float("nan")
+
+		records.append(
+			{
+				"summary_mode": "collapsed_gpu_feature",
+				"prompt_type": ALL_PROMPT_TYPES_LABEL,
+				"precision": ALL_PRECISIONS_LABEL,
+				"runtime": group_values["runtime"],
+				"gpu": group_values["gpu"],
+				"model_label": ALL_MODELS_LABEL,
+				"feature_name": group_values["feature_name"],
+				"feature_label": group_values["feature_label"],
+				"n_total": int(len(group_df)),
+				"n_present": n_present,
+				"n_absent": n_absent,
+				"median_error_present": median_present,
+				"median_error_absent": median_absent,
+				"median_error_delta": median_present - median_absent,
+				"association_score": _cliffs_delta(present_errors.to_numpy(), absent_errors.to_numpy()) if is_valid else float("nan"),
+				"is_valid": bool(is_valid),
+			}
+		)
+
+	gpu_df = pd.DataFrame(records)
+	if gpu_df.empty:
+		return gpu_df
+
+	gpu_df["collapsed_model"] = True
+	gpu_df["collapsed_precision"] = True
+	gpu_df["model_tick_label"] = gpu_df["model_label"]
+	gpu_df["gpu_model_label"] = gpu_df["gpu"]
+	gpu_df["column_key"] = gpu_df["feature_label"]
+	gpu_df["column_tick_label"] = gpu_df["feature_label"]
+	gpu_df["direction_label"] = np.where(
+		gpu_df["association_score"] > 0.0,
+		"Higher Error When Present",
+		"Lower Error When Present",
+	)
+	gpu_df.loc[gpu_df["association_score"].isna(), "direction_label"] = "Insufficient Support"
+	return gpu_df.sort_values(group_columns).reset_index(drop=True)
+
+
+def _save_gpu_feature_summary_heatmap(
+	gpu_summary_df: pd.DataFrame,
+	output_dir: Path,
+	*,
+	feature_order: list[str],
+) -> None:
+	if gpu_summary_df.empty:
+		return
+
+	available_gpus = _ordered_gpu_values(gpu_summary_df["gpu"])
+	if not available_gpus:
+		return
+
+	fig_width = max(9.4, 0.64 * len(feature_order) + 1.8)
+	fig_height = max(7.6, 2.45 * len(available_gpus) + 1.0)
+	fig, axes = plt.subplots(len(available_gpus), 1, figsize=(fig_width, fig_height), squeeze=False, sharex=True)
+
+	first_heatmap = None
+	for row_index, gpu_name in enumerate(available_gpus):
+		ax = axes[row_index][0]
+		panel_df = gpu_summary_df[gpu_summary_df["gpu"] == gpu_name].copy()
+		score_df = panel_df.pivot(index="runtime", columns="feature_label", values="association_score")
+		score_df = score_df.reindex(index=RUNTIME_ORDER, columns=feature_order)
+		score_df.index = [RUNTIME_DISPLAY_LABELS.get(runtime_name, runtime_name.title()) for runtime_name in score_df.index]
+		annotation_df = _heatmap_annotation(score_df)
+
+		heatmap = sns.heatmap(
+			score_df,
+			mask=score_df.isna(),
+			annot=annotation_df,
+			fmt="",
+			cmap="RdBu_r",
+			vmin=-1.0,
+			vmax=1.0,
+			center=0.0,
+			linewidths=0.5,
+			linecolor="#ffffff",
+			cbar=False,
+			ax=ax,
+			annot_kws={"fontsize": 11},
+		)
+		if first_heatmap is None:
+			first_heatmap = heatmap.collections[0]
+
+		ax.set_ylabel(f"{gpu_name}", fontsize=15, labelpad=8)
+		ax.tick_params(axis="y", labelrotation=0, labelsize=13)
+		ax.tick_params(axis="x", labelrotation=35, labelsize=13)
+		if row_index == len(available_gpus) - 1:
+			ax.set_xlabel("Feature", fontsize=16)
+		else:
+			ax.set_xlabel("")
+			ax.tick_params(axis="x", labelbottom=False)
+		for tick_label in ax.get_xticklabels():
+			tick_label.set_ha("right")
+			tick_label.set_rotation_mode("anchor")
+
+	colorbar_axis = fig.add_axes([0.90, 0.14, 0.024, 0.72])
+	colorbar = fig.colorbar(first_heatmap, cax=colorbar_axis)
+	colorbar.set_label("Cliff's Delta", fontsize=15)
+	colorbar.ax.tick_params(labelsize=12)
+
+	fig.subplots_adjust(left=0.20, right=0.87, bottom=0.20, top=0.98, hspace=0.36)
+	fig.savefig(output_dir / "gpu_feature_association_heatmap.png", bbox_inches="tight")
+	plt.close(fig)
+
+
+def _build_model_feature_summary_dataframe(
+	feature_long_df: pd.DataFrame,
+	*,
+	min_present: int,
+	min_absent: int,
+) -> pd.DataFrame:
+	if feature_long_df.empty:
+		return pd.DataFrame()
+
+	group_columns = ["model_label", "runtime", "feature_name", "feature_label"]
+	records: list[dict[str, Any]] = []
+	for group_key, group_df in feature_long_df.groupby(group_columns, dropna=False):
+		group_values = dict(zip(group_columns, group_key if isinstance(group_key, tuple) else (group_key,)))
+		present_errors = pd.to_numeric(
+			group_df.loc[group_df["feature_present"], "abs_ai_pct_error"],
+			errors="coerce",
+		)
+		present_errors = present_errors[np.isfinite(present_errors.to_numpy())]
+		absent_errors = pd.to_numeric(
+			group_df.loc[~group_df["feature_present"], "abs_ai_pct_error"],
+			errors="coerce",
+		)
+		absent_errors = absent_errors[np.isfinite(absent_errors.to_numpy())]
+
+		n_present = int(present_errors.shape[0])
+		n_absent = int(absent_errors.shape[0])
+		is_valid = n_present >= min_present and n_absent >= min_absent
+		median_present = float(present_errors.median()) if n_present else float("nan")
+		median_absent = float(absent_errors.median()) if n_absent else float("nan")
+
+		records.append(
+			{
+				"summary_mode": "collapsed_model_feature",
+				"prompt_type": ALL_PROMPT_TYPES_LABEL,
+				"precision": ALL_PRECISIONS_LABEL,
+				"runtime": group_values["runtime"],
+				"gpu": "All GPUs",
+				"model_label": group_values["model_label"],
+				"feature_name": group_values["feature_name"],
+				"feature_label": group_values["feature_label"],
+				"n_total": int(len(group_df)),
+				"n_present": n_present,
+				"n_absent": n_absent,
+				"median_error_present": median_present,
+				"median_error_absent": median_absent,
+				"median_error_delta": median_present - median_absent,
+				"association_score": _cliffs_delta(present_errors.to_numpy(), absent_errors.to_numpy()) if is_valid else float("nan"),
+				"is_valid": bool(is_valid),
+			}
+		)
+
+	model_df = pd.DataFrame(records)
+	if model_df.empty:
+		return model_df
+
+	model_df["collapsed_model"] = True
+	model_df["collapsed_precision"] = True
+	model_df["model_tick_label"] = model_df["model_label"]
+	model_df["gpu_model_label"] = model_df["model_label"]
+	model_df["column_key"] = model_df["feature_label"]
+	model_df["column_tick_label"] = model_df["feature_label"]
+	model_df["direction_label"] = np.where(
+		model_df["association_score"] > 0.0,
+		"Higher Error When Present",
+		"Lower Error When Present",
+	)
+	model_df.loc[model_df["association_score"].isna(), "direction_label"] = "Insufficient Support"
+	return model_df.sort_values(group_columns).reset_index(drop=True)
+
+
+def _save_model_feature_summary_heatmap(
+	model_summary_df: pd.DataFrame,
+	output_dir: Path,
+	*,
+	feature_order: list[str],
+) -> None:
+	if model_summary_df.empty:
+		return
+
+	available_models = _ordered_model_values(model_summary_df["model_label"])
+	if not available_models:
+		return
+
+	fig_width = max(9.4, 0.64 * len(feature_order) + 1.8)
+	fig_height = max(7.6, 2.45 * len(available_models) + 1.0)
+	fig, axes = plt.subplots(len(available_models), 1, figsize=(fig_width, fig_height), squeeze=False, sharex=True)
+
+	first_heatmap = None
+	for row_index, model_name in enumerate(available_models):
+		ax = axes[row_index][0]
+		panel_df = model_summary_df[model_summary_df["model_label"] == model_name].copy()
+		score_df = panel_df.pivot(index="runtime", columns="feature_label", values="association_score")
+		score_df = score_df.reindex(index=RUNTIME_ORDER, columns=feature_order)
+		score_df.index = [RUNTIME_DISPLAY_LABELS.get(runtime_name, runtime_name.title()) for runtime_name in score_df.index]
+		annotation_df = _heatmap_annotation(score_df)
+
+		heatmap = sns.heatmap(
+			score_df,
+			mask=score_df.isna(),
+			annot=annotation_df,
+			fmt="",
+			cmap="RdBu_r",
+			vmin=-1.0,
+			vmax=1.0,
+			center=0.0,
+			linewidths=0.5,
+			linecolor="#ffffff",
+			cbar=False,
+			ax=ax,
+			annot_kws={"fontsize": 11},
+		)
+		if first_heatmap is None:
+			first_heatmap = heatmap.collections[0]
+
+		ax.set_ylabel(model_name, fontsize=15, labelpad=8)
+		ax.tick_params(axis="y", labelrotation=0, labelsize=13)
+		ax.tick_params(axis="x", labelrotation=35, labelsize=13)
+		if row_index == len(available_models) - 1:
+			ax.set_xlabel("Feature", fontsize=16)
+		else:
+			ax.set_xlabel("")
+			ax.tick_params(axis="x", labelbottom=False)
+		for tick_label in ax.get_xticklabels():
+			tick_label.set_ha("right")
+			tick_label.set_rotation_mode("anchor")
+
+	colorbar_axis = fig.add_axes([0.90, 0.14, 0.024, 0.72])
+	colorbar = fig.colorbar(first_heatmap, cax=colorbar_axis)
+	colorbar.set_label("Cliff's Delta", fontsize=15)
+	colorbar.ax.tick_params(labelsize=12)
+
+	fig.subplots_adjust(left=0.23, right=0.87, bottom=0.20, top=0.98, hspace=0.36)
+	fig.savefig(output_dir / "model_feature_association_heatmap.png", bbox_inches="tight")
 	plt.close(fig)
 
 
@@ -736,11 +1020,33 @@ def generate_paper_plots(
 			output_dir,
 			feature_order=_runtime_feature_order(runtime_summary_df),
 		)
+	gpu_summary_df = _build_gpu_feature_summary_dataframe(
+		feature_long_df,
+		min_present=min_present,
+		min_absent=min_absent,
+	)
+	if not gpu_summary_df.empty:
+		_save_gpu_feature_summary_heatmap(
+			gpu_summary_df,
+			output_dir,
+			feature_order=_runtime_feature_order(gpu_summary_df),
+		)
+	model_summary_df = _build_model_feature_summary_dataframe(
+		feature_long_df,
+		min_present=min_present,
+		min_absent=min_absent,
+	)
+	if not model_summary_df.empty:
+		_save_model_feature_summary_heatmap(
+			model_summary_df,
+			output_dir,
+			feature_order=_runtime_feature_order(model_summary_df),
+		)
 	_save_precision_summary_bars(
 		association_df[association_df["summary_mode"] == "full"].copy(),
 		output_dir,
 	)
-	combined_association_df = pd.concat([association_df, runtime_summary_df], ignore_index=True)
+	combined_association_df = pd.concat([association_df, runtime_summary_df, gpu_summary_df, model_summary_df], ignore_index=True)
 	combined_association_df.to_csv(output_dir / "feature_error_associations.csv", index=False)
 	return combined_association_df
 
