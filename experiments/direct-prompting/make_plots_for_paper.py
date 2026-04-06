@@ -41,9 +41,9 @@ visualize_results = _load_module(
 
 AI_PRECISIONS = ["fp16", "fp32", "fp64"]
 AI_LABELS = {
-	"fp16": "FP16 AI",
-	"fp32": "FP32 AI",
-	"fp64": "FP64 AI",
+	"fp16": "FP16 RAI",
+	"fp32": "FP32 RAI",
+	"fp64": "FP64 RAI",
 }
 BOUND_LABELS = ["TP", "FP", "FN", "TN"]
 SASS_PANEL_ORDER = [False, True]
@@ -77,6 +77,22 @@ DEFAULT_OUTPUT_DIR = os.path.join(
 FIGURE_SIZE_SCALE = 0.78
 PAPER_LEGEND_RIGHT_MARGIN = 0.88
 PAPER_LEGEND_X = 0.89
+RAI_X_TICKS = [-1e6, -1e4, -1e2, -1e0, -1e-2, 0.0, 1e-2, 1e0, 1e2, 1e4, 1e6, 1e8, 1e10]
+RAI_X_TICK_LABELS = [
+	r"$-10^{6}$",
+	r"$-10^{4}$",
+	r"$-10^{2}$",
+	r"$-10^{0}$",
+	r"$-10^{-2}$",
+	"0",
+	r"$10^{-2}$",
+	r"$10^{0}$",
+	r"$10^{2}$",
+	r"$10^{4}$",
+	r"$10^{6}$",
+	r"$10^{8}$",
+	r"$10^{10}$",
+]
 
 GPU_ROOFLINE_TABLE = {
 	"3080": {
@@ -131,6 +147,13 @@ def _bounded_plot_height(
 
 def _scaled_figsize(width: float, height: float) -> tuple[float, float]:
 	return (width * FIGURE_SIZE_SCALE, height * FIGURE_SIZE_SCALE)
+
+
+def _set_rai_symlog_ticks(axis: plt.Axes) -> None:
+	axis.set_xlim(RAI_X_TICKS[0], RAI_X_TICKS[-1])
+	axis.xaxis.set_major_locator(mticker.FixedLocator(RAI_X_TICKS))
+	axis.xaxis.set_major_formatter(mticker.FixedFormatter(RAI_X_TICK_LABELS))
+	axis.xaxis.set_minor_locator(mticker.NullLocator())
 
 
 def _safe_divide(numerator: Any, denominator: Any) -> float:
@@ -301,7 +324,7 @@ def _paper_subset(completed_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _print_bound_class_distribution(plot_df: pd.DataFrame) -> None:
-	print("\nExpected bound-class distribution for nonzero expected AI cases used in paper figures:")
+	print("\nExpected bound-class distribution for nonzero expected RAI cases used in paper figures:")
 	for precision in AI_PRECISIONS:
 		expected_ai_column = f"expected_ai_{precision}"
 		expected_bound_column = f"expected_bound_{precision}"
@@ -309,7 +332,7 @@ def _print_bound_class_distribution(plot_df: pd.DataFrame) -> None:
 		precision_df = plot_df.loc[precision_mask, ["gpu", expected_bound_column]].copy()
 		print(f"- {precision.upper()}")
 		if precision_df.empty:
-			print("  No nonzero expected-AI samples")
+			print("  No nonzero expected-RAI samples")
 			continue
 		overall_counts = precision_df[expected_bound_column].value_counts().to_dict()
 		print(f"  Overall: {overall_counts}")
@@ -640,17 +663,17 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 	bound_by_runtime = _summarize_bound_metrics(plot_df, ["runtime"])
 
 	summary_paths = {
-		"AI error summary by model": output_dir / "table_rq1_ai_error_by_model.csv",
-		"AI error summary by GPU": output_dir / "table_rq1_ai_error_by_gpu.csv",
-		"AI error summary by runtime": output_dir / "table_rq1_ai_error_by_runtime.csv",
+		"RAI error summary by model": output_dir / "table_rq1_ai_error_by_model.csv",
+		"RAI error summary by GPU": output_dir / "table_rq1_ai_error_by_gpu.csv",
+		"RAI error summary by runtime": output_dir / "table_rq1_ai_error_by_runtime.csv",
 		"Bound-class summary by model": output_dir / "table_rq1_bound_metrics_by_model.csv",
 		"Bound-class summary by GPU": output_dir / "table_rq1_bound_metrics_by_gpu.csv",
 		"Bound-class summary by runtime": output_dir / "table_rq1_bound_metrics_by_runtime.csv",
 	}
 
-	_write_summary_csv(ai_by_model, summary_paths["AI error summary by model"])
-	_write_summary_csv(ai_by_gpu, summary_paths["AI error summary by GPU"])
-	_write_summary_csv(ai_by_runtime, summary_paths["AI error summary by runtime"])
+	_write_summary_csv(ai_by_model, summary_paths["RAI error summary by model"])
+	_write_summary_csv(ai_by_gpu, summary_paths["RAI error summary by GPU"])
+	_write_summary_csv(ai_by_runtime, summary_paths["RAI error summary by runtime"])
 	_write_summary_csv(bound_by_model, summary_paths["Bound-class summary by model"])
 	_write_summary_csv(bound_by_gpu, summary_paths["Bound-class summary by GPU"])
 	_write_summary_csv(bound_by_runtime, summary_paths["Bound-class summary by runtime"])
@@ -659,28 +682,28 @@ def _write_paper_summary_tables(plot_df: pd.DataFrame, output_dir: Path) -> None
 		ai_long_df,
 		group_field="model_name",
 		group_label="Model",
-		table_label="figure1_ai_difference_summary",
+		table_label="figure1_rai_difference_summary",
 	)
 	figure3_summary = _format_boxplot_summary_table(
 		ai_long_df,
 		group_field="gpu",
 		group_label="GPU",
-		table_label="figure3_ai_difference_summary",
+		table_label="figure3_rai_difference_summary",
 	)
 	figure4_summary = _format_boxplot_summary_table(
 		ai_long_df,
 		group_field="runtime",
 		group_label="Runtime",
-		table_label="figure4_ai_difference_summary",
+		table_label="figure4_rai_difference_summary",
 	)
 
 	print(figure1_summary)
 	print(figure3_summary)
 	print(figure4_summary)
 
-	_print_summary_table("AI error summary by model / SASS / precision:", ai_by_model)
-	_print_summary_table("AI error summary by GPU / SASS / precision:", ai_by_gpu)
-	_print_summary_table("AI error summary by runtime / SASS / precision:", ai_by_runtime)
+	_print_summary_table("RAI error summary by model / SASS / precision:", ai_by_model)
+	_print_summary_table("RAI error summary by GPU / SASS / precision:", ai_by_gpu)
+	_print_summary_table("RAI error summary by runtime / SASS / precision:", ai_by_runtime)
 	_print_summary_table("Bound-class summary by model / SASS / precision:", bound_by_model)
 	_print_summary_table("Bound-class summary by GPU / SASS / precision:", bound_by_gpu)
 	_print_summary_table("Bound-class summary by runtime / SASS / precision:", bound_by_runtime)
@@ -787,8 +810,9 @@ def _save_ai_difference_boxplots(
 		axis.axvline(0.0, color="green", linestyle="--", linewidth=1.5)
 		axis.axvline(1.0, color="red", linestyle="--", linewidth=1.5)
 		axis.set_xscale("symlog", linthresh=linthresh)
+		_set_rai_symlog_ticks(axis)
 		axis.set_title(SASS_PANEL_LABELS[use_sass])
-		axis.set_xlabel("Predicted AI - Expected AI (symmetric log scale)")
+		axis.set_xlabel("Predicted RAI - Expected RAI (symmetric log scale)")
 		axis.set_ylabel(group_label)
 		axis.tick_params(axis="x", labelsize=8)
 		legend = axis.get_legend()
@@ -824,7 +848,7 @@ def _save_figure1_ai_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
 		output_path,
 		group_field="model_name",
 		group_label="Model Name",
-		title="Arithmetic Intensity Difference by Model",
+		title="Roofline Arithmetic Intensity Difference by Model",
 	)
 
 
@@ -834,7 +858,7 @@ def _save_figure3_ai_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -
 		output_path,
 		group_field="gpu",
 		group_label="GPU",
-		title="Arithmetic Intensity Difference by GPU",
+		title="Roofline Arithmetic Intensity Difference by GPU",
 	)
 
 
@@ -844,7 +868,7 @@ def _save_figure4_ai_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Pat
 		output_path,
 		group_field="runtime",
 		group_label="Runtime",
-		title="Arithmetic Intensity Difference by Runtime",
+		title="Roofline Arithmetic Intensity Difference by Runtime",
 	)
 
 
@@ -956,7 +980,7 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
 		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
 
-	fig.suptitle("AI Bound Classification by Expected vs Predicted Class")
+	fig.suptitle("RAI Bound Classification by Expected vs Predicted Class")
 	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.5, wspace=0.28)
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
 	plt.close(fig)
