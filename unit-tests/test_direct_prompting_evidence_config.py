@@ -680,6 +680,140 @@ def test_summarize_runtime_distribution_counts_unique_kernels_per_gpu():
     assert runtime_df["count_string"].tolist() == ["(2|1)"]
 
 
+def test_prepare_ai_pct_long_df_uses_same_nonzero_expected_rows_as_figure1():
+    samples_df = pd.DataFrame(
+        [
+            _shared_sample_row(
+                thread_id="thread-a",
+                model_name="model-a",
+                expected_fp16=0,
+                expected_fp32=50,
+                expected_fp64=25,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=10,
+                metrics_diff_fp64=-5,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+            _shared_sample_row(
+                thread_id="thread-b",
+                model_name="model-b",
+                expected_fp16=0,
+                expected_fp32=0,
+                expected_fp64=0,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=0,
+                metrics_diff_fp64=0,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+        ]
+    )
+
+    completed_df = make_plots_for_paper._enrich_completed_dataframe(samples_df)
+    plot_df = make_plots_for_paper._paper_subset(completed_df)
+    ai_long_df = make_plots_for_paper._prepare_ai_long_df(plot_df)
+    ai_pct_long_df = make_plots_for_paper._prepare_ai_pct_long_df(plot_df)
+
+    assert ai_long_df["precision"].tolist() == ["FP32 RAI", "FP64 RAI"]
+    assert ai_pct_long_df["precision"].tolist() == ["FP32 RAI", "FP64 RAI"]
+    assert ai_pct_long_df["ai_pct_diff"].tolist() == pytest.approx([20.0, -20.0])
+
+
+def test_percent_diff_axis_config_uses_fixed_negative_bound_and_dynamic_positive_bound():
+    axis_config = make_plots_for_paper._percent_diff_axis_config(pd.Series([-80.0, -5.0, 12.0, 450.0]))
+
+    assert axis_config["x_limits"] == pytest.approx((-110.0, 463.5))
+    assert axis_config["x_ticks"] == [-100.0, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, 100.0]
+    assert axis_config["x_tick_labels"] == ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"]
+    assert axis_config["linthresh"] == 100.0
+    assert axis_config["linscale"] == 3.0
+
+
+def test_summarize_pct_error_thresholds_reports_counts_and_percentages():
+    ai_pct_long_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "precision": "FP32 RAI",
+                "ai_pct_diff": 5.0,
+            },
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "precision": "FP32 RAI",
+                "ai_pct_diff": -15.0,
+            },
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "precision": "FP32 RAI",
+                "ai_pct_diff": 80.0,
+            },
+        ]
+    )
+
+    summary_df = make_plots_for_paper._summarize_pct_error_thresholds(ai_pct_long_df, ["model_name"])
+
+    assert summary_df["threshold_pct"].tolist() == [10.0, 20.0, 25.0, 50.0, 75.0, 100.0]
+    assert summary_df["threshold_label"].tolist() == ["+/-10%", "+/-20%", "+/-25%", "+/-50%", "+/-75%", "+/-100%"]
+    assert summary_df["within_threshold_n"].tolist() == [1, 2, 2, 2, 2, 3]
+    assert summary_df["total_n"].tolist() == [3, 3, 3, 3, 3, 3]
+    assert summary_df["within_threshold_pct"].tolist() == pytest.approx(
+        [33.3333333333, 66.6666666667, 66.6666666667, 66.6666666667, 66.6666666667, 100.0]
+    )
+
+
+def test_prepare_ai_ape_long_df_uses_same_rows_as_figure11_with_absolute_values():
+    samples_df = pd.DataFrame(
+        [
+            _shared_sample_row(
+                thread_id="thread-a",
+                model_name="model-a",
+                expected_fp16=0,
+                expected_fp32=50,
+                expected_fp64=25,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=10,
+                metrics_diff_fp64=-5,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+        ]
+    )
+
+    completed_df = make_plots_for_paper._enrich_completed_dataframe(samples_df)
+    plot_df = make_plots_for_paper._paper_subset(completed_df)
+    ai_pct_long_df = make_plots_for_paper._prepare_ai_pct_long_df(plot_df)
+    ai_ape_long_df = make_plots_for_paper._prepare_ai_ape_long_df(plot_df)
+
+    assert ai_ape_long_df["precision"].tolist() == ai_pct_long_df["precision"].tolist()
+    assert ai_ape_long_df["ai_ape"].tolist() == pytest.approx([20.0, 20.0])
+
+
+def test_ape_axis_config_uses_linear_region_through_100_then_log_scale():
+    axis_config = make_plots_for_paper._ape_axis_config(pd.Series([5.0, 80.0, 1200.0]))
+
+    assert axis_config["x_limits"] == pytest.approx((-1.0, 1236.0))
+    assert axis_config["x_ticks"] == [0.0, 25.0, 50.0, 75.0, 100.0, 1000.0]
+    assert axis_config["x_tick_labels"] == ["0", "25", "50", "75", "100", r"$10^{3}$"]
+    assert axis_config["linthresh"] == 100.0
+    assert axis_config["linscale"] == 3.0
+
+
 def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
     distribution_df = pd.DataFrame(
         [
@@ -725,6 +859,234 @@ def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
         output_path,
         runtime_distribution_df,
     )
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure11_ai_pct_boxplots_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure11_ai_percent_difference_boxplots.png"
+
+    make_plots_for_paper._save_figure11_ai_pct_boxplots(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure12_ai_pct_boxplots_by_gpu_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure12_ai_percent_difference_boxplots_by_gpu.png"
+
+    make_plots_for_paper._save_figure12_ai_pct_boxplots_by_gpu(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure13_ai_pct_boxplots_by_runtime_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "omp",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure13_ai_percent_difference_boxplots_by_runtime.png"
+
+    make_plots_for_paper._save_figure13_ai_pct_boxplots_by_runtime(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure8_ai_ape_boxplots_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 64.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure8_ai_absolute_percent_error_boxplots.png"
+
+    make_plots_for_paper._save_figure8_ai_ape_boxplots(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure9_ai_ape_boxplots_by_gpu_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 64.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure9_ai_absolute_percent_error_boxplots_by_gpu.png"
+
+    make_plots_for_paper._save_figure9_ai_ape_boxplots_by_gpu(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure10_ai_ape_boxplots_by_runtime_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 64.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "omp",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure10_ai_absolute_percent_error_boxplots_by_runtime.png"
+
+    make_plots_for_paper._save_figure10_ai_ape_boxplots_by_runtime(plot_df, output_path)
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0

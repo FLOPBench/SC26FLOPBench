@@ -122,6 +122,15 @@ RAI_X_TICK_LABELS = [
 	r"$10^{8}$",
 	r"$10^{10}$",
 ]
+PERCENT_DIFF_MIN_X = -100.0
+PERCENT_DIFF_REFERENCE_LINES = [0.0, 100.0]
+PERCENT_ERROR_THRESHOLDS = [10.0, 20.0, 25.0, 50.0, 75.0, 100.0]
+PERCENT_DIFF_LINEAR_MAX_X = 100.0
+PERCENT_DIFF_LINSCALE = 3.0
+PERCENT_DIFF_LEFT_VIEW_PADDING = 10.0
+APE_LINEAR_MAX_X = 100.0
+APE_LINSCALE = 3.0
+APE_LEFT_VIEW_PADDING = 1.0
 
 GPU_ROOFLINE_TABLE = {
 	"3080": {
@@ -182,11 +191,29 @@ def _scaled_figsize(width: float, height: float) -> tuple[float, float]:
 	return (width * FIGURE_SIZE_SCALE, height * FIGURE_SIZE_SCALE)
 
 
-def _set_rai_symlog_ticks(axis: plt.Axes) -> None:
-	axis.set_xlim(RAI_X_TICKS[0], RAI_X_TICKS[-1])
-	axis.xaxis.set_major_locator(mticker.FixedLocator(RAI_X_TICKS))
-	axis.xaxis.set_major_formatter(mticker.FixedFormatter(RAI_X_TICK_LABELS))
+def _set_symlog_ticks(
+	axis: plt.Axes,
+	tick_values: List[float],
+	tick_labels: List[str],
+	*,
+	x_limits: tuple[float, float] | None = None,
+) -> None:
+	if x_limits is not None:
+		axis.set_xlim(*x_limits)
+	elif tick_values:
+		axis.set_xlim(tick_values[0], tick_values[-1])
+	axis.xaxis.set_major_locator(mticker.FixedLocator(tick_values))
+	axis.xaxis.set_major_formatter(mticker.FixedFormatter(tick_labels))
 	axis.xaxis.set_minor_locator(mticker.NullLocator())
+
+
+def _set_rai_symlog_ticks(axis: plt.Axes) -> None:
+	_set_symlog_ticks(
+		axis,
+		RAI_X_TICKS,
+		RAI_X_TICK_LABELS,
+		x_limits=(RAI_X_TICKS[0], RAI_X_TICKS[-1]),
+	)
 
 
 def _safe_divide(numerator: Any, denominator: Any) -> float:
@@ -216,6 +243,78 @@ def _symlog_linthresh(values: pd.Series) -> float:
 	if percentile_value <= 0.0 or not math.isfinite(percentile_value):
 		return 1.0
 	return percentile_value
+
+
+def _percent_diff_axis_config(values: pd.Series) -> Dict[str, Any]:
+	numeric_values = pd.to_numeric(values, errors="coerce")
+	finite_values = numeric_values[np.isfinite(numeric_values.to_numpy())]
+	positive_values = finite_values[finite_values > 0.0]
+	max_positive = float(positive_values.max()) if not positive_values.empty else PERCENT_DIFF_LINEAR_MAX_X
+	x_upper = max(PERCENT_DIFF_LINEAR_MAX_X, max_positive * 1.03)
+
+	tick_values: List[float] = [
+		PERCENT_DIFF_MIN_X,
+		-75.0,
+		-50.0,
+		-25.0,
+		0.0,
+		25.0,
+		50.0,
+		75.0,
+		PERCENT_DIFF_LINEAR_MAX_X,
+	]
+	positive_tick = 1000.0
+	while positive_tick <= x_upper:
+		tick_values.append(positive_tick)
+		positive_tick *= 10.0
+	tick_labels = [
+		"-100",
+		"-75",
+		"-50",
+		"-25",
+		"0",
+		"25",
+		"50",
+		"75",
+		"100",
+		*[rf"$10^{{{int(round(math.log10(tick_value)))}}}$" for tick_value in tick_values[9:]],
+	]
+	return {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, x_upper),
+		"x_ticks": tick_values,
+		"x_tick_labels": tick_labels,
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+
+
+def _ape_axis_config(values: pd.Series) -> Dict[str, Any]:
+	numeric_values = pd.to_numeric(values, errors="coerce")
+	finite_values = numeric_values[np.isfinite(numeric_values.to_numpy())]
+	positive_values = finite_values[finite_values > 0.0]
+	max_positive = float(positive_values.max()) if not positive_values.empty else APE_LINEAR_MAX_X
+	x_upper = max(APE_LINEAR_MAX_X, max_positive * 1.03)
+
+	tick_values: List[float] = [0.0, 25.0, 50.0, 75.0, APE_LINEAR_MAX_X]
+	positive_tick = 1000.0
+	while positive_tick <= x_upper:
+		tick_values.append(positive_tick)
+		positive_tick *= 10.0
+	tick_labels = [
+		"0",
+		"25",
+		"50",
+		"75",
+		"100",
+		*[rf"$10^{{{int(round(math.log10(tick_value)))}}}$" for tick_value in tick_values[5:]],
+	]
+	return {
+		"x_limits": (-APE_LEFT_VIEW_PADDING, x_upper),
+		"x_ticks": tick_values,
+		"x_tick_labels": tick_labels,
+		"linthresh": APE_LINEAR_MAX_X,
+		"linscale": APE_LINSCALE,
+	}
 
 
 def _classify_bound(ai_value: Any, balance_point: Any) -> str:
@@ -625,6 +724,46 @@ def _prepare_ai_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	return pd.DataFrame(rows, columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_diff"])
 
 
+def _prepare_ai_pct_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	for _, row in completed_df.iterrows():
+		for precision in AI_PRECISIONS:
+			expected_ai = pd.to_numeric(row[f"expected_ai_{precision}"], errors="coerce")
+			if not _is_nonzero_expected_ai(expected_ai):
+				continue
+			predicted_ai = pd.to_numeric(row[f"predicted_ai_{precision}"], errors="coerce")
+			if pd.isna(predicted_ai) or not math.isfinite(float(predicted_ai)):
+				continue
+			pct_diff = _safe_divide(float(predicted_ai) - float(expected_ai), expected_ai) * 100.0
+			if pd.isna(pct_diff) or not math.isfinite(float(pct_diff)):
+				continue
+			rows.append(
+				{
+					"model_name": row["model_name"],
+					"gpu": row["gpu"],
+					"runtime": row["runtime"],
+					"use_sass": bool(row["use_sass"]),
+					"precision": AI_LABELS[precision],
+					"ai_pct_diff": float(pct_diff),
+				}
+			)
+	return pd.DataFrame(
+		rows,
+		columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_pct_diff"],
+	)
+
+
+def _prepare_ai_ape_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
+	ai_pct_long_df = _prepare_ai_pct_long_df(completed_df)
+	if ai_pct_long_df.empty:
+		return pd.DataFrame(
+			columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_ape"],
+		)
+	ai_ape_long_df = ai_pct_long_df.copy()
+	ai_ape_long_df["ai_ape"] = pd.to_numeric(ai_ape_long_df["ai_pct_diff"], errors="coerce").abs()
+	return ai_ape_long_df.drop(columns=["ai_pct_diff"])
+
+
 def _prepare_token_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	rows: List[Dict[str, Any]] = []
 	for _, row in completed_df.iterrows():
@@ -737,6 +876,71 @@ def _summarize_ai_error(ai_long_df: pd.DataFrame, group_fields: List[str]) -> pd
 	return result[preferred_columns]
 
 
+def _summarize_pct_error_thresholds(ai_pct_long_df: pd.DataFrame, group_fields: List[str]) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	if ai_pct_long_df.empty:
+		return pd.DataFrame(
+			columns=_ordered_columns(
+				pd.DataFrame(columns=[]),
+				group_fields
+				+ [
+					"use_sass",
+					"sass_setting",
+					"precision",
+					"threshold_pct",
+					"threshold_label",
+					"within_threshold_n",
+					"total_n",
+					"within_threshold_pct",
+				],
+			),
+		)
+
+	summary_fields = group_fields + ["use_sass", "precision"]
+	for group_key, group_df in ai_pct_long_df.groupby(summary_fields, dropna=False):
+		key_tuple = group_key if isinstance(group_key, tuple) else (group_key,)
+		base_row: Dict[str, Any] = {}
+		for field_name, field_value in zip(summary_fields, key_tuple):
+			base_row[field_name] = field_value
+
+		pct_diff = pd.to_numeric(group_df["ai_pct_diff"], errors="coerce").dropna()
+		if pct_diff.empty:
+			continue
+		abs_pct_diff = pct_diff.abs()
+		total_n = int(abs_pct_diff.shape[0])
+		base_row["sass_setting"] = SASS_PANEL_LABELS[bool(base_row["use_sass"])]
+
+		for threshold in PERCENT_ERROR_THRESHOLDS:
+			row = dict(base_row)
+			within_threshold_n = int((abs_pct_diff <= threshold).sum())
+			row["threshold_pct"] = float(threshold)
+			row["threshold_label"] = f"+/-{int(threshold)}%"
+			row["within_threshold_n"] = within_threshold_n
+			row["total_n"] = total_n
+			row["within_threshold_pct"] = float(within_threshold_n / total_n * 100.0)
+			rows.append(row)
+
+	result = pd.DataFrame(rows)
+	if result.empty:
+		return result
+	result = result.sort_values(summary_fields + ["threshold_pct"]).reset_index(drop=True)
+	preferred_columns = _ordered_columns(
+		result,
+		group_fields
+		+ [
+			"use_sass",
+			"sass_setting",
+			"precision",
+			"threshold_pct",
+			"threshold_label",
+			"within_threshold_n",
+			"total_n",
+			"within_threshold_pct",
+		],
+	)
+	return result[preferred_columns]
+
+
 def _summarize_bound_metrics(plot_df: pd.DataFrame, group_fields: List[str]) -> pd.DataFrame:
 	rows: List[Dict[str, Any]] = []
 	if plot_df.empty:
@@ -827,18 +1031,19 @@ def _write_summary_csv(df: pd.DataFrame, output_path: Path) -> None:
 
 
 def _format_boxplot_summary_table(
-	ai_long_df: pd.DataFrame,
+	metric_long_df: pd.DataFrame,
 	*,
 	group_field: str,
 	group_label: str,
+	value_field: str,
 	table_label: str,
 ) -> str:
-	if ai_long_df.empty:
+	if metric_long_df.empty:
 		return f"{table_label}\n(no plotted rows)"
 
-	summary_df = ai_long_df[[group_field, "use_sass", "precision", "ai_diff"]].copy()
-	summary_df["ai_diff"] = pd.to_numeric(summary_df["ai_diff"], errors="coerce")
-	summary_df = summary_df[summary_df["ai_diff"].notna()].copy()
+	summary_df = metric_long_df[[group_field, "use_sass", "precision", value_field]].copy()
+	summary_df[value_field] = pd.to_numeric(summary_df[value_field], errors="coerce")
+	summary_df = summary_df[summary_df[value_field].notna()].copy()
 	if summary_df.empty:
 		return f"{table_label}\n(no plotted rows)"
 
@@ -848,7 +1053,7 @@ def _format_boxplot_summary_table(
 
 	summary_df["prompt_type"] = summary_df["use_sass"].map(lambda use_sass: SASS_PANEL_LABELS[bool(use_sass)])
 	grouped = (
-		summary_df.groupby([group_field, "prompt_type", "precision"], dropna=False)["ai_diff"]
+		summary_df.groupby([group_field, "prompt_type", "precision"], dropna=False)[value_field]
 		.agg(
 			n="count",
 			q1=lambda values: values.quantile(0.25),
@@ -944,28 +1149,96 @@ def _write_paper_summary_tables(
 		ai_long_df,
 		group_field="model_name",
 		group_label="Model",
+		value_field="ai_diff",
 		table_label="figure1_rai_difference_summary",
 	)
 	figure3_summary = _format_boxplot_summary_table(
 		ai_long_df,
 		group_field="gpu",
 		group_label="GPU",
+		value_field="ai_diff",
 		table_label="figure3_rai_difference_summary",
 	)
 	figure4_summary = _format_boxplot_summary_table(
 		ai_long_df,
 		group_field="runtime",
 		group_label="Runtime",
+		value_field="ai_diff",
 		table_label="figure4_rai_difference_summary",
+	)
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	figure11_summary = _format_boxplot_summary_table(
+		ai_pct_long_df,
+		group_field="model_name",
+		group_label="Model",
+		value_field="ai_pct_diff",
+		table_label="figure11_rai_percent_difference_summary",
+	)
+	figure12_summary = _format_boxplot_summary_table(
+		ai_pct_long_df,
+		group_field="gpu",
+		group_label="GPU",
+		value_field="ai_pct_diff",
+		table_label="figure12_rai_percent_difference_summary_by_gpu",
+	)
+	figure13_summary = _format_boxplot_summary_table(
+		ai_pct_long_df,
+		group_field="runtime",
+		group_label="Runtime",
+		value_field="ai_pct_diff",
+		table_label="figure13_rai_percent_difference_summary_by_runtime",
+	)
+	pct_error_thresholds_by_model = _summarize_pct_error_thresholds(ai_pct_long_df, ["model_name"])
+	pct_error_thresholds_by_gpu = _summarize_pct_error_thresholds(ai_pct_long_df, ["gpu"])
+	pct_error_thresholds_by_runtime = _summarize_pct_error_thresholds(ai_pct_long_df, ["runtime"])
+	ai_ape_long_df = _prepare_ai_ape_long_df(plot_df)
+	figure8_summary = _format_boxplot_summary_table(
+		ai_ape_long_df,
+		group_field="model_name",
+		group_label="Model",
+		value_field="ai_ape",
+		table_label="figure8_rai_absolute_percent_error_summary",
+	)
+	figure9_summary = _format_boxplot_summary_table(
+		ai_ape_long_df,
+		group_field="gpu",
+		group_label="GPU",
+		value_field="ai_ape",
+		table_label="figure9_rai_absolute_percent_error_summary_by_gpu",
+	)
+	figure10_summary = _format_boxplot_summary_table(
+		ai_ape_long_df,
+		group_field="runtime",
+		group_label="Runtime",
+		value_field="ai_ape",
+		table_label="figure10_rai_absolute_percent_error_summary_by_runtime",
 	)
 
 	print(figure1_summary)
 	print(figure3_summary)
 	print(figure4_summary)
+	print(figure11_summary)
+	print(figure12_summary)
+	print(figure13_summary)
+	print(figure8_summary)
+	print(figure9_summary)
+	print(figure10_summary)
 
 	_print_summary_table("RAI error summary by model / SASS / precision:", ai_by_model)
 	_print_summary_table("RAI error summary by GPU / SASS / precision:", ai_by_gpu)
 	_print_summary_table("RAI error summary by runtime / SASS / precision:", ai_by_runtime)
+	_print_summary_table(
+		"Figure 11 percent-error thresholds by model / SASS / precision:",
+		pct_error_thresholds_by_model,
+	)
+	_print_summary_table(
+		"Figure 12 percent-error thresholds by GPU / SASS / precision:",
+		pct_error_thresholds_by_gpu,
+	)
+	_print_summary_table(
+		"Figure 13 percent-error thresholds by runtime / SASS / precision:",
+		pct_error_thresholds_by_runtime,
+	)
 	_print_summary_table("Bound-class summary by model / SASS / precision:", bound_by_model)
 	_print_summary_table("Bound-class summary by GPU / SASS / precision:", bound_by_gpu)
 	_print_summary_table("Bound-class summary by runtime / SASS / precision:", bound_by_runtime)
@@ -1039,57 +1312,89 @@ def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass:
 	return mean_matrix, annotation
 
 
-def _save_ai_difference_boxplots(
-	plot_df: pd.DataFrame,
+def _save_ai_metric_boxplots(
+	metric_long_df: pd.DataFrame,
 	output_path: Path,
 	*,
 	group_field: str,
 	group_label: str,
-	title: str,
+	x_value_field: str,
+	x_axis_label: str,
+	reference_lines: List[float],
+	x_ticks: List[float] | None = None,
+	x_tick_labels: List[str] | None = None,
+	x_limits: tuple[float, float] | None = None,
+	x_linthresh: float | None = None,
+	x_linscale: float | None = None,
+	draw_reference_lines_behind_data: bool = False,
 ) -> None:
-	ai_long_df = _prepare_ai_long_df(plot_df)
 	plot_group_field = group_field
-	group_order = sorted(plot_df[group_field].dropna().unique().tolist()) if not plot_df.empty else []
-	if group_field == "runtime" and not ai_long_df.empty:
+	group_order = sorted(metric_long_df[group_field].dropna().unique().tolist()) if not metric_long_df.empty else []
+	if group_field == "runtime" and not metric_long_df.empty:
 		plot_group_field = "runtime_display"
-		ai_long_df[plot_group_field] = ai_long_df[group_field].map(
+		metric_long_df = metric_long_df.copy()
+		metric_long_df[plot_group_field] = metric_long_df[group_field].map(
 			lambda runtime_name: RUNTIME_DISPLAY_LABELS.get(str(runtime_name), str(runtime_name))
 		)
 		group_order = [
 			RUNTIME_DISPLAY_LABELS[runtime_name]
 			for runtime_name in ["cuda", "omp"]
-			if runtime_name in set(ai_long_df[group_field].dropna().tolist())
+			if runtime_name in set(metric_long_df[group_field].dropna().tolist())
 		]
 	sns.set_theme(style="whitegrid")
 	fig_height = _bounded_plot_height(len(group_order), min_height=8.0, per_item=0.6, padding=2.0, max_height=12.0)
 	fig, axes = plt.subplots(2, 1, figsize=_scaled_figsize(10.0, fig_height), sharex=True, sharey=True)
 	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
-	linthresh = _symlog_linthresh(ai_long_df["ai_diff"]) if not ai_long_df.empty else 1.0
+	linthresh = x_linthresh if x_linthresh is not None else (_symlog_linthresh(metric_long_df[x_value_field]) if not metric_long_df.empty else 1.0)
 	legend_handles: List[Any] = []
 	legend_labels: List[str] = []
+	reference_line_zorder = 1.5
+	boxplot_zorder = 2.0
 
 	for axis, use_sass in zip(axes, SASS_PANEL_ORDER):
-		subset = ai_long_df[ai_long_df["use_sass"] == use_sass].copy()
+		subset = metric_long_df[metric_long_df["use_sass"] == use_sass].copy()
+		if draw_reference_lines_behind_data:
+			for reference_line in reference_lines:
+				axis.axvline(
+					reference_line,
+					color="green" if reference_line == 0.0 else "red",
+					linestyle="--",
+					linewidth=1.5,
+					zorder=reference_line_zorder,
+				)
 		if subset.empty:
 			axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
 		else:
 			sns.boxplot(
 				data=subset,
-				x="ai_diff",
+				x=x_value_field,
 				y=plot_group_field,
 				hue="precision",
 				order=group_order,
 				hue_order=precision_order,
 				orient="h",
 				ax=axis,
+				zorder=boxplot_zorder,
 			)
-		axis.axvline(-1.0, color="red", linestyle="--", linewidth=1.5)
-		axis.axvline(0.0, color="green", linestyle="--", linewidth=1.5)
-		axis.axvline(1.0, color="red", linestyle="--", linewidth=1.5)
-		axis.set_xscale("symlog", linthresh=linthresh)
-		_set_rai_symlog_ticks(axis)
+		if not draw_reference_lines_behind_data:
+			for reference_line in reference_lines:
+				axis.axvline(
+					reference_line,
+					color="green" if reference_line == 0.0 else "red",
+					linestyle="--",
+					linewidth=1.5,
+					zorder=reference_line_zorder,
+				)
+		xscale_kwargs: Dict[str, Any] = {"linthresh": linthresh}
+		if x_linscale is not None:
+			xscale_kwargs["linscale"] = x_linscale
+		axis.set_xscale("symlog", **xscale_kwargs)
+		if x_ticks is not None and x_tick_labels is not None:
+			_set_symlog_ticks(axis, x_ticks, x_tick_labels, x_limits=x_limits)
+		else:
+			_set_rai_symlog_ticks(axis)
 		axis.set_title(SASS_PANEL_LABELS[use_sass])
-		axis.set_xlabel("Predicted RAI - Expected RAI (symmetric log scale)")
+		axis.set_xlabel(x_axis_label)
 		axis.set_ylabel(group_label)
 		axis.tick_params(axis="x", labelsize=8)
 		legend = axis.get_legend()
@@ -1119,32 +1424,197 @@ def _save_ai_difference_boxplots(
 
 
 def _save_figure1_ai_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
-	_save_ai_difference_boxplots(
-		plot_df,
+	ai_long_df = _prepare_ai_long_df(plot_df)
+	_save_ai_metric_boxplots(
+		ai_long_df,
 		output_path,
 		group_field="model_name",
 		group_label="Model Name",
-		title="Roofline Arithmetic Intensity Difference by Model",
+		x_value_field="ai_diff",
+		x_axis_label="Predicted RAI - Expected RAI (symmetric log scale)",
+		reference_lines=[-1.0, 0.0, 1.0],
 	)
 
 
 def _save_figure3_ai_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -> None:
-	_save_ai_difference_boxplots(
-		plot_df,
+	ai_long_df = _prepare_ai_long_df(plot_df)
+	_save_ai_metric_boxplots(
+		ai_long_df,
 		output_path,
 		group_field="gpu",
 		group_label="GPU",
-		title="Roofline Arithmetic Intensity Difference by GPU",
+		x_value_field="ai_diff",
+		x_axis_label="Predicted RAI - Expected RAI (symmetric log scale)",
+		reference_lines=[-1.0, 0.0, 1.0],
 	)
 
 
 def _save_figure4_ai_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
-	_save_ai_difference_boxplots(
-		plot_df,
+	ai_long_df = _prepare_ai_long_df(plot_df)
+	_save_ai_metric_boxplots(
+		ai_long_df,
 		output_path,
 		group_field="runtime",
 		group_label="Runtime",
-		title="Roofline Arithmetic Intensity Difference by Runtime",
+		x_value_field="ai_diff",
+		x_axis_label="Predicted RAI - Expected RAI (symmetric log scale)",
+		reference_lines=[-1.0, 0.0, 1.0],
+	)
+
+
+def _save_figure11_ai_pct_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, PERCENT_DIFF_LINEAR_MAX_X),
+		"x_ticks": [PERCENT_DIFF_MIN_X, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, PERCENT_DIFF_LINEAR_MAX_X],
+		"x_tick_labels": ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"],
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_pct_long_df,
+		output_path,
+		group_field="model_name",
+		group_label="Model Name",
+		x_value_field="ai_pct_diff",
+		x_axis_label="Percent Error of Predicted RAI",
+		reference_lines=PERCENT_DIFF_REFERENCE_LINES,
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure12_ai_pct_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, PERCENT_DIFF_LINEAR_MAX_X),
+		"x_ticks": [PERCENT_DIFF_MIN_X, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, PERCENT_DIFF_LINEAR_MAX_X],
+		"x_tick_labels": ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"],
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_pct_long_df,
+		output_path,
+		group_field="gpu",
+		group_label="GPU",
+		x_value_field="ai_pct_diff",
+		x_axis_label="Percent Error of Predicted RAI",
+		reference_lines=PERCENT_DIFF_REFERENCE_LINES,
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure13_ai_pct_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, PERCENT_DIFF_LINEAR_MAX_X),
+		"x_ticks": [PERCENT_DIFF_MIN_X, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, PERCENT_DIFF_LINEAR_MAX_X],
+		"x_tick_labels": ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"],
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_pct_long_df,
+		output_path,
+		group_field="runtime",
+		group_label="Runtime",
+		x_value_field="ai_pct_diff",
+		x_axis_label="Percent Error of Predicted RAI",
+		reference_lines=PERCENT_DIFF_REFERENCE_LINES,
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure8_ai_ape_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_ape_long_df = _prepare_ai_ape_long_df(plot_df)
+	axis_config = _ape_axis_config(ai_ape_long_df["ai_ape"]) if not ai_ape_long_df.empty else {
+		"x_limits": (0.0, APE_LINEAR_MAX_X),
+		"x_ticks": [0.0, 25.0, 50.0, 75.0, APE_LINEAR_MAX_X],
+		"x_tick_labels": ["0", "25", "50", "75", "100"],
+		"linthresh": APE_LINEAR_MAX_X,
+		"linscale": APE_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_ape_long_df,
+		output_path,
+		group_field="model_name",
+		group_label="Model Name",
+		x_value_field="ai_ape",
+		x_axis_label="Absolute Percent Error of Predicted RAI",
+		reference_lines=[APE_LINEAR_MAX_X],
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure9_ai_ape_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_ape_long_df = _prepare_ai_ape_long_df(plot_df)
+	axis_config = _ape_axis_config(ai_ape_long_df["ai_ape"]) if not ai_ape_long_df.empty else {
+		"x_limits": (0.0, APE_LINEAR_MAX_X),
+		"x_ticks": [0.0, 25.0, 50.0, 75.0, APE_LINEAR_MAX_X],
+		"x_tick_labels": ["0", "25", "50", "75", "100"],
+		"linthresh": APE_LINEAR_MAX_X,
+		"linscale": APE_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_ape_long_df,
+		output_path,
+		group_field="gpu",
+		group_label="GPU",
+		x_value_field="ai_ape",
+		x_axis_label="Absolute Percent Error of Predicted RAI",
+		reference_lines=[APE_LINEAR_MAX_X],
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure10_ai_ape_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_ape_long_df = _prepare_ai_ape_long_df(plot_df)
+	axis_config = _ape_axis_config(ai_ape_long_df["ai_ape"]) if not ai_ape_long_df.empty else {
+		"x_limits": (0.0, APE_LINEAR_MAX_X),
+		"x_ticks": [0.0, 25.0, 50.0, 75.0, APE_LINEAR_MAX_X],
+		"x_tick_labels": ["0", "25", "50", "75", "100"],
+		"linthresh": APE_LINEAR_MAX_X,
+		"linscale": APE_LINSCALE,
+	}
+	_save_ai_metric_boxplots(
+		ai_ape_long_df,
+		output_path,
+		group_field="runtime",
+		group_label="Runtime",
+		x_value_field="ai_ape",
+		x_axis_label="Absolute Percent Error of Predicted RAI",
+		reference_lines=[APE_LINEAR_MAX_X],
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_linthresh=axis_config["linthresh"],
+		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
 	)
 
 
@@ -1430,6 +1900,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	figure4_path = output_dir / "figure4_ai_difference_boxplots_by_runtime.png"
 	figure5_path = output_dir / "figure5_token_count_histograms.png"
 	figure6_path = output_dir / "figure6_expected_rai_distribution_by_gpu_precision.png"
+	figure11_path = output_dir / "figure11_ai_percent_difference_boxplots.png"
+	figure12_path = output_dir / "figure12_ai_percent_difference_boxplots_by_gpu.png"
+	figure13_path = output_dir / "figure13_ai_percent_difference_boxplots_by_runtime.png"
+	figure8_path = output_dir / "figure8_ai_absolute_percent_error_boxplots.png"
+	figure9_path = output_dir / "figure9_ai_absolute_percent_error_boxplots_by_gpu.png"
+	figure10_path = output_dir / "figure10_ai_absolute_percent_error_boxplots_by_runtime.png"
 
 	_save_figure1_ai_boxplots(plot_df, figure1_path)
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
@@ -1437,6 +1913,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
 	_save_figure5_token_count_histograms(plot_df, figure5_path)
 	_save_figure6_expected_rai_distribution(expected_rai_distribution_df, figure6_path, runtime_distribution_df)
+	_save_figure11_ai_pct_boxplots(plot_df, figure11_path)
+	_save_figure12_ai_pct_boxplots_by_gpu(plot_df, figure12_path)
+	_save_figure13_ai_pct_boxplots_by_runtime(plot_df, figure13_path)
+	_save_figure8_ai_ape_boxplots(plot_df, figure8_path)
+	_save_figure9_ai_ape_boxplots_by_gpu(plot_df, figure9_path)
+	_save_figure10_ai_ape_boxplots_by_runtime(plot_df, figure10_path)
 	_write_paper_summary_tables(plot_df, output_dir, expected_rai_distribution_df)
 
 	print("Paper plot artifacts written to:")
@@ -1446,6 +1928,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	print(f"- {figure4_path}")
 	print(f"- {figure5_path}")
 	print(f"- {figure6_path}")
+	print(f"- {figure11_path}")
+	print(f"- {figure12_path}")
+	print(f"- {figure13_path}")
+	print(f"- {figure8_path}")
+	print(f"- {figure9_path}")
+	print(f"- {figure10_path}")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
