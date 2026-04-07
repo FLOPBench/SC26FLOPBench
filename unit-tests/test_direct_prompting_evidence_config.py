@@ -622,6 +622,64 @@ def test_summarize_expected_rai_distribution_counts_unique_kernels_per_gpu_preci
     assert distribution_df["count_string"].tolist() == ["(1|1|1)", "(1|1|1)", "(1|1|1)"]
 
 
+def test_summarize_runtime_distribution_counts_unique_kernels_per_gpu():
+    plot_df = pd.DataFrame(
+        [
+            {
+                "program_name": "prog-a",
+                "kernel_mangled_name": "_Z7kernelAv",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "model_name": "model-a",
+            },
+            {
+                "program_name": "prog-a",
+                "kernel_mangled_name": "_Z7kernelAv",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "model_name": "model-b",
+            },
+            {
+                "program_name": "prog-a",
+                "kernel_mangled_name": "_Z7kernelAv",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "model_name": "model-a",
+            },
+            {
+                "program_name": "prog-b",
+                "kernel_mangled_name": "_Z7kernelBv",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "model_name": "model-a",
+            },
+            {
+                "program_name": "prog-c",
+                "kernel_mangled_name": "_Z7kernelCv",
+                "gpu": "A100",
+                "runtime": "omp",
+                "model_name": "model-a",
+            },
+            {
+                "program_name": "prog-c",
+                "kernel_mangled_name": "_Z7kernelCv",
+                "gpu": "H100",
+                "runtime": "omp",
+                "model_name": "model-a",
+            },
+        ]
+    )
+
+    runtime_df = make_plots_for_paper._summarize_runtime_distribution(plot_df)
+
+    assert runtime_df["gpu"].tolist() == ["All GPUs"]
+    assert runtime_df["precision"].tolist() == ["Runtime"]
+    assert runtime_df["cuda_n"].tolist() == [2]
+    assert runtime_df["omp_n"].tolist() == [1]
+    assert runtime_df["total_kernels"].tolist() == [3]
+    assert runtime_df["count_string"].tolist() == ["(2|1)"]
+
+
 def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
     distribution_df = pd.DataFrame(
         [
@@ -647,10 +705,26 @@ def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
             },
         ]
     )
+    runtime_distribution_df = pd.DataFrame(
+        [
+            {
+                "gpu": "A100",
+                "precision": "Runtime",
+                "cuda_n": 2,
+                "omp_n": 1,
+                "total_kernels": 3,
+                "count_string": "(2|1)",
+            }
+        ]
+    )
 
     output_path = tmp_path / "figure6_expected_rai_distribution_by_gpu_precision.png"
 
-    make_plots_for_paper._save_figure6_expected_rai_distribution(distribution_df, output_path)
+    make_plots_for_paper._save_figure6_expected_rai_distribution(
+        distribution_df,
+        output_path,
+        runtime_distribution_df,
+    )
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0

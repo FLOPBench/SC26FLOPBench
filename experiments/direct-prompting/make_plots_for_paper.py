@@ -71,6 +71,15 @@ EXPECTED_RAI_DISTRIBUTION_COLORS = {
 	"nonzero_bandwidth_bound_n": "#f58518",
 	"nonzero_compute_bound_n": "#54a24b",
 }
+RUNTIME_DISTRIBUTION_COLUMNS = ["cuda_n", "omp_n"]
+RUNTIME_DISTRIBUTION_LABELS = {
+	"cuda_n": "CUDA",
+	"omp_n": "OpenMP",
+}
+RUNTIME_DISTRIBUTION_COLORS = {
+	"cuda_n": "#4c78a8",
+	"omp_n": "#e45756",
+}
 TOKEN_COLUMN_LABELS = {
 	"input_tokens": "Input Tokens",
 	"output_tokens": "Output Tokens",
@@ -476,6 +485,42 @@ def _summarize_expected_rai_distribution(plot_df: pd.DataFrame) -> pd.DataFrame:
 		kind="stable",
 	).reset_index(drop=True)
 	return distribution_df[result_columns]
+
+
+def _summarize_runtime_distribution(plot_df: pd.DataFrame) -> pd.DataFrame:
+	result_columns = [
+		"gpu",
+		"precision",
+		*RUNTIME_DISTRIBUTION_COLUMNS,
+		"total_kernels",
+		"count_string",
+	]
+	if plot_df.empty:
+		return pd.DataFrame(columns=result_columns)
+
+	unique_samples_df = (
+		plot_df[["program_name", "kernel_mangled_name", "runtime"]]
+		.dropna(subset=["program_name", "kernel_mangled_name", "runtime"])
+		.drop_duplicates()
+		.reset_index(drop=True)
+	)
+	if unique_samples_df.empty:
+		return pd.DataFrame(columns=result_columns)
+
+	runtime_df = (
+		unique_samples_df.groupby(["runtime"], dropna=False)
+		.size()
+		.to_dict()
+	)
+	runtime_row = {
+		"gpu": "All GPUs",
+		"precision": "Runtime",
+		"cuda_n": int(runtime_df.get("cuda", 0)),
+		"omp_n": int(runtime_df.get("omp", 0)),
+	}
+	runtime_row["total_kernels"] = runtime_row["cuda_n"] + runtime_row["omp_n"]
+	runtime_row["count_string"] = f"({runtime_row['cuda_n']}|{runtime_row['omp_n']})"
+	return pd.DataFrame([runtime_row], columns=result_columns)
 
 
 def _summarize_gpu_kernel_sample_coverage(plot_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
@@ -1219,10 +1264,14 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 def _save_figure6_expected_rai_distribution(
 	expected_rai_distribution_df: pd.DataFrame,
 	output_path: Path,
+	runtime_distribution_df: pd.DataFrame | None = None,
 ) -> None:
 	sns.set_theme(style="whitegrid")
+	combined_row_count = expected_rai_distribution_df.shape[0]
+	if runtime_distribution_df is not None:
+		combined_row_count += runtime_distribution_df.shape[0]
 	fig_height = _bounded_plot_height(
-		expected_rai_distribution_df.shape[0],
+		combined_row_count,
 		min_height=6.5,
 		per_item=0.55,
 		padding=2.0,
@@ -1230,43 +1279,112 @@ def _save_figure6_expected_rai_distribution(
 	)
 	fig, axis = plt.subplots(figsize=_scaled_figsize(11.0, fig_height))
 
-	if expected_rai_distribution_df.empty:
+	if expected_rai_distribution_df.empty and (runtime_distribution_df is None or runtime_distribution_df.empty):
 		axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
 		axis.set_axis_off()
 	else:
-		plot_df = expected_rai_distribution_df.reset_index(drop=True).copy()
-		plot_df["gpu_precision_label"] = plot_df.apply(
-			lambda row: f"({row['gpu']}, {row['precision']})",
-			axis=1,
-		)
-		y_positions = np.arange(plot_df.shape[0])
-		left_offsets = np.zeros(plot_df.shape[0], dtype=float)
-
-		for category in EXPECTED_RAI_DISTRIBUTION_COLUMNS:
-			counts = pd.to_numeric(plot_df[category], errors="coerce").fillna(0.0).to_numpy(dtype=float)
-			axis.barh(
-				y_positions,
-				counts,
-				left=left_offsets,
-				height=0.7,
-				label=EXPECTED_RAI_DISTRIBUTION_LABELS[category],
-				color=EXPECTED_RAI_DISTRIBUTION_COLORS[category],
+		runtime_distribution_df = runtime_distribution_df if runtime_distribution_df is not None else pd.DataFrame()
+		plot_rows: List[Dict[str, Any]] = []
+		intra_group_spacing = 0.82
+		inter_group_gap = 0.55
+		runtime_group_gap = 0.8
+		bar_height = 0.64
+		expected_lookup = {
+			(gpu_name, precision): row
+			for _, row in expected_rai_distribution_df.iterrows()
+			for gpu_name, precision in [(row["gpu"], row["precision"])]
+		}
+		gpu_order = list(GPU_ROOFLINE_TABLE.keys())
+		for gpu_name in gpu_order:
+			for precision in [PRECISION_DISPLAY_LABELS[item] for item in AI_PRECISIONS]:
+				row = expected_lookup.get((gpu_name, precision))
+				if row is None:
+					continue
+				plot_rows.append(
+					{
+						"row_kind": "expected",
+						"gpu": gpu_name,
+						"precision": precision,
+						"gpu_precision_label": f"({gpu_name}, {precision})",
+						**row.to_dict(),
+					}
+				)
+		if not runtime_distribution_df.empty:
+			runtime_row = runtime_distribution_df.iloc[-1].to_dict()
+			plot_rows.append(
+				{
+					"row_kind": "runtime",
+					"gpu": runtime_row.get("gpu", "All GPUs"),
+					"precision": "Runtime",
+					"gpu_precision_label": "Runtime",
+					**runtime_row,
+				}
 			)
-			left_offsets = left_offsets + counts
+		plot_df = pd.DataFrame(plot_rows).reset_index(drop=True)
+		y_positions: List[float] = []
+		current_y = 0.0
+		previous_group: str | None = None
+		for _, row in plot_df.iterrows():
+			group_key = str(row["gpu"]) if row["row_kind"] == "expected" else "Runtime"
+			if previous_group is not None:
+				gap = runtime_group_gap if group_key == "Runtime" or previous_group == "Runtime" else inter_group_gap
+				current_y += intra_group_spacing if group_key == previous_group else intra_group_spacing + gap
+			y_positions.append(current_y)
+			previous_group = group_key
+		plot_df["y_position"] = y_positions
+		added_legend_labels: set[str] = set()
+		for row_index, row in plot_df.iterrows():
+			left_offset = 0.0
+			if row["row_kind"] == "expected":
+				for category in EXPECTED_RAI_DISTRIBUTION_COLUMNS:
+					count = float(pd.to_numeric(row.get(category), errors="coerce") or 0.0)
+					label = EXPECTED_RAI_DISTRIBUTION_LABELS[category]
+					axis.barh(
+						float(row["y_position"]),
+						count,
+						left=left_offset,
+						height=bar_height,
+						label=label if label not in added_legend_labels else None,
+						color=EXPECTED_RAI_DISTRIBUTION_COLORS[category],
+					)
+					added_legend_labels.add(label)
+					left_offset += count
+			else:
+				for runtime_column in RUNTIME_DISTRIBUTION_COLUMNS:
+					count = float(pd.to_numeric(row.get(runtime_column), errors="coerce") or 0.0)
+					axis.barh(
+						float(row["y_position"]),
+						count,
+						left=left_offset,
+						height=bar_height,
+						color=RUNTIME_DISTRIBUTION_COLORS[runtime_column],
+					)
+					if count > 0.0:
+						axis.text(
+							left_offset + count / 2.0,
+							float(row["y_position"]),
+							RUNTIME_DISTRIBUTION_LABELS[runtime_column],
+							ha="center",
+							va="center",
+							fontsize=8,
+							color="white",
+							fontweight="bold",
+						)
+					left_offset += count
 
 		max_total = float(plot_df["total_kernels"].max()) if not plot_df.empty else 1.0
 		label_padding = max(1.0, max_total * 0.02)
 		for row_index, row in plot_df.iterrows():
 			axis.text(
 				float(row["total_kernels"]) + label_padding,
-				row_index,
+				float(row["y_position"]),
 				str(row["count_string"]),
 				va="center",
 				ha="left",
 				fontsize=8,
 			)
 
-		axis.set_yticks(y_positions, plot_df["gpu_precision_label"])
+		axis.set_yticks(plot_df["y_position"].tolist(), plot_df["gpu_precision_label"])
 		axis.invert_yaxis()
 		axis.set_xlabel("Kernel Count")
 		axis.set_ylabel("GPU / FLOP Precision")
@@ -1304,6 +1422,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 		)
 	_print_bound_class_distribution(plot_df)
 	expected_rai_distribution_df = _summarize_expected_rai_distribution(plot_df)
+	runtime_distribution_df = _summarize_runtime_distribution(plot_df)
 
 	figure1_path = output_dir / "figure1_ai_difference_boxplots.png"
 	figure2_path = output_dir / "figure2_ai_bound_confusion_heatmaps.png"
@@ -1317,7 +1436,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
 	_save_figure5_token_count_histograms(plot_df, figure5_path)
-	_save_figure6_expected_rai_distribution(expected_rai_distribution_df, figure6_path)
+	_save_figure6_expected_rai_distribution(expected_rai_distribution_df, figure6_path, runtime_distribution_df)
 	_write_paper_summary_tables(plot_df, output_dir, expected_rai_distribution_df)
 
 	print("Paper plot artifacts written to:")
