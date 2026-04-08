@@ -9,6 +9,7 @@ import importlib.util
 
 import matplotlib
 from matplotlib import ticker as mticker
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
 
 matplotlib.use("Agg")
@@ -2610,6 +2611,7 @@ def _save_figure2_5_bound_heatmaps_with_zero(plot_df: pd.DataFrame, output_path:
 	fig_height = max(9.5, 3.6 * row_count)
 	fig, axes = plt.subplots(row_count, 2, figsize=_scaled_figsize(13.5, fig_height), squeeze=False)
 	cbar_ax = fig.add_axes([0.92, 0.18, 0.02, 0.64])
+	heatmap_cmap = LinearSegmentedColormap.from_list("figure2_5_white_to_red", ["#ffffff", "#c62828"])
 	vmin = 0.0
 	vmax = 100.0
 
@@ -2626,8 +2628,9 @@ def _save_figure2_5_bound_heatmaps_with_zero(plot_df: pd.DataFrame, output_path:
 					matrix_df,
 					ax=axis,
 					annot=annotation,
+					annot_kws={"fontsize": 10},
 					fmt="",
-					cmap="crest",
+					cmap=heatmap_cmap,
 					vmin=vmin,
 					vmax=vmax,
 					cbar=(row_index == 0 and col_index == 0),
@@ -2640,7 +2643,7 @@ def _save_figure2_5_bound_heatmaps_with_zero(plot_df: pd.DataFrame, output_path:
 				axis.set_ylabel("Expected RAI Class")
 
 	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
-		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
+		cbar_ax.set_ylabel("Mean prediction rate across FP16/32/64 (%)", rotation=90, labelpad=12)
 
 	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.5, wspace=0.28)
 	fig.savefig(output_path, dpi=200, bbox_inches="tight")
