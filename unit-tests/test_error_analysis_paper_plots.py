@@ -316,6 +316,40 @@ def test_build_model_feature_summary_dataframe_collapses_all_but_model():
 	assert set(model_summary_df["summary_mode"].unique().tolist()) == {"collapsed_model_feature"}
 
 
+def test_build_model_prompt_type_feature_summary_dataframe_collapses_runtime():
+	frames = []
+	for model_name, safe_model_name, error_shift in [
+		("openai/gpt-5.4", "openai_gpt-5.4", 0.0),
+		("openai/gpt-oss-120b", "openai_gpt-oss-120b", 8.0),
+	]:
+		for runtime_name, runtime_shift in [("cuda", 0.0), ("omp", -12.0)]:
+			for use_sass, prompt_type_shift in [(False, 0.0), (True, 6.0)]:
+				frame = _sample_rows().copy()
+				frame["model_name"] = model_name
+				frame["safe_model_name"] = safe_model_name
+				frame["runtime"] = runtime_name
+				frame["use_sass"] = use_sass
+				frame["evidence_configuration"] = "Source+SASS" if use_sass else "Source Only"
+				frame["abs_ai_pct_error"] = frame["abs_ai_pct_error"] + error_shift + runtime_shift + prompt_type_shift
+				frames.append(frame)
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	model_prompt_type_summary_df = paper_plots._build_model_prompt_type_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+
+	assert set(model_prompt_type_summary_df["model_label"].unique().tolist()) == {"GPT 5.4", "GPT OSS"}
+	assert set(model_prompt_type_summary_df["prompt_type"].unique().tolist()) == {"Source-Only", "Source+SASS"}
+	assert set(model_prompt_type_summary_df["runtime"].unique().tolist()) == {paper_plots.ALL_RUNTIMES_LABEL}
+	assert set(model_prompt_type_summary_df["summary_mode"].unique().tolist()) == {
+		"collapsed_runtime_model_prompt_type_feature"
+	}
+
+
 def test_save_model_feature_summary_heatmap_writes_output(tmp_path: Path):
 	frames = []
 	for model_name, safe_model_name, error_shift in [
@@ -347,6 +381,41 @@ def test_save_model_feature_summary_heatmap_writes_output(tmp_path: Path):
 	)
 
 	assert (tmp_path / "model_feature_association_heatmap.png").exists()
+
+
+def test_save_model_prompt_type_feature_summary_heatmap_writes_output(tmp_path: Path):
+	frames = []
+	for model_name, safe_model_name, error_shift in [
+		("openai/gpt-5.4", "openai_gpt-5.4", 0.0),
+		("openai/gpt-oss-120b", "openai_gpt-oss-120b", 8.0),
+		("anthropic/claude-4.6-opus", "anthropic_claude-4.6-opus", 16.0),
+	]:
+		for runtime_name, runtime_shift in [("cuda", 0.0), ("omp", -12.0)]:
+			for use_sass, prompt_type_shift in [(False, 0.0), (True, 6.0)]:
+				frame = _sample_rows().copy()
+				frame["model_name"] = model_name
+				frame["safe_model_name"] = safe_model_name
+				frame["runtime"] = runtime_name
+				frame["use_sass"] = use_sass
+				frame["evidence_configuration"] = "Source+SASS" if use_sass else "Source Only"
+				frame["abs_ai_pct_error"] = frame["abs_ai_pct_error"] + error_shift + runtime_shift + prompt_type_shift
+				frames.append(frame)
+	combined_df = pd.concat(frames, ignore_index=True)
+
+	clean_df = paper_plots._clean_sample_dataframe(combined_df)
+	feature_long_df = paper_plots._feature_presence_long_frame(clean_df)
+	model_prompt_type_summary_df = paper_plots._build_model_prompt_type_feature_summary_dataframe(
+		feature_long_df,
+		min_present=2,
+		min_absent=2,
+	)
+	paper_plots._save_model_prompt_type_feature_summary_heatmap(
+		model_prompt_type_summary_df,
+		tmp_path,
+		feature_order=paper_plots._runtime_feature_order(model_prompt_type_summary_df),
+	)
+
+	assert (tmp_path / "figure1_model_feature_association_heatmap.png").exists()
 
 
 def test_runtime_feature_order_sorts_by_signed_error_association():
