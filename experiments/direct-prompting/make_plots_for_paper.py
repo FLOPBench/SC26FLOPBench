@@ -126,6 +126,7 @@ PERCENT_DIFF_MIN_X = -100.0
 PERCENT_DIFF_REFERENCE_LINES = [0.0, 100.0]
 PERCENT_ERROR_THRESHOLDS = [10.0, 20.0, 25.0, 50.0, 75.0, 100.0]
 FIGURE12_8_TABLE_THRESHOLDS = [10.0, 50.0]
+FIGURE12_8_HEATMAP_GAMMA = 1.6
 PERCENT_DIFF_LINEAR_MAX_X = 100.0
 PERCENT_DIFF_LINSCALE = 3.0
 PERCENT_DIFF_LEFT_VIEW_PADDING = 10.0
@@ -991,6 +992,15 @@ def _latex_escape(value: Any) -> str:
 	return text
 
 
+def _latex_heatmap_cell(value: Any) -> str:
+	numeric_value = pd.to_numeric(value, errors="coerce")
+	if pd.isna(numeric_value) or not math.isfinite(float(numeric_value)):
+		return r"\cellcolor[rgb]{1.000,1.000,1.000}-"
+	clipped_value = max(0.0, min(100.0, float(numeric_value)))
+	green_blue = 1.0 - math.pow(clipped_value / 100.0, FIGURE12_8_HEATMAP_GAMMA)
+	return rf"\cellcolor[rgb]{{1.000,{green_blue:.3f},{green_blue:.3f}}}{_latex_escape(value)}"
+
+
 def _figure12_8_table_metric_columns() -> List[str]:
 	return [
 		f"{PRECISION_DISPLAY_LABELS[precision]} +/-{int(threshold)}%"
@@ -1144,7 +1154,7 @@ def _write_figure12_8_booktabs_table(table_df: pd.DataFrame, output_path: Path) 
 			cells.append("")
 		cells.append(_latex_escape(row["GPU"]))
 		for column in metric_columns:
-			cells.append(_latex_escape(row[column]))
+			cells.append(_latex_heatmap_cell(row[column]))
 		lines.append(" & ".join(cells) + r" \\")
 		previous_model = model_name
 		previous_runtime_key = runtime_key

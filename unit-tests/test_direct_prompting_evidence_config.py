@@ -923,9 +923,11 @@ def test_write_figure12_8_booktabs_table_writes_compact_tex_with_multicolumn_and
     assert "\\cmidrule(lr){3-10}" in tex_text
     assert "\\cmidrule(lr){2-10}" in tex_text
     assert tex_text.count("\\midrule") == 2
-    assert "A100 & 100.0 & 100.0 & 0.0 & 100.0 & - & -" in tex_text
-    assert "H100 & 0.0 & 50.0 & 10.0 & 60.0 & - & -" in tex_text
-    assert "- & -" in tex_text
+    assert r"\cellcolor[rgb]{1.000,0.000,0.000}100.0" in tex_text
+    assert r"\cellcolor[rgb]{1.000,1.000,1.000}0.0" in tex_text
+    assert r"\cellcolor[rgb]{1.000,1.000,1.000}-" in tex_text
+    assert "A100 & \\cellcolor[rgb]{1.000,0.000,0.000}100.0" in tex_text
+    assert "H100 & \\cellcolor[rgb]{1.000,1.000,1.000}0.0 & \\cellcolor[rgb]{1.000,0.670,0.670}50.0" in tex_text
 
 
 def test_prepare_ai_ape_long_df_uses_same_rows_as_figure11_with_absolute_values():
