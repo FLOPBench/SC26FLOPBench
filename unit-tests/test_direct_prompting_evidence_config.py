@@ -623,6 +623,157 @@ def test_summarize_expected_rai_distribution_counts_unique_kernels_per_gpu_preci
     assert distribution_df["count_string"].tolist() == ["(1|1|1)", "(1|1|1)", "(1|1|1)"]
 
 
+def test_classify_ai_with_zero_distinguishes_zero_bandwidth_compute_and_nan():
+    assert make_plots_for_paper._classify_ai_with_zero(0.0, 2.0) == make_plots_for_paper.ZERO_CLASS
+    assert make_plots_for_paper._classify_ai_with_zero(1.0, 2.0) == make_plots_for_paper.NEGATIVE_CLASS
+    assert make_plots_for_paper._classify_ai_with_zero(4.0, 2.0) == make_plots_for_paper.POSITIVE_CLASS
+    assert make_plots_for_paper._classify_ai_with_zero(float("nan"), 2.0) is None
+    assert make_plots_for_paper._classify_ai_with_zero(1.0, float("nan")) is None
+
+
+def test_figure2_5_confusion_heatmap_payload_includes_zero_expected_and_predicted_classes():
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 0.0,
+                "predicted_ai_fp16": 0.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 0.0,
+                "predicted_ai_fp32": 0.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 0.0,
+                "predicted_ai_fp64": 0.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 0.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 1.0,
+                "predicted_ai_fp32": 0.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 1.0,
+                "predicted_ai_fp64": 0.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 1.0,
+                "predicted_ai_fp32": 1.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 1.0,
+                "predicted_ai_fp64": 1.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 4.0,
+                "predicted_ai_fp16": 4.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 4.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 4.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": float("nan"),
+                "predicted_ai_fp16": 0.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": float("nan"),
+                "predicted_ai_fp32": 0.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": float("nan"),
+                "predicted_ai_fp64": 0.0,
+                "balance_point_fp64": 2.0,
+            },
+        ]
+    )
+
+    matrix_df, annotation = make_plots_for_paper._figure2_5_confusion_heatmap_payload(
+        plot_df,
+        "model-a",
+        False,
+    )
+
+    assert matrix_df.index.tolist() == ["Zero", "BB", "CB"]
+    assert matrix_df.columns.tolist() == ["Zero", "BB", "CB"]
+    assert matrix_df.loc["Zero", "Zero"] == pytest.approx(100.0)
+    assert matrix_df.loc["BB", "Zero"] == pytest.approx(50.0)
+    assert matrix_df.loc["BB", "BB"] == pytest.approx(50.0)
+    assert matrix_df.loc["CB", "CB"] == pytest.approx(100.0)
+    assert matrix_df.loc["Zero"].sum() == pytest.approx(100.0)
+    assert matrix_df.loc["BB"].sum() == pytest.approx(100.0)
+    assert matrix_df.loc["CB"].sum() == pytest.approx(100.0)
+    assert "FP16: 100.0%" in annotation[0, 0]
+    assert "FP32: 50.0%" in annotation[1, 0]
+
+
+def test_save_figure2_5_bound_heatmaps_with_zero_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 0.0,
+                "predicted_ai_fp16": 0.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 0.0,
+                "predicted_ai_fp32": 0.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 0.0,
+                "predicted_ai_fp64": 0.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-a",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 1.0,
+                "predicted_ai_fp32": 1.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 1.0,
+                "predicted_ai_fp64": 1.0,
+                "balance_point_fp64": 2.0,
+            },
+            {
+                "model_name": "model-b",
+                "use_sass": True,
+                "expected_ai_fp16": 4.0,
+                "predicted_ai_fp16": 0.0,
+                "balance_point_fp16": 2.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 0.0,
+                "balance_point_fp32": 2.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 0.0,
+                "balance_point_fp64": 2.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure2_5_ai_bound_confusion_heatmaps_with_zero.png"
+
+    make_plots_for_paper._save_figure2_5_bound_heatmaps_with_zero(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_summarize_runtime_distribution_counts_unique_kernels_per_gpu():
     plot_df = pd.DataFrame(
         [
@@ -1571,3 +1722,62 @@ def test_save_figure10_ai_ape_boxplots_by_runtime_writes_png(tmp_path: Path):
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0
+
+
+def test_write_paper_summary_tables_prints_figure11_percent_difference_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    samples_df = pd.DataFrame(
+        [
+            _shared_sample_row(
+                thread_id="thread-a",
+                model_name="model-a",
+                runtime="cuda",
+                use_sass=False,
+                gpu="A100",
+                expected_fp16=0,
+                expected_fp32=50,
+                expected_fp64=25,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=10,
+                metrics_diff_fp64=-5,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+            _shared_sample_row(
+                thread_id="thread-b",
+                model_name="model-a",
+                runtime="cuda",
+                use_sass=True,
+                gpu="A100",
+                expected_fp16=0,
+                expected_fp32=40,
+                expected_fp64=20,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=-8,
+                metrics_diff_fp64=10,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+        ]
+    )
+
+    completed_df = make_plots_for_paper._enrich_completed_dataframe(samples_df)
+    plot_df = make_plots_for_paper._paper_subset(completed_df)
+
+    make_plots_for_paper._write_paper_summary_tables(
+        plot_df,
+        tmp_path,
+        expected_rai_distribution_df=pd.DataFrame(),
+    )
+
+    captured = capsys.readouterr()
+
+    assert "figure11_rai_percent_difference_summary" in captured.out
+    assert "Prompt Type | Precision | N | Q1" in captured.out
+    assert "model-a" in captured.out

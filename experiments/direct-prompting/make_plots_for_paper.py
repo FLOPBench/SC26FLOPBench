@@ -84,6 +84,7 @@ TOKEN_COLUMN_LABELS = {
 	"input_tokens": "Input Tokens",
 	"output_tokens": "Output Tokens",
 }
+ZERO_CLASS = "zero"
 POSITIVE_CLASS = "compute-bound"
 NEGATIVE_CLASS = "bandwidth-bound"
 BOUND_OUTCOME_LABELS = {
@@ -94,6 +95,12 @@ BOUND_OUTCOME_LABELS = {
 }
 BOUND_CLASS_ORDER = [NEGATIVE_CLASS, POSITIVE_CLASS]
 BOUND_CLASS_DISPLAY = {
+	NEGATIVE_CLASS: "BB",
+	POSITIVE_CLASS: "CB",
+}
+FIGURE2_5_CLASS_ORDER = [ZERO_CLASS, NEGATIVE_CLASS, POSITIVE_CLASS]
+FIGURE2_5_CLASS_DISPLAY = {
+	ZERO_CLASS: "Zero",
 	NEGATIVE_CLASS: "BB",
 	POSITIVE_CLASS: "CB",
 }
@@ -454,6 +461,18 @@ def _classify_bound(ai_value: Any, balance_point: Any) -> str:
 	return NEGATIVE_CLASS if float(ai_numeric) <= float(balance_numeric) else POSITIVE_CLASS
 
 
+def _classify_ai_with_zero(ai_value: Any, balance_point: Any) -> str | None:
+	ai_numeric = pd.to_numeric(ai_value, errors="coerce")
+	if pd.isna(ai_numeric) or not math.isfinite(float(ai_numeric)):
+		return None
+	if float(ai_numeric) == 0.0:
+		return ZERO_CLASS
+	balance_numeric = pd.to_numeric(balance_point, errors="coerce")
+	if pd.isna(balance_numeric) or not math.isfinite(float(balance_numeric)):
+		return None
+	return NEGATIVE_CLASS if float(ai_numeric) <= float(balance_numeric) else POSITIVE_CLASS
+
+
 def _is_nonzero_expected_ai(value: Any) -> bool:
 	ai_numeric = pd.to_numeric(value, errors="coerce")
 	return not pd.isna(ai_numeric) and math.isfinite(float(ai_numeric)) and float(ai_numeric) > 0.0
@@ -613,15 +632,12 @@ def _print_bound_class_distribution(plot_df: pd.DataFrame) -> None:
 
 
 def _expected_rai_distribution_category(ai_value: Any, balance_point: Any) -> str:
-	ai_numeric = pd.to_numeric(ai_value, errors="coerce")
-	balance_numeric = pd.to_numeric(balance_point, errors="coerce")
-	if pd.isna(ai_numeric) or not math.isfinite(float(ai_numeric)):
+	classified_ai = _classify_ai_with_zero(ai_value, balance_point)
+	if classified_ai is None:
 		return "nan_rai_n"
-	if float(ai_numeric) == 0.0:
+	if classified_ai == ZERO_CLASS:
 		return "zero_rai_n"
-	if pd.isna(balance_numeric) or not math.isfinite(float(balance_numeric)):
-		return "nan_rai_n"
-	if float(ai_numeric) <= float(balance_numeric):
+	if classified_ai == NEGATIVE_CLASS:
 		return "nonzero_bandwidth_bound_n"
 	return "nonzero_compute_bound_n"
 
@@ -1719,6 +1735,64 @@ def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass:
 	return mean_matrix, annotation
 
 
+def _figure2_5_confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass: bool) -> tuple[pd.DataFrame, np.ndarray]:
+	model_subset = plot_df[(plot_df["model_name"] == model_name) & (plot_df["use_sass"] == use_sass)]
+	row_labels = [FIGURE2_5_CLASS_DISPLAY[label] for label in FIGURE2_5_CLASS_ORDER]
+	column_labels = [FIGURE2_5_CLASS_DISPLAY[label] for label in FIGURE2_5_CLASS_ORDER]
+	per_precision_matrices: Dict[str, pd.DataFrame] = {}
+
+	for precision in AI_PRECISIONS:
+		expected_ai_column = f"expected_ai_{precision}"
+		predicted_ai_column = f"predicted_ai_{precision}"
+		balance_point_column = f"balance_point_{precision}"
+		precision_subset = model_subset[
+			[expected_ai_column, predicted_ai_column, balance_point_column]
+		].copy()
+		counts_df = pd.DataFrame(
+			0.0,
+			index=FIGURE2_5_CLASS_ORDER,
+			columns=FIGURE2_5_CLASS_ORDER,
+		)
+		for _, sample in precision_subset.iterrows():
+			expected_class = _classify_ai_with_zero(sample[expected_ai_column], sample[balance_point_column])
+			predicted_class = _classify_ai_with_zero(sample[predicted_ai_column], sample[balance_point_column])
+			if expected_class is None or predicted_class is None:
+				continue
+			counts_df.loc[expected_class, predicted_class] += 1.0
+		for expected_class in FIGURE2_5_CLASS_ORDER:
+			row_total = float(counts_df.loc[expected_class].sum())
+			if row_total > 0.0:
+				counts_df.loc[expected_class] = counts_df.loc[expected_class] / row_total * 100.0
+		per_precision_matrices[precision] = counts_df
+
+	mean_matrix = pd.DataFrame(0.0, index=FIGURE2_5_CLASS_ORDER, columns=FIGURE2_5_CLASS_ORDER)
+	valid_counts = pd.DataFrame(0.0, index=FIGURE2_5_CLASS_ORDER, columns=FIGURE2_5_CLASS_ORDER)
+	for precision in AI_PRECISIONS:
+		precision_matrix = per_precision_matrices[precision]
+		for expected_class in FIGURE2_5_CLASS_ORDER:
+			row_total = float(precision_matrix.loc[expected_class].sum())
+			if row_total > 0.0:
+				mean_matrix.loc[expected_class] = mean_matrix.loc[expected_class] + precision_matrix.loc[expected_class]
+				valid_counts.loc[expected_class] = valid_counts.loc[expected_class] + 1.0
+	with np.errstate(invalid="ignore", divide="ignore"):
+		mean_matrix = mean_matrix.divide(valid_counts.where(valid_counts > 0.0))
+	mean_matrix = mean_matrix.fillna(0.0)
+
+	annotation = np.empty((len(FIGURE2_5_CLASS_ORDER), len(FIGURE2_5_CLASS_ORDER)), dtype=object)
+	for row_index, expected_class in enumerate(FIGURE2_5_CLASS_ORDER):
+		for col_index, predicted_class in enumerate(FIGURE2_5_CLASS_ORDER):
+			annotation[row_index, col_index] = "\n".join(
+				[
+					f"{precision.upper()}: {per_precision_matrices[precision].loc[expected_class, predicted_class]:.1f}%"
+					for precision in AI_PRECISIONS
+				]
+			)
+
+	mean_matrix.index = row_labels
+	mean_matrix.columns = column_labels
+	return mean_matrix, annotation
+
+
 def _save_ai_metric_boxplots(
 	metric_long_df: pd.DataFrame,
 	output_path: Path,
@@ -2529,6 +2603,50 @@ def _save_figure2_bound_heatmaps(plot_df: pd.DataFrame, output_path: Path) -> No
 	plt.close(fig)
 
 
+def _save_figure2_5_bound_heatmaps_with_zero(plot_df: pd.DataFrame, output_path: Path) -> None:
+	model_order = sorted(plot_df["model_name"].dropna().unique().tolist())
+	row_count = max(len(model_order), 1)
+	sns.set_theme(style="whitegrid")
+	fig_height = max(9.5, 3.6 * row_count)
+	fig, axes = plt.subplots(row_count, 2, figsize=_scaled_figsize(13.5, fig_height), squeeze=False)
+	cbar_ax = fig.add_axes([0.92, 0.18, 0.02, 0.64])
+	vmin = 0.0
+	vmax = 100.0
+
+	if not model_order:
+		for axis in axes.flatten():
+			axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+			axis.set_axis_off()
+	else:
+		for row_index, model_name in enumerate(model_order):
+			for col_index, use_sass in enumerate(SASS_PANEL_ORDER):
+				axis = axes[row_index][col_index]
+				matrix_df, annotation = _figure2_5_confusion_heatmap_payload(plot_df, model_name, use_sass)
+				sns.heatmap(
+					matrix_df,
+					ax=axis,
+					annot=annotation,
+					fmt="",
+					cmap="crest",
+					vmin=vmin,
+					vmax=vmax,
+					cbar=(row_index == 0 and col_index == 0),
+					cbar_ax=cbar_ax if row_index == 0 and col_index == 0 else None,
+					linewidths=0.5,
+					linecolor="white",
+				)
+				axis.set_title(f"{model_name} | {SASS_PANEL_LABELS[use_sass]}", pad=8)
+				axis.set_xlabel("Predicted RAI Class", labelpad=4)
+				axis.set_ylabel("Expected RAI Class")
+
+	if hasattr(cbar_ax, "collections") and cbar_ax.collections:
+		cbar_ax.set_ylabel("Mean within-true-class prediction rate across FP16/FP32/FP64 (%)", rotation=90, labelpad=12)
+
+	fig.subplots_adjust(left=0.09, right=0.9, top=0.92, bottom=0.08, hspace=0.5, wspace=0.28)
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
+	plt.close(fig)
+
+
 def _save_figure6_expected_rai_distribution(
 	expected_rai_distribution_df: pd.DataFrame,
 	output_path: Path,
@@ -2694,6 +2812,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 
 	figure1_path = output_dir / "figure1_ai_difference_boxplots.png"
 	figure2_path = output_dir / "figure2_ai_bound_confusion_heatmaps.png"
+	figure2_5_path = output_dir / "figure2_5_ai_bound_confusion_heatmaps_with_zero.png"
 	figure3_path = output_dir / "figure3_ai_difference_boxplots_by_gpu.png"
 	figure4_path = output_dir / "figure4_ai_difference_boxplots_by_runtime.png"
 	figure5_path = output_dir / "figure5_token_count_histograms.png"
@@ -2712,6 +2831,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 
 	_save_figure1_ai_boxplots(plot_df, figure1_path)
 	_save_figure2_bound_heatmaps(plot_df, figure2_path)
+	_save_figure2_5_bound_heatmaps_with_zero(plot_df, figure2_5_path)
 	_save_figure3_ai_boxplots_by_gpu(plot_df, figure3_path)
 	_save_figure4_ai_boxplots_by_runtime(plot_df, figure4_path)
 	_save_figure5_token_count_histograms(plot_df, figure5_path)
@@ -2732,6 +2852,7 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	print("Paper plot artifacts written to:")
 	print(f"- {figure1_path}")
 	print(f"- {figure2_path}")
+	print(f"- {figure2_5_path}")
 	print(f"- {figure3_path}")
 	print(f"- {figure4_path}")
 	print(f"- {figure5_path}")
