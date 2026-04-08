@@ -1,4 +1,5 @@
 import importlib.util
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -775,6 +776,158 @@ def test_summarize_pct_error_thresholds_reports_counts_and_percentages():
     )
 
 
+def test_build_figure12_8_pct_threshold_table_fills_missing_combinations_with_dashes():
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 100.0,
+                "predicted_ai_fp16": 105.0,
+                "expected_ai_fp32": 100.0,
+                "predicted_ai_fp32": 80.0,
+                "expected_ai_fp64": 100.0,
+                "predicted_ai_fp64": 160.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "omp",
+                "use_sass": True,
+                "expected_ai_fp16": 100.0,
+                "predicted_ai_fp16": 100.0,
+                "expected_ai_fp32": 100.0,
+                "predicted_ai_fp32": 100.0,
+                "expected_ai_fp64": 100.0,
+                "predicted_ai_fp64": 100.0,
+            },
+        ]
+    )
+
+    table_df = make_plots_for_paper._build_figure12_8_pct_threshold_table(plot_df)
+
+    present_row = table_df[
+        (table_df["Model"] == "model-a")
+        & (table_df["Runtime"] == "CUDA")
+        & (table_df["Evidence"] == "Source-Only")
+        & (table_df["GPU"] == "A100")
+    ].iloc[0]
+    missing_row = table_df[
+        (table_df["Model"] == "model-a")
+        & (table_df["Runtime"] == "OpenMP")
+        & (table_df["Evidence"] == "Source+SASS")
+        & (table_df["GPU"] == "H100")
+    ].iloc[0]
+
+    assert present_row["FP16 +/-10%"] == "100.0"
+    assert present_row["FP16 +/-50%"] == "100.0"
+    assert present_row["FP32 +/-10%"] == "0.0"
+    assert present_row["FP32 +/-50%"] == "100.0"
+    assert present_row["FP64 +/-10%"] == "0.0"
+    assert present_row["FP64 +/-50%"] == "0.0"
+    assert missing_row["FP16 +/-10%"] == "-"
+    assert missing_row["FP16 +/-50%"] == "-"
+    assert missing_row["FP32 +/-10%"] == "-"
+    assert missing_row["FP32 +/-50%"] == "-"
+    assert missing_row["FP64 +/-10%"] == "-"
+    assert missing_row["FP64 +/-50%"] == "-"
+
+
+def test_write_figure12_8_booktabs_table_writes_compact_tex_with_multicolumn_and_multirow(tmp_path: Path):
+    table_df = pd.DataFrame(
+        [
+            {
+                "Model": "model-a",
+                "Runtime": "CUDA",
+                "Evidence": "Source-Only",
+                "GPU": "A100",
+                "FP16 +/-10%": "100.0",
+                "FP16 +/-50%": "100.0",
+                "FP32 +/-10%": "0.0",
+                "FP32 +/-50%": "100.0",
+                "FP64 +/-10%": "-",
+                "FP64 +/-50%": "-",
+            },
+            {
+                "Model": "model-a",
+                "Runtime": "CUDA",
+                "Evidence": "Source-Only",
+                "GPU": "H100",
+                "FP16 +/-10%": "0.0",
+                "FP16 +/-50%": "50.0",
+                "FP32 +/-10%": "10.0",
+                "FP32 +/-50%": "60.0",
+                "FP64 +/-10%": "-",
+                "FP64 +/-50%": "-",
+            },
+            {
+                "Model": "model-a",
+                "Runtime": "CUDA",
+                "Evidence": "Source+SASS",
+                "GPU": "A100",
+                "FP16 +/-10%": "5.0",
+                "FP16 +/-50%": "55.0",
+                "FP32 +/-10%": "15.0",
+                "FP32 +/-50%": "65.0",
+                "FP64 +/-10%": "-",
+                "FP64 +/-50%": "-",
+            },
+            {
+                "Model": "model-a",
+                "Runtime": "OpenMP",
+                "Evidence": "Source-Only",
+                "GPU": "A100",
+                "FP16 +/-10%": "-",
+                "FP16 +/-50%": "-",
+                "FP32 +/-10%": "20.0",
+                "FP32 +/-50%": "70.0",
+                "FP64 +/-10%": "10.0",
+                "FP64 +/-50%": "80.0",
+            },
+            {
+                "Model": "model-b",
+                "Runtime": "CUDA",
+                "Evidence": "Source-Only",
+                "GPU": "A100",
+                "FP16 +/-10%": "25.0",
+                "FP16 +/-50%": "75.0",
+                "FP32 +/-10%": "35.0",
+                "FP32 +/-50%": "85.0",
+                "FP64 +/-10%": "45.0",
+                "FP64 +/-50%": "95.0",
+            },
+        ]
+    )
+
+    output_path = tmp_path / "table_figure12_8_threshold_coverage.tex"
+
+    make_plots_for_paper._write_figure12_8_booktabs_table(table_df, output_path)
+
+    tex_text = output_path.read_text(encoding="utf-8")
+
+    assert "\\begingroup" in tex_text
+    assert "\\scriptsize" in tex_text
+    assert "\\setlength{\\tabcolsep}{4pt}" in tex_text
+    assert "\\toprule" in tex_text
+    assert "\\midrule" in tex_text
+    assert "\\bottomrule" in tex_text
+    assert "\\multicolumn{2}{c}{FP16}" in tex_text
+    assert "\\multicolumn{2}{c}{FP32}" in tex_text
+    assert "\\multicolumn{2}{c}{FP64}" in tex_text
+    assert "\\cmidrule(lr){5-6}\\cmidrule(lr){7-8}\\cmidrule(lr){9-10}" in tex_text
+    assert "\\multirow{4}{*}{model-a}" in tex_text
+    assert "\\multirow{3}{*}{CUDA}" in tex_text
+    assert "\\multirow{2}{*}{Source-Only}" in tex_text
+    assert "\\cmidrule(lr){3-10}" in tex_text
+    assert "\\cmidrule(lr){2-10}" in tex_text
+    assert tex_text.count("\\midrule") == 2
+    assert "A100 & 100.0 & 100.0 & 0.0 & 100.0 & - & -" in tex_text
+    assert "H100 & 0.0 & 50.0 & 10.0 & 60.0 & - & -" in tex_text
+    assert "- & -" in tex_text
+
+
 def test_prepare_ai_ape_long_df_uses_same_rows_as_figure11_with_absolute_values():
     samples_df = pd.DataFrame(
         [
@@ -804,6 +957,41 @@ def test_prepare_ai_ape_long_df_uses_same_rows_as_figure11_with_absolute_values(
     assert ai_ape_long_df["ai_ape"].tolist() == pytest.approx([20.0, 20.0])
 
 
+def test_prepare_ai_log_ratio_long_df_uses_base10_ratio_and_skips_invalid_negative_predictions():
+    samples_df = pd.DataFrame(
+        [
+            _shared_sample_row(
+                thread_id="thread-a",
+                model_name="model-a",
+                expected_fp16=0,
+                expected_fp32=50,
+                expected_fp64=25,
+                expected_read_bytes=80,
+                expected_write_bytes=20,
+                metrics_diff_fp16=0,
+                metrics_diff_fp32=10,
+                metrics_diff_fp64=-30,
+                metrics_diff_read_bytes=0,
+                metrics_diff_write_bytes=0,
+            ),
+        ]
+    )
+
+    completed_df = make_plots_for_paper._enrich_completed_dataframe(samples_df)
+    plot_df = make_plots_for_paper._paper_subset(completed_df)
+    ai_log_ratio_long_df = make_plots_for_paper._prepare_ai_log_ratio_long_df(plot_df)
+
+    expected_ai_fp32 = 50.0 / 100.0
+    predicted_ai_fp32 = 60.0 / 100.0
+    expected_log_ratio = math.log10(
+        (predicted_ai_fp32 + make_plots_for_paper.LOG_RATIO_EPSILON)
+        / (expected_ai_fp32 + make_plots_for_paper.LOG_RATIO_EPSILON)
+    )
+
+    assert ai_log_ratio_long_df["precision"].tolist() == ["FP32 RAI"]
+    assert ai_log_ratio_long_df["ai_log_ratio"].tolist() == pytest.approx([expected_log_ratio])
+
+
 def test_ape_axis_config_uses_linear_region_through_100_then_log_scale():
     axis_config = make_plots_for_paper._ape_axis_config(pd.Series([5.0, 80.0, 1200.0]))
 
@@ -812,6 +1000,35 @@ def test_ape_axis_config_uses_linear_region_through_100_then_log_scale():
     assert axis_config["x_tick_labels"] == ["0", "25", "50", "75", "100", r"$10^{3}$"]
     assert axis_config["linthresh"] == 100.0
     assert axis_config["linscale"] == 3.0
+
+
+def test_log_ratio_axis_config_uses_fixed_hybrid_limits_ticks_and_scale_functions():
+    axis_config = make_plots_for_paper._log_ratio_axis_config(pd.Series([-1.2, -0.1, 0.35, 2.7]))
+    forward, inverse = axis_config["scale_functions"]
+
+    assert axis_config["x_limits"] == pytest.approx((-18.0, 6.0))
+    assert axis_config["x_ticks"] == [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0]
+    assert axis_config["x_tick_labels"] == [
+        "-18",
+        "-12",
+        "-6",
+        "-3",
+        "-2",
+        "-1",
+        r"$-10^{-1}$",
+        r"$-10^{-2}$",
+        "0",
+        r"$10^{-2}$",
+        r"$10^{-1}$",
+        "1",
+        "2",
+        "4",
+        "6",
+    ]
+    assert forward(1.0) - forward(-1.0) == pytest.approx(0.6)
+    assert [inverse(forward(value)) for value in [-18.0, -1.0, -0.1, 0.0, 0.1, 1.0, 6.0]] == pytest.approx(
+        [-18.0, -1.0, -0.1, 0.0, 0.1, 1.0, 6.0]
+    )
 
 
 def test_save_figure6_expected_rai_distribution_writes_png(tmp_path: Path):
@@ -940,6 +1157,142 @@ def test_save_figure12_ai_pct_boxplots_by_gpu_writes_png(tmp_path: Path):
     assert output_path.stat().st_size > 0
 
 
+def test_save_figure12_5_ai_pct_boxplots_by_gpu_and_model_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+            {
+                "model_name": "model-c",
+                "gpu": "3080",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 3.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 6.0,
+                "predicted_ai_fp32": 3.0,
+                "expected_ai_fp64": 9.0,
+                "predicted_ai_fp64": 18.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure12_5_ai_percent_difference_boxplots_by_gpu_and_model.png"
+
+    make_plots_for_paper._save_figure12_5_ai_pct_boxplots_by_gpu_and_model(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure12_8_ai_pct_boxplots_by_gpu_runtime_and_model_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+            {
+                "model_name": "model-c",
+                "gpu": "3080",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 3.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 6.0,
+                "predicted_ai_fp32": 3.0,
+                "expected_ai_fp64": 9.0,
+                "predicted_ai_fp64": 18.0,
+            },
+            {
+                "model_name": "model-a",
+                "gpu": "A10",
+                "runtime": "omp",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 2.0,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 3.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 2.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "omp",
+                "use_sass": True,
+                "expected_ai_fp16": 5.0,
+                "predicted_ai_fp16": 2.5,
+                "expected_ai_fp32": 10.0,
+                "predicted_ai_fp32": 20.0,
+                "expected_ai_fp64": 20.0,
+                "predicted_ai_fp64": 10.0,
+            },
+            {
+                "model_name": "model-c",
+                "gpu": "H100",
+                "runtime": "omp",
+                "use_sass": False,
+                "expected_ai_fp16": 4.0,
+                "predicted_ai_fp16": 8.0,
+                "expected_ai_fp32": 8.0,
+                "predicted_ai_fp32": 4.0,
+                "expected_ai_fp64": 16.0,
+                "predicted_ai_fp64": 32.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure12_8_ai_percent_difference_boxplots_by_gpu_runtime_and_model.png"
+
+    make_plots_for_paper._save_figure12_8_ai_pct_boxplots_by_gpu_runtime_and_model(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
 def test_save_figure13_ai_pct_boxplots_by_runtime_writes_png(tmp_path: Path):
     plot_df = pd.DataFrame(
         [
@@ -973,6 +1326,132 @@ def test_save_figure13_ai_pct_boxplots_by_runtime_writes_png(tmp_path: Path):
     output_path = tmp_path / "figure13_ai_percent_difference_boxplots_by_runtime.png"
 
     make_plots_for_paper._save_figure13_ai_pct_boxplots_by_runtime(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure14_ai_log_ratio_boxplots_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure14_ai_log10_ratio_error_boxplots.png"
+
+    make_plots_for_paper._save_figure14_ai_log_ratio_boxplots(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure15_ai_log_ratio_boxplots_by_gpu_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "H100",
+                "runtime": "cuda",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+            {
+                "model_name": "model-c",
+                "gpu": "3080",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 3.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 6.0,
+                "predicted_ai_fp32": 3.0,
+                "expected_ai_fp64": 9.0,
+                "predicted_ai_fp64": 18.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure15_ai_log10_ratio_error_boxplots_by_gpu.png"
+
+    make_plots_for_paper._save_figure15_ai_log_ratio_boxplots_by_gpu(plot_df, output_path)
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_save_figure16_ai_log_ratio_boxplots_by_runtime_writes_png(tmp_path: Path):
+    plot_df = pd.DataFrame(
+        [
+            {
+                "model_name": "model-a",
+                "gpu": "A100",
+                "runtime": "cuda",
+                "use_sass": False,
+                "expected_ai_fp16": 1.0,
+                "predicted_ai_fp16": 1.5,
+                "expected_ai_fp32": 2.0,
+                "predicted_ai_fp32": 1.0,
+                "expected_ai_fp64": 4.0,
+                "predicted_ai_fp64": 8.0,
+            },
+            {
+                "model_name": "model-b",
+                "gpu": "A100",
+                "runtime": "omp",
+                "use_sass": True,
+                "expected_ai_fp16": 2.0,
+                "predicted_ai_fp16": 1.0,
+                "expected_ai_fp32": 4.0,
+                "predicted_ai_fp32": 8.0,
+                "expected_ai_fp64": 8.0,
+                "predicted_ai_fp64": 4.0,
+            },
+        ]
+    )
+
+    output_path = tmp_path / "figure16_ai_log10_ratio_error_boxplots_by_runtime.png"
+
+    make_plots_for_paper._save_figure16_ai_log_ratio_boxplots_by_runtime(plot_df, output_path)
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0

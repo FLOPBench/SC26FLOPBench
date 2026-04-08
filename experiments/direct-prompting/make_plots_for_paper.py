@@ -125,9 +125,16 @@ RAI_X_TICK_LABELS = [
 PERCENT_DIFF_MIN_X = -100.0
 PERCENT_DIFF_REFERENCE_LINES = [0.0, 100.0]
 PERCENT_ERROR_THRESHOLDS = [10.0, 20.0, 25.0, 50.0, 75.0, 100.0]
+FIGURE12_8_TABLE_THRESHOLDS = [10.0, 50.0]
 PERCENT_DIFF_LINEAR_MAX_X = 100.0
 PERCENT_DIFF_LINSCALE = 3.0
 PERCENT_DIFF_LEFT_VIEW_PADDING = 10.0
+LOG_RATIO_EPSILON = 1e-9
+LOG_RATIO_X_MIN = -18.0
+LOG_RATIO_X_MAX = 6.0
+LOG_RATIO_INNER_BOUND = 1.0
+LOG_RATIO_CENTER_FRACTION = 0.6
+LOG_RATIO_AXIS_EPSILON = 1e-3
 APE_LINEAR_MAX_X = 100.0
 APE_LINSCALE = 3.0
 APE_LEFT_VIEW_PADDING = 1.0
@@ -314,6 +321,127 @@ def _ape_axis_config(values: pd.Series) -> Dict[str, Any]:
 		"x_tick_labels": tick_labels,
 		"linthresh": APE_LINEAR_MAX_X,
 		"linscale": APE_LINSCALE,
+	}
+
+
+def _format_linear_tick_label(value: float) -> str:
+	if math.isclose(value, round(value), abs_tol=1e-9):
+		return str(int(round(value)))
+	return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _log_ratio_scale_functions() -> tuple[Any, Any]:
+	left_outer_span = abs(LOG_RATIO_X_MIN) - LOG_RATIO_INNER_BOUND
+	right_outer_span = LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND
+	outer_fraction = 1.0 - LOG_RATIO_CENTER_FRACTION
+	total_outer_span = left_outer_span + right_outer_span
+	left_fraction = outer_fraction * left_outer_span / total_outer_span
+	right_fraction = outer_fraction * right_outer_span / total_outer_span
+	center_half_fraction = LOG_RATIO_CENTER_FRACTION / 2.0
+	log_denominator = math.log10(1.0 + LOG_RATIO_INNER_BOUND / LOG_RATIO_AXIS_EPSILON)
+
+	def _inner_forward(magnitude: np.ndarray) -> np.ndarray:
+		return np.log10(1.0 + magnitude / LOG_RATIO_AXIS_EPSILON) / log_denominator
+
+	def _inner_inverse(scaled: np.ndarray) -> np.ndarray:
+		return LOG_RATIO_AXIS_EPSILON * (np.power(10.0, scaled * log_denominator) - 1.0)
+
+	def forward(values: Any) -> Any:
+		array = np.asarray(values, dtype=float)
+		scaled = np.full_like(array, np.nan, dtype=float)
+		finite_mask = np.isfinite(array)
+		finite_values = array[finite_mask]
+		if finite_values.size:
+			finite_scaled = np.empty_like(finite_values, dtype=float)
+			left_outer_mask = finite_values <= -LOG_RATIO_INNER_BOUND
+			left_inner_mask = (finite_values > -LOG_RATIO_INNER_BOUND) & (finite_values < 0.0)
+			center_mask = np.isclose(finite_values, 0.0)
+			right_inner_mask = (finite_values > 0.0) & (finite_values < LOG_RATIO_INNER_BOUND)
+			right_outer_mask = finite_values >= LOG_RATIO_INNER_BOUND
+
+			finite_scaled[left_outer_mask] = (
+				(finite_values[left_outer_mask] - LOG_RATIO_X_MIN)
+				/ (-LOG_RATIO_INNER_BOUND - LOG_RATIO_X_MIN)
+			) * left_fraction
+			finite_scaled[left_inner_mask] = left_fraction + (
+				1.0 - _inner_forward(np.abs(finite_values[left_inner_mask]))
+			) * center_half_fraction
+			finite_scaled[center_mask] = left_fraction + center_half_fraction
+			finite_scaled[right_inner_mask] = left_fraction + center_half_fraction + (
+				_inner_forward(finite_values[right_inner_mask]) * center_half_fraction
+			)
+			finite_scaled[right_outer_mask] = left_fraction + LOG_RATIO_CENTER_FRACTION + (
+				(finite_values[right_outer_mask] - LOG_RATIO_INNER_BOUND)
+				/ (LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND)
+			) * right_fraction
+			scaled[finite_mask] = finite_scaled
+		if np.isscalar(values):
+			return float(scaled)
+		return scaled
+
+	def inverse(values: Any) -> Any:
+		array = np.asarray(values, dtype=float)
+		original = np.full_like(array, np.nan, dtype=float)
+		finite_mask = np.isfinite(array)
+		finite_values = array[finite_mask]
+		if finite_values.size:
+			finite_original = np.empty_like(finite_values, dtype=float)
+			left_outer_end = left_fraction
+			center_mid = left_fraction + center_half_fraction
+			right_inner_end = left_fraction + LOG_RATIO_CENTER_FRACTION
+
+			left_outer_mask = finite_values <= left_outer_end
+			left_inner_mask = (finite_values > left_outer_end) & (finite_values < center_mid)
+			center_mask = np.isclose(finite_values, center_mid)
+			right_inner_mask = (finite_values > center_mid) & (finite_values < right_inner_end)
+			right_outer_mask = finite_values >= right_inner_end
+
+			finite_original[left_outer_mask] = LOG_RATIO_X_MIN + (
+				finite_values[left_outer_mask] / left_fraction
+			) * (-LOG_RATIO_INNER_BOUND - LOG_RATIO_X_MIN)
+			finite_original[left_inner_mask] = -_inner_inverse(
+				1.0 - ((finite_values[left_inner_mask] - left_fraction) / center_half_fraction)
+			)
+			finite_original[center_mask] = 0.0
+			finite_original[right_inner_mask] = _inner_inverse(
+				(finite_values[right_inner_mask] - center_mid) / center_half_fraction
+			)
+			finite_original[right_outer_mask] = LOG_RATIO_INNER_BOUND + (
+				(finite_values[right_outer_mask] - right_inner_end) / right_fraction
+			) * (LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND)
+			original[finite_mask] = finite_original
+		if np.isscalar(values):
+			return float(original)
+		return original
+
+	return forward, inverse
+
+
+def _log_ratio_axis_config(values: pd.Series) -> Dict[str, Any]:
+	_ = pd.to_numeric(values, errors="coerce")
+	tick_values = [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0]
+	tick_labels = [
+		"-18",
+		"-12",
+		"-6",
+		"-3",
+		"-2",
+		"-1",
+		r"$-10^{-1}$",
+		r"$-10^{-2}$",
+		"0",
+		r"$10^{-2}$",
+		r"$10^{-1}$",
+		"1",
+		"2",
+		"4",
+		"6",
+	]
+	return {
+		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
+		"x_ticks": tick_values,
+		"x_tick_labels": tick_labels,
+		"scale_functions": _log_ratio_scale_functions(),
 	}
 
 
@@ -764,6 +892,39 @@ def _prepare_ai_ape_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	return ai_ape_long_df.drop(columns=["ai_pct_diff"])
 
 
+def _prepare_ai_log_ratio_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
+	rows: List[Dict[str, Any]] = []
+	for _, row in completed_df.iterrows():
+		for precision in AI_PRECISIONS:
+			expected_ai = pd.to_numeric(row[f"expected_ai_{precision}"], errors="coerce")
+			if not _is_nonzero_expected_ai(expected_ai):
+				continue
+			predicted_ai = pd.to_numeric(row[f"predicted_ai_{precision}"], errors="coerce")
+			if pd.isna(predicted_ai) or not math.isfinite(float(predicted_ai)):
+				continue
+			adjusted_expected_ai = float(expected_ai) + LOG_RATIO_EPSILON
+			adjusted_predicted_ai = float(predicted_ai) + LOG_RATIO_EPSILON
+			if adjusted_expected_ai <= 0.0 or adjusted_predicted_ai <= 0.0:
+				continue
+			ai_log_ratio = math.log10(adjusted_predicted_ai / adjusted_expected_ai)
+			if not math.isfinite(ai_log_ratio):
+				continue
+			rows.append(
+				{
+					"model_name": row["model_name"],
+					"gpu": row["gpu"],
+					"runtime": row["runtime"],
+					"use_sass": bool(row["use_sass"]),
+					"precision": AI_LABELS[precision],
+					"ai_log_ratio": float(ai_log_ratio),
+				}
+			)
+	return pd.DataFrame(
+		rows,
+		columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_log_ratio"],
+	)
+
+
 def _prepare_token_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	rows: List[Dict[str, Any]] = []
 	for _, row in completed_df.iterrows():
@@ -802,6 +963,209 @@ def _ordered_columns(df: pd.DataFrame, preferred_columns: List[str]) -> List[str
 	ordered = [column for column in preferred_columns if column in df.columns]
 	remaining = [column for column in df.columns if column not in ordered]
 	return ordered + remaining
+
+
+def _format_pct_table_value(value: Any) -> str:
+	numeric_value = pd.to_numeric(value, errors="coerce")
+	if pd.isna(numeric_value) or not math.isfinite(float(numeric_value)):
+		return "-"
+	return f"{float(numeric_value):.1f}"
+
+
+def _latex_escape(value: Any) -> str:
+	text = str(value)
+	replacements = {
+		"\\": r"\textbackslash{}",
+		"&": r"\&",
+		"%": r"\%",
+		"$": r"\$",
+		"#": r"\#",
+		"_": r"\_",
+		"{": r"\{",
+		"}": r"\}",
+		"~": r"\textasciitilde{}",
+		"^": r"\textasciicircum{}",
+	}
+	for old_text, new_text in replacements.items():
+		text = text.replace(old_text, new_text)
+	return text
+
+
+def _figure12_8_table_metric_columns() -> List[str]:
+	return [
+		f"{PRECISION_DISPLAY_LABELS[precision]} +/-{int(threshold)}%"
+		for precision in AI_PRECISIONS
+		for threshold in FIGURE12_8_TABLE_THRESHOLDS
+	]
+
+
+def _build_figure12_8_pct_threshold_table(plot_df: pd.DataFrame) -> pd.DataFrame:
+	metric_columns = _figure12_8_table_metric_columns()
+	display_columns = ["Model", "Runtime", "Evidence", "GPU", *metric_columns]
+	if plot_df.empty:
+		return pd.DataFrame(columns=display_columns)
+
+	model_order = sorted(plot_df["model_name"].dropna().unique().tolist())
+	gpu_set = set(plot_df["gpu"].dropna().tolist())
+	gpu_order = [gpu_name for gpu_name in GPU_ROOFLINE_TABLE.keys() if gpu_name in gpu_set]
+	gpu_order.extend(sorted(gpu_set - set(gpu_order)))
+	if not model_order or not gpu_order:
+		return pd.DataFrame(columns=display_columns)
+
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	summary_df = _summarize_pct_error_thresholds(ai_pct_long_df, ["model_name", "gpu", "runtime"])
+	if not summary_df.empty:
+		summary_df = summary_df[summary_df["threshold_pct"].isin(FIGURE12_8_TABLE_THRESHOLDS)].copy()
+		precision_display_map = {
+			AI_LABELS[precision]: PRECISION_DISPLAY_LABELS[precision] for precision in AI_PRECISIONS
+		}
+		summary_df["metric_column"] = summary_df.apply(
+			lambda row: (
+				f"{precision_display_map.get(str(row['precision']), str(row['precision']))} +/-{int(row['threshold_pct'])}%"
+			),
+			axis=1,
+		)
+		wide_summary_df = (
+			summary_df.pivot_table(
+				index=["model_name", "runtime", "use_sass", "gpu"],
+				columns="metric_column",
+				values="within_threshold_pct",
+				aggfunc="first",
+			)
+			.reset_index()
+		)
+	else:
+		wide_summary_df = pd.DataFrame(columns=["model_name", "runtime", "use_sass", "gpu", *metric_columns])
+
+	base_rows = [
+		{
+			"model_name": model_name,
+			"runtime": runtime_name,
+			"use_sass": use_sass,
+			"gpu": gpu_name,
+		}
+		for model_name in model_order
+		for runtime_name in ["cuda", "omp"]
+		for use_sass in SASS_PANEL_ORDER
+		for gpu_name in gpu_order
+	]
+	base_df = pd.DataFrame(base_rows)
+	result_df = base_df.merge(
+		wide_summary_df,
+		on=["model_name", "runtime", "use_sass", "gpu"],
+		how="left",
+	)
+
+	display_df = pd.DataFrame(
+		{
+			"Model": result_df["model_name"],
+			"Runtime": result_df["runtime"].map(
+				lambda runtime_name: RUNTIME_DISPLAY_LABELS.get(str(runtime_name), str(runtime_name))
+			),
+			"Evidence": result_df["use_sass"].map(lambda use_sass: SASS_PANEL_LABELS[bool(use_sass)]),
+			"GPU": result_df["gpu"],
+		}
+	)
+	for column in metric_columns:
+		if column in result_df.columns:
+			display_df[column] = result_df[column].map(_format_pct_table_value)
+		else:
+			display_df[column] = "-"
+	return display_df[display_columns]
+
+
+def _write_booktabs_table(
+	table_df: pd.DataFrame,
+	output_path: Path,
+	*,
+	latex_headers: Dict[str, str] | None = None,
+) -> None:
+	latex_headers = latex_headers or {}
+	column_alignment = "".join("l" if column in {"Model", "Runtime", "Evidence", "GPU"} else "r" for column in table_df.columns)
+	header_row = " & ".join(latex_headers.get(column, _latex_escape(column)) for column in table_df.columns) + r" \\" 
+	lines = [
+		rf"\begin{{tabular}}{{{column_alignment}}}",
+		r"\toprule",
+		header_row,
+		r"\midrule",
+	]
+	for row in table_df.itertuples(index=False, name=None):
+		lines.append(" & ".join(_latex_escape(value) for value in row) + r" \\")
+	lines.extend([r"\bottomrule", r"\end{tabular}", ""])
+	output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_figure12_8_booktabs_table(table_df: pd.DataFrame, output_path: Path) -> None:
+	column_alignment = "@{}llllrrrrrr@{}"
+	lines = [
+		r"\begingroup",
+		r"\scriptsize",
+		r"\setlength{\tabcolsep}{4pt}",
+		r"\renewcommand{\arraystretch}{1.0}",
+		rf"\begin{{tabular}}{{{column_alignment}}}",
+		r"\toprule",
+		r"\multirow{2}{*}{Model} & \multirow{2}{*}{Runtime} & \multirow{2}{*}{Evidence} & \multirow{2}{*}{GPU} & \multicolumn{2}{c}{FP16} & \multicolumn{2}{c}{FP32} & \multicolumn{2}{c}{FP64} \\",
+		r"\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}",
+		r" &  &  &  & 10\% & 50\% & 10\% & 50\% & 10\% & 50\% \\",
+		r"\midrule",
+	]
+	if table_df.empty:
+		lines.extend([r"\bottomrule", r"\end{tabular}", r"\endgroup", ""])
+		output_path.write_text("\n".join(lines), encoding="utf-8")
+		return
+
+	model_spans = table_df.groupby("Model", dropna=False).size().to_dict()
+	runtime_spans = table_df.groupby(["Model", "Runtime"], dropna=False).size().to_dict()
+	evidence_spans = table_df.groupby(["Model", "Runtime", "Evidence"], dropna=False).size().to_dict()
+	metric_columns = _figure12_8_table_metric_columns()
+	previous_model: str | None = None
+	previous_runtime_key: tuple[str, str] | None = None
+	previous_evidence_key: tuple[str, str, str] | None = None
+	rows = table_df.to_dict("records")
+
+	for row_index, row in enumerate(rows):
+		model_name = str(row["Model"])
+		runtime_name = str(row["Runtime"])
+		evidence_name = str(row["Evidence"])
+		runtime_key = (model_name, runtime_name)
+		evidence_key = (model_name, runtime_name, evidence_name)
+		cells: List[str] = []
+		if model_name != previous_model:
+			cells.append(rf"\multirow{{{model_spans[model_name]}}}{{*}}{{{_latex_escape(model_name)}}}")
+		else:
+			cells.append("")
+		if runtime_key != previous_runtime_key:
+			cells.append(rf"\multirow{{{runtime_spans[runtime_key]}}}{{*}}{{{_latex_escape(runtime_name)}}}")
+		else:
+			cells.append("")
+		if evidence_key != previous_evidence_key:
+			cells.append(rf"\multirow{{{evidence_spans[evidence_key]}}}{{*}}{{{_latex_escape(evidence_name)}}}")
+		else:
+			cells.append("")
+		cells.append(_latex_escape(row["GPU"]))
+		for column in metric_columns:
+			cells.append(_latex_escape(row[column]))
+		lines.append(" & ".join(cells) + r" \\")
+		previous_model = model_name
+		previous_runtime_key = runtime_key
+		previous_evidence_key = evidence_key
+		if row_index == len(rows) - 1:
+			continue
+		next_row = rows[row_index + 1]
+		next_model_name = str(next_row["Model"])
+		next_runtime_name = str(next_row["Runtime"])
+		next_evidence_name = str(next_row["Evidence"])
+		next_runtime_key = (next_model_name, next_runtime_name)
+		next_evidence_key = (next_model_name, next_runtime_name, next_evidence_name)
+		if next_model_name != model_name:
+			lines.append(r"\midrule")
+		elif next_runtime_key != runtime_key:
+			lines.append(r"\cmidrule(lr){2-10}")
+		elif next_evidence_key != evidence_key:
+			lines.append(r"\cmidrule(lr){3-10}")
+
+	lines.extend([r"\bottomrule", r"\end{tabular}", r"\endgroup", ""])
+	output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _summarize_ai_error(ai_long_df: pd.DataFrame, group_fields: List[str]) -> pd.DataFrame:
@@ -1144,6 +1508,9 @@ def _write_paper_summary_tables(
 		expected_rai_distribution_df,
 		summary_paths["Expected RAI distribution by GPU / precision"],
 	)
+	figure12_8_threshold_table_df = _build_figure12_8_pct_threshold_table(plot_df)
+	figure12_8_threshold_table_path = output_dir / "table_figure12_8_threshold_coverage.tex"
+	_write_figure12_8_booktabs_table(figure12_8_threshold_table_df, figure12_8_threshold_table_path)
 
 	figure1_summary = _format_boxplot_summary_table(
 		ai_long_df,
@@ -1188,6 +1555,28 @@ def _write_paper_summary_tables(
 		value_field="ai_pct_diff",
 		table_label="figure13_rai_percent_difference_summary_by_runtime",
 	)
+	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
+	figure14_summary = _format_boxplot_summary_table(
+		ai_log_ratio_long_df,
+		group_field="model_name",
+		group_label="Model",
+		value_field="ai_log_ratio",
+		table_label="figure14_rai_log10_ratio_error_summary",
+	)
+	figure15_summary = _format_boxplot_summary_table(
+		ai_log_ratio_long_df,
+		group_field="gpu",
+		group_label="GPU",
+		value_field="ai_log_ratio",
+		table_label="figure15_rai_log10_ratio_error_summary_by_gpu",
+	)
+	figure16_summary = _format_boxplot_summary_table(
+		ai_log_ratio_long_df,
+		group_field="runtime",
+		group_label="Runtime",
+		value_field="ai_log_ratio",
+		table_label="figure16_rai_log10_ratio_error_summary_by_runtime",
+	)
 	pct_error_thresholds_by_model = _summarize_pct_error_thresholds(ai_pct_long_df, ["model_name"])
 	pct_error_thresholds_by_gpu = _summarize_pct_error_thresholds(ai_pct_long_df, ["gpu"])
 	pct_error_thresholds_by_runtime = _summarize_pct_error_thresholds(ai_pct_long_df, ["runtime"])
@@ -1220,6 +1609,9 @@ def _write_paper_summary_tables(
 	print(figure11_summary)
 	print(figure12_summary)
 	print(figure13_summary)
+	print(figure14_summary)
+	print(figure15_summary)
+	print(figure16_summary)
 	print(figure8_summary)
 	print(figure9_summary)
 	print(figure10_summary)
@@ -1239,6 +1631,10 @@ def _write_paper_summary_tables(
 		"Figure 13 percent-error thresholds by runtime / SASS / precision:",
 		pct_error_thresholds_by_runtime,
 	)
+	_print_summary_table(
+		"Figure 12.8 threshold coverage by model / runtime / evidence / GPU:",
+		figure12_8_threshold_table_df,
+	)
 	_print_summary_table("Bound-class summary by model / SASS / precision:", bound_by_model)
 	_print_summary_table("Bound-class summary by GPU / SASS / precision:", bound_by_gpu)
 	_print_summary_table("Bound-class summary by runtime / SASS / precision:", bound_by_runtime)
@@ -1250,6 +1646,7 @@ def _write_paper_summary_tables(
 	print("\nPaper summary tables written to:")
 	for summary_name, summary_path in summary_paths.items():
 		print(f"- {summary_name}: {summary_path}")
+	print(f"- Figure 12.8 threshold coverage table: {figure12_8_threshold_table_path}")
 
 
 def _confusion_heatmap_payload(plot_df: pd.DataFrame, model_name: str, use_sass: bool) -> tuple[pd.DataFrame, np.ndarray]:
@@ -1324,6 +1721,8 @@ def _save_ai_metric_boxplots(
 	x_ticks: List[float] | None = None,
 	x_tick_labels: List[str] | None = None,
 	x_limits: tuple[float, float] | None = None,
+	x_scale: str = "symlog",
+	x_scale_functions: tuple[Any, Any] | None = None,
 	x_linthresh: float | None = None,
 	x_linscale: float | None = None,
 	draw_reference_lines_behind_data: bool = False,
@@ -1385,14 +1784,33 @@ def _save_ai_metric_boxplots(
 					linewidth=1.5,
 					zorder=reference_line_zorder,
 				)
-		xscale_kwargs: Dict[str, Any] = {"linthresh": linthresh}
-		if x_linscale is not None:
-			xscale_kwargs["linscale"] = x_linscale
-		axis.set_xscale("symlog", **xscale_kwargs)
-		if x_ticks is not None and x_tick_labels is not None:
-			_set_symlog_ticks(axis, x_ticks, x_tick_labels, x_limits=x_limits)
+		if x_scale == "symlog":
+			xscale_kwargs: Dict[str, Any] = {"linthresh": linthresh}
+			if x_linscale is not None:
+				xscale_kwargs["linscale"] = x_linscale
+			axis.set_xscale("symlog", **xscale_kwargs)
+			if x_ticks is not None and x_tick_labels is not None:
+				_set_symlog_ticks(axis, x_ticks, x_tick_labels, x_limits=x_limits)
+			else:
+				_set_rai_symlog_ticks(axis)
+		elif x_scale == "linear":
+			axis.set_xscale("linear")
+			if x_ticks is not None and x_tick_labels is not None:
+				_set_symlog_ticks(axis, x_ticks, x_tick_labels, x_limits=x_limits)
+			elif x_limits is not None:
+				axis.set_xlim(*x_limits)
+				axis.xaxis.set_minor_locator(mticker.NullLocator())
+		elif x_scale == "function":
+			if x_scale_functions is None:
+				raise ValueError("Function x-axis scale requires forward and inverse scale functions")
+			axis.set_xscale("function", functions=x_scale_functions)
+			if x_ticks is not None and x_tick_labels is not None:
+				_set_symlog_ticks(axis, x_ticks, x_tick_labels, x_limits=x_limits)
+			elif x_limits is not None:
+				axis.set_xlim(*x_limits)
+				axis.xaxis.set_minor_locator(mticker.NullLocator())
 		else:
-			_set_rai_symlog_ticks(axis)
+			raise ValueError(f"Unsupported x-axis scale: {x_scale}")
 		axis.set_title(SASS_PANEL_LABELS[use_sass])
 		axis.set_xlabel(x_axis_label)
 		axis.set_ylabel(group_label)
@@ -1514,6 +1932,223 @@ def _save_figure12_ai_pct_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Pa
 	)
 
 
+def _save_figure12_5_ai_pct_boxplots_by_gpu_and_model(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, PERCENT_DIFF_LINEAR_MAX_X),
+		"x_ticks": [PERCENT_DIFF_MIN_X, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, PERCENT_DIFF_LINEAR_MAX_X],
+		"x_tick_labels": ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"],
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+	model_order = sorted(ai_pct_long_df["model_name"].dropna().unique().tolist()) if not ai_pct_long_df.empty else []
+	if len(model_order) > 3:
+		raise RuntimeError(
+			f"Figure 12.5 expects at most 3 model-name columns, but found {len(model_order)}: {model_order}"
+		)
+	gpu_set = set(ai_pct_long_df["gpu"].dropna().tolist()) if not ai_pct_long_df.empty else set()
+	gpu_order = [gpu_name for gpu_name in GPU_ROOFLINE_TABLE.keys() if gpu_name in gpu_set]
+	gpu_order.extend(sorted(gpu_set - set(gpu_order)))
+	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
+	sns.set_theme(style="whitegrid")
+	fig, axes = plt.subplots(2, 3, figsize=_scaled_figsize(16.5, 9.5), sharex=True, sharey=True)
+	legend_handles: List[Any] = []
+	legend_labels: List[str] = []
+	reference_line_zorder = 1.5
+	boxplot_zorder = 2.0
+
+	for row_index, use_sass in enumerate(SASS_PANEL_ORDER):
+		for col_index in range(3):
+			axis = axes[row_index][col_index]
+			if col_index >= len(model_order):
+				axis.set_axis_off()
+				continue
+
+			model_name = model_order[col_index]
+			subset = ai_pct_long_df[
+				(ai_pct_long_df["use_sass"] == use_sass)
+				& (ai_pct_long_df["model_name"] == model_name)
+			].copy()
+
+			for reference_line in PERCENT_DIFF_REFERENCE_LINES:
+				axis.axvline(
+					reference_line,
+					color="green" if reference_line == 0.0 else "red",
+					linestyle="--",
+					linewidth=1.5,
+					zorder=reference_line_zorder,
+				)
+			if subset.empty:
+				axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+			else:
+				sns.boxplot(
+					data=subset,
+					x="ai_pct_diff",
+					y="gpu",
+					hue="precision",
+					order=gpu_order,
+					hue_order=precision_order,
+					orient="h",
+					ax=axis,
+					zorder=boxplot_zorder,
+				)
+
+			xscale_kwargs: Dict[str, Any] = {"linthresh": axis_config["linthresh"]}
+			xscale_kwargs["linscale"] = axis_config["linscale"]
+			axis.set_xscale("symlog", **xscale_kwargs)
+			_set_symlog_ticks(
+				axis,
+				axis_config["x_ticks"],
+				axis_config["x_tick_labels"],
+				x_limits=axis_config["x_limits"],
+			)
+			axis.tick_params(axis="x", labelsize=8, labelbottom=(row_index == 1))
+			if row_index == 0:
+				axis.set_title(model_name)
+			if col_index == 0:
+				axis.set_ylabel(f"{SASS_PANEL_LABELS[use_sass]}\nGPU")
+			else:
+				axis.set_ylabel("")
+			axis.set_xlabel("Percent Error of Predicted RAI" if row_index == 1 else "")
+
+			legend = axis.get_legend()
+			if legend is not None:
+				if not legend_handles:
+					handle_by_label = {}
+					handles, labels = axis.get_legend_handles_labels()
+					for handle, label in zip(handles, labels):
+						if label in precision_order and label not in handle_by_label:
+							handle_by_label[label] = handle
+					legend_labels = [label for label in precision_order if label in handle_by_label]
+					legend_handles = [handle_by_label[label] for label in legend_labels]
+				legend.remove()
+
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			legend_labels,
+			title="Precision",
+			loc="upper center",
+			bbox_to_anchor=(0.5, 0.995),
+			ncol=len(legend_labels),
+			frameon=False,
+		)
+
+	fig.tight_layout(rect=(0, 0, 1, 0.94))
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
+	plt.close(fig)
+
+
+def _save_figure12_8_ai_pct_boxplots_by_gpu_runtime_and_model(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
+	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
+		"x_limits": (-PERCENT_DIFF_LINEAR_MAX_X - PERCENT_DIFF_LEFT_VIEW_PADDING, PERCENT_DIFF_LINEAR_MAX_X),
+		"x_ticks": [PERCENT_DIFF_MIN_X, -75.0, -50.0, -25.0, 0.0, 25.0, 50.0, 75.0, PERCENT_DIFF_LINEAR_MAX_X],
+		"x_tick_labels": ["-100", "-75", "-50", "-25", "0", "25", "50", "75", "100"],
+		"linthresh": PERCENT_DIFF_LINEAR_MAX_X,
+		"linscale": PERCENT_DIFF_LINSCALE,
+	}
+	model_order = sorted(ai_pct_long_df["model_name"].dropna().unique().tolist()) if not ai_pct_long_df.empty else []
+	if len(model_order) > 3:
+		raise RuntimeError(
+			f"Figure 12.8 expects at most 3 model-name columns, but found {len(model_order)}: {model_order}"
+		)
+	runtime_row_order = [("cuda", False), ("cuda", True), ("omp", False), ("omp", True)]
+	gpu_set = set(ai_pct_long_df["gpu"].dropna().tolist()) if not ai_pct_long_df.empty else set()
+	gpu_order = [gpu_name for gpu_name in GPU_ROOFLINE_TABLE.keys() if gpu_name in gpu_set]
+	gpu_order.extend(sorted(gpu_set - set(gpu_order)))
+	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
+	sns.set_theme(style="whitegrid")
+	fig, axes = plt.subplots(4, 3, figsize=_scaled_figsize(16.5, 15.0), sharex=True, sharey=True)
+	legend_handles: List[Any] = []
+	legend_labels: List[str] = []
+	reference_line_zorder = 1.5
+	boxplot_zorder = 2.0
+
+	for row_index, (runtime_name, use_sass) in enumerate(runtime_row_order):
+		for col_index in range(3):
+			axis = axes[row_index][col_index]
+			if col_index >= len(model_order):
+				axis.set_axis_off()
+				continue
+
+			model_name = model_order[col_index]
+			subset = ai_pct_long_df[
+				(ai_pct_long_df["runtime"] == runtime_name)
+				& (ai_pct_long_df["use_sass"] == use_sass)
+				& (ai_pct_long_df["model_name"] == model_name)
+			].copy()
+
+			for reference_line in PERCENT_DIFF_REFERENCE_LINES:
+				axis.axvline(
+					reference_line,
+					color="green" if reference_line == 0.0 else "red",
+					linestyle="--",
+					linewidth=1.5,
+					zorder=reference_line_zorder,
+				)
+			if subset.empty:
+				axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+			else:
+				sns.boxplot(
+					data=subset,
+					x="ai_pct_diff",
+					y="gpu",
+					hue="precision",
+					order=gpu_order,
+					hue_order=precision_order,
+					orient="h",
+					ax=axis,
+					zorder=boxplot_zorder,
+				)
+
+			xscale_kwargs: Dict[str, Any] = {"linthresh": axis_config["linthresh"]}
+			xscale_kwargs["linscale"] = axis_config["linscale"]
+			axis.set_xscale("symlog", **xscale_kwargs)
+			_set_symlog_ticks(
+				axis,
+				axis_config["x_ticks"],
+				axis_config["x_tick_labels"],
+				x_limits=axis_config["x_limits"],
+			)
+			axis.tick_params(axis="x", labelsize=8, labelbottom=(row_index == len(runtime_row_order) - 1))
+			if row_index == 0:
+				axis.set_title(model_name)
+			if col_index == 0:
+				runtime_label = RUNTIME_DISPLAY_LABELS.get(runtime_name, str(runtime_name))
+				axis.set_ylabel(f"{runtime_label} | {SASS_PANEL_LABELS[use_sass]}\nGPU")
+			else:
+				axis.set_ylabel("")
+			axis.set_xlabel("Percent Error of Predicted RAI" if row_index == len(runtime_row_order) - 1 else "")
+
+			legend = axis.get_legend()
+			if legend is not None:
+				if not legend_handles:
+					handle_by_label = {}
+					handles, labels = axis.get_legend_handles_labels()
+					for handle, label in zip(handles, labels):
+						if label in precision_order and label not in handle_by_label:
+							handle_by_label[label] = handle
+					legend_labels = [label for label in precision_order if label in handle_by_label]
+					legend_handles = [handle_by_label[label] for label in legend_labels]
+				legend.remove()
+
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			legend_labels,
+			title="Precision",
+			loc="upper center",
+			bbox_to_anchor=(0.5, 0.995),
+			ncol=len(legend_labels),
+			frameon=False,
+		)
+
+	fig.tight_layout(rect=(0, 0, 1, 0.96))
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
+	plt.close(fig)
+
+
 def _save_figure13_ai_pct_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
 	ai_pct_long_df = _prepare_ai_pct_long_df(plot_df)
 	axis_config = _percent_diff_axis_config(ai_pct_long_df["ai_pct_diff"]) if not ai_pct_long_df.empty else {
@@ -1536,6 +2171,159 @@ def _save_figure13_ai_pct_boxplots_by_runtime(plot_df: pd.DataFrame, output_path
 		x_limits=axis_config["x_limits"],
 		x_linthresh=axis_config["linthresh"],
 		x_linscale=axis_config["linscale"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure14_ai_log_ratio_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
+	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
+		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
+		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
+		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
+		"scale_functions": _log_ratio_scale_functions(),
+	}
+	_save_ai_metric_boxplots(
+		ai_log_ratio_long_df,
+		output_path,
+		group_field="model_name",
+		group_label="Model Name",
+		x_value_field="ai_log_ratio",
+		x_axis_label="Signed Log10 Ratio Error of Predicted RAI",
+		reference_lines=[0.0],
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_scale="function",
+		x_scale_functions=axis_config["scale_functions"],
+		draw_reference_lines_behind_data=True,
+	)
+
+
+def _save_figure15_ai_log_ratio_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
+	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
+		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
+		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
+		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
+		"scale_functions": _log_ratio_scale_functions(),
+	}
+	model_order = sorted(ai_log_ratio_long_df["model_name"].dropna().unique().tolist()) if not ai_log_ratio_long_df.empty else []
+	if len(model_order) > 3:
+		raise RuntimeError(
+			f"Figure 15 expects at most 3 model-name columns, but found {len(model_order)}: {model_order}"
+		)
+	gpu_set = set(ai_log_ratio_long_df["gpu"].dropna().tolist()) if not ai_log_ratio_long_df.empty else set()
+	gpu_order = [gpu_name for gpu_name in GPU_ROOFLINE_TABLE.keys() if gpu_name in gpu_set]
+	gpu_order.extend(sorted(gpu_set - set(gpu_order)))
+	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
+	sns.set_theme(style="whitegrid")
+	fig, axes = plt.subplots(2, 3, figsize=_scaled_figsize(16.5, 9.5), sharex=True, sharey=True)
+	legend_handles: List[Any] = []
+	legend_labels: List[str] = []
+	reference_line_zorder = 1.5
+	boxplot_zorder = 2.0
+
+	for row_index, use_sass in enumerate(SASS_PANEL_ORDER):
+		for col_index in range(3):
+			axis = axes[row_index][col_index]
+			if col_index >= len(model_order):
+				axis.set_axis_off()
+				continue
+
+			model_name = model_order[col_index]
+			subset = ai_log_ratio_long_df[
+				(ai_log_ratio_long_df["use_sass"] == use_sass)
+				& (ai_log_ratio_long_df["model_name"] == model_name)
+			].copy()
+
+			axis.axvline(
+				0.0,
+				color="green",
+				linestyle="--",
+				linewidth=1.5,
+				zorder=reference_line_zorder,
+			)
+			if subset.empty:
+				axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
+			else:
+				sns.boxplot(
+					data=subset,
+					x="ai_log_ratio",
+					y="gpu",
+					hue="precision",
+					order=gpu_order,
+					hue_order=precision_order,
+					orient="h",
+					ax=axis,
+					zorder=boxplot_zorder,
+				)
+
+			axis.set_xscale("function", functions=axis_config["scale_functions"])
+			_set_symlog_ticks(
+				axis,
+				axis_config["x_ticks"],
+				axis_config["x_tick_labels"],
+				x_limits=axis_config["x_limits"],
+			)
+			axis.tick_params(axis="x", labelsize=8, labelbottom=(row_index == 1))
+			if row_index == 0:
+				axis.set_title(model_name)
+			if col_index == 0:
+				axis.set_ylabel(f"{SASS_PANEL_LABELS[use_sass]}\nGPU")
+			else:
+				axis.set_ylabel("")
+			axis.set_xlabel("Signed Log10 Ratio Error of Predicted RAI" if row_index == 1 else "")
+
+			legend = axis.get_legend()
+			if legend is not None:
+				if not legend_handles:
+					handle_by_label = {}
+					handles, labels = axis.get_legend_handles_labels()
+					for handle, label in zip(handles, labels):
+						if label in precision_order and label not in handle_by_label:
+							handle_by_label[label] = handle
+					legend_labels = [label for label in precision_order if label in handle_by_label]
+					legend_handles = [handle_by_label[label] for label in legend_labels]
+				legend.remove()
+
+	if legend_handles:
+		fig.legend(
+			legend_handles,
+			legend_labels,
+			title="Precision",
+			loc="upper center",
+			bbox_to_anchor=(0.5, 0.995),
+			ncol=len(legend_labels),
+			frameon=False,
+		)
+
+	fig.tight_layout(rect=(0, 0, 1, 0.94))
+	fig.savefig(output_path, dpi=200, bbox_inches="tight")
+	plt.close(fig)
+
+
+def _save_figure16_ai_log_ratio_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
+	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
+	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
+		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
+		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
+		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
+		"scale_functions": _log_ratio_scale_functions(),
+	}
+	_save_ai_metric_boxplots(
+		ai_log_ratio_long_df,
+		output_path,
+		group_field="runtime",
+		group_label="Runtime",
+		x_value_field="ai_log_ratio",
+		x_axis_label="Signed Log10 Ratio Error of Predicted RAI",
+		reference_lines=[0.0],
+		x_ticks=axis_config["x_ticks"],
+		x_tick_labels=axis_config["x_tick_labels"],
+		x_limits=axis_config["x_limits"],
+		x_scale="function",
+		x_scale_functions=axis_config["scale_functions"],
 		draw_reference_lines_behind_data=True,
 	)
 
@@ -1902,7 +2690,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	figure6_path = output_dir / "figure6_expected_rai_distribution_by_gpu_precision.png"
 	figure11_path = output_dir / "figure11_ai_percent_difference_boxplots.png"
 	figure12_path = output_dir / "figure12_ai_percent_difference_boxplots_by_gpu.png"
+	figure12_5_path = output_dir / "figure12_5_ai_percent_difference_boxplots_by_gpu_and_model.png"
+	figure12_8_path = output_dir / "figure12_8_ai_percent_difference_boxplots_by_gpu_runtime_and_model.png"
 	figure13_path = output_dir / "figure13_ai_percent_difference_boxplots_by_runtime.png"
+	figure14_path = output_dir / "figure14_ai_log10_ratio_error_boxplots.png"
+	figure15_path = output_dir / "figure15_ai_log10_ratio_error_boxplots_by_gpu.png"
+	figure16_path = output_dir / "figure16_ai_log10_ratio_error_boxplots_by_runtime.png"
 	figure8_path = output_dir / "figure8_ai_absolute_percent_error_boxplots.png"
 	figure9_path = output_dir / "figure9_ai_absolute_percent_error_boxplots_by_gpu.png"
 	figure10_path = output_dir / "figure10_ai_absolute_percent_error_boxplots_by_runtime.png"
@@ -1915,7 +2708,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	_save_figure6_expected_rai_distribution(expected_rai_distribution_df, figure6_path, runtime_distribution_df)
 	_save_figure11_ai_pct_boxplots(plot_df, figure11_path)
 	_save_figure12_ai_pct_boxplots_by_gpu(plot_df, figure12_path)
+	_save_figure12_5_ai_pct_boxplots_by_gpu_and_model(plot_df, figure12_5_path)
+	_save_figure12_8_ai_pct_boxplots_by_gpu_runtime_and_model(plot_df, figure12_8_path)
 	_save_figure13_ai_pct_boxplots_by_runtime(plot_df, figure13_path)
+	_save_figure14_ai_log_ratio_boxplots(plot_df, figure14_path)
+	_save_figure15_ai_log_ratio_boxplots_by_gpu(plot_df, figure15_path)
+	_save_figure16_ai_log_ratio_boxplots_by_runtime(plot_df, figure16_path)
 	_save_figure8_ai_ape_boxplots(plot_df, figure8_path)
 	_save_figure9_ai_ape_boxplots_by_gpu(plot_df, figure9_path)
 	_save_figure10_ai_ape_boxplots_by_runtime(plot_df, figure10_path)
@@ -1930,7 +2728,12 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	print(f"- {figure6_path}")
 	print(f"- {figure11_path}")
 	print(f"- {figure12_path}")
+	print(f"- {figure12_5_path}")
+	print(f"- {figure12_8_path}")
 	print(f"- {figure13_path}")
+	print(f"- {figure14_path}")
+	print(f"- {figure15_path}")
+	print(f"- {figure16_path}")
 	print(f"- {figure8_path}")
 	print(f"- {figure9_path}")
 	print(f"- {figure10_path}")
