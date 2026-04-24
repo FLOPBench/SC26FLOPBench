@@ -78,7 +78,7 @@ def _load_feature_voting_module(monkeypatch):
     original_spec_from_file_location = importlib.util.spec_from_file_location
 
     def fake_spec_from_file_location(name, location, *args, **kwargs):
-        if str(location).endswith("gpuFLOPBench-agentic/agents/llm_models.py"):
+        if str(location).endswith("experiments/llm_models.py"):
             module_attrs = {
                 "build_openrouter_llm": lambda settings: settings,
                 "OpenRouterLLMSettings": type(

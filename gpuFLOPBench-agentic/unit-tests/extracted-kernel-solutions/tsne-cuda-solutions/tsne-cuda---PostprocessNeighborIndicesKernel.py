@@ -1,1 +1,0 @@
-solution = ['__global__\nvoid PostprocessNeighborIndicesKernel(\n    volatile int* __restrict__ pij_indices,\n    const long*   __restrict__ knn_indices,\n    const int num_points,\n    const int num_neighbors)\n{\n    int tid = threadIdx.x + blockIdx.x * blockDim.x;\n    if (tid >= num_points * num_neighbors)\n        return;\n    pij_indices[tid] = (int)knn_indices[tid];\n}']

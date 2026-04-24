@@ -1,1 +1,0 @@
-solution = ['__global__ void atomic_reduction_v4(int *in, int* out, int arrayLength) {\n  int sum=0;\n  int idx = blockIdx.x*blockDim.x+threadIdx.x;\n  for(int i= idx*4;i<arrayLength;i+=blockDim.x*gridDim.x*4) {\n    sum+=in[i] + in[i+1] + in[i+2] + in[i+3];\n  }\n  atomicAdd(out,sum);\n}']

@@ -1,1 +1,0 @@
-solution = ['__global__ void\nkernel_sum (float* partial_sums, const int Nparticles)\n{\n  int x;\n  float sum = 0;\n  int num_blocks = (Nparticles + BLOCK_SIZE - 1) / BLOCK_SIZE;\n  for (x = 0; x < num_blocks; x++) {\n    sum += partial_sums[x];\n  }\n  partial_sums[0] = sum;\n}']

@@ -31,9 +31,9 @@ gpuFLOPBench-updated/
 ├── unit-tests/                # Test suite
 │   ├── AGENTS.md              # Test documentation
 │   └── test_*.py              # Test files
-├── gpuFLOPBench-agentic/      # LLM agents and tools for benchmark exploration
 ├── Dockerfile                 # Container for building and profiling
 ├── experiments/               # Direct testing and prompting experiments
+│   ├── llm_models.py          # Shared LLM factory helpers (OpenRouter/Azure)
 │   └── direct-prompting/      # Predict precision/DRAM stats via LLM graphs
 │       ├── prompts.py         # Prompt generator and Pydantic targets
 │       ├── graph.py           # LangGraph StateGraph nodes and LLM query definitions

@@ -20,8 +20,8 @@ import importlib.util
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.append(WORKSPACE_ROOT)
 
-# Import llm_models dynamically because of the hyphen in directory name
-llm_models_path = os.path.join(WORKSPACE_ROOT, "gpuFLOPBench-agentic", "agents", "llm_models.py")
+# Import llm_models from experiments/
+llm_models_path = os.path.join(WORKSPACE_ROOT, "experiments", "llm_models.py")
 llm_models_spec = importlib.util.spec_from_file_location("llm_models", llm_models_path)
 llm_models = importlib.util.module_from_spec(llm_models_spec)
 sys.modules["llm_models"] = llm_models

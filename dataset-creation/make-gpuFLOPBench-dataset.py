@@ -10,7 +10,6 @@ from tqdm import tqdm
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR / "cuda-profiling"))
-# sys.path.append(str(ROOT_DIR / "cuda-profiling" / "collected-data"))
 
 from utils import demangle_kernel_name, demangle_omp_offload_name
 from sass_objs import SASSFileParser

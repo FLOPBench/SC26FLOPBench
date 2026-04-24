@@ -1,1 +1,0 @@
-solution = ['template <typename VectorType> \n    __global__  void wx_kernel(\n        const int n,\n        const typename VectorType::ScalarType *xcoefs, \n        typename VectorType::ScalarType *wcoefs) \n    {\n\n      int idx=blockIdx.x*blockDim.x+threadIdx.x;\n      if (idx<n) wcoefs[idx] = xcoefs[idx];\n    }']
