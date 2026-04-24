@@ -1,33 +1,18 @@
 
-import pandas as pd
 import os
-import glob
-import numpy as np
-
-import json
 
 import re
 import sys
-import argparse
-from tqdm import tqdm
 from collections import defaultdict, deque
 
-sys.path.append('../')
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_DIR / "cuda-profiling"))
+
 # Import from user provided utils and sass_helper
 from utils import *
-from gatherData import _parse_ncu_report, roofline_results_to_df, calc_roofline_data
-import sass_helper
 from sass_helper import SASS_INSTR_METADATA, extract_opcode_from_line, detect_guard_pred_instruction
-
-from tqdm.contrib.concurrent import process_map
-from functools import partial
-from os import path
-import csv
-from io import StringIO
-
-sm_80_sass_files = glob.glob('../collected-data/scraped-sass/*sm_80*.sass')
-sm_86_sass_files = glob.glob('../collected-data/scraped-sass/*sm_86*.sass')
-sm_90_sass_files = glob.glob('../collected-data/scraped-sass/*sm_90*.sass')
 
 
 class SASSTextSection:
@@ -319,121 +304,6 @@ class SASSFileParser:
         imix, _ = traverse(kernel_name)
         return imix, circular_deps_count
 
-
-def process_sass_file(filepath):
-    """
-    Worker function to process a single SASS file and return list of dicts (rows).
-    """
-    try:
-        parser = SASSFileParser(filepath)
-        rows = []
-        sections = parser.getAllTextSections()
-        
-        for section in sections:
-            # We want the IMIX for the kernel (including dependencies)
-            # Or just the raw section IMIX?
-            # Requirement: "The getIMIXForKernel ... should return a dictionary ... add both the imix of the target kernel, and any of the references it makes."
-            # Then: "We ultimately want to create a dataframe of all the SASS IMIX data where the rows are ... .text section name ... 1 column corresponding to each assembly instruction"
-            # It seems we want the *resolved* IMIX for each kernel entry point.
-            
-            # However, if we do this for every section, even helper functions will have their own rows. 
-            # "The rows are: .text section name {mangledName} ..."
-            # This implies we blindly dump every section found.
-            
-            try:
-                resolved_imix, circular_deps = parser.getIMIXForKernel(section.mangled_name)
-            except ValueError as e:
-                print(f"Error processing {filepath}: {e}")
-                continue
-
-            row = {
-                "Kernel Name": section.mangled_name,
-                "Program": parser.program_name,
-                "Model": parser.model,
-                "SM": parser.sm_arch,
-                # Metadata
-                "Num Labels": section.num_labels,
-                "Num References": section.num_references,
-                "Num Self References": section.num_self_references,
-                "Num Circular Dependencies": circular_deps,
-                "Num Predicated": section.num_predicated_guards,
-                "Num Lines": section.num_lines,
-                "Num Constant Math": section.num_math_ops_with_constant,
-                "Num FP16": section.num_fp16,
-                "Num FP32": section.num_fp32,
-                "Num FP64": section.num_fp64,
-                "Num Global Loads": section.num_global_loads,
-                "Num Global Stores": section.num_global_stores,
-                # Lists as string
-                "Labels": ",".join(section.labels),
-                "References": ",".join(section.references),
-            }
-            
-            # Add categorical metadata
-            for k, v in section.op_type_counts.items():
-                row[f"OpType_{k}"] = v
-            for k, v in section.access_op_counts.items():
-                row[f"AccessOp_{k}"] = v
-            for k, v in section.address_space_counts.items():
-                row[f"AddrSpace_{k}"] = v
-            
-            # Add IMIX instructions
-            for instr, count in resolved_imix.items():
-                row[instr] = count
-                
-            rows.append(row)
-            
-        return rows
-    except Exception as e:
-        print(f"Failed to parse {filepath}: {e}")
-        return []
-
-def sass_results_to_df():
-    all_sass_files = sm_80_sass_files + sm_86_sass_files + sm_90_sass_files
-    all_data = []
-
-    # Use process_map for parallelism if desired, or simple loop with tqdm
-    # Using process_map might be faster for 2000+ files
-    # results = process_map(process_sass_file, all_sass_files, max_workers=8, chunksize=1)
-    
-    # Let's use sequential for safety/debugging simplicity unless explicitly asked for parallel
-    # User said "Use tqdm when looping over all the files"
-    
-    for f in tqdm(all_sass_files, desc="Processing SASS files"):
-        rows = process_sass_file(f)
-        all_data.extend(rows)
-
-    if not all_data:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(all_data)
-    df.fillna(0, inplace=True)
-    return df
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Parse SASS files and extract instruction mix data.")
-    parser.add_argument(
-        "--outfile", 
-        type=str, 
-        default="imix_data.csv", 
-        help="Output CSV filename (default: imix_data.csv)"
-    )
-    args = parser.parse_args()
-
-    print("Starting SASS parsing...")
-    df = sass_results_to_df()
-    
-    if df.empty:
-        print("No data extracted. Exiting.")
-        return
-
-    print(f"Extraction complete. Saving to {args.outfile}...")
-    df.to_csv(args.outfile, index=False)
-    print("Done.")
-
-if __name__ == "__main__":
-    main()
 
 
     
