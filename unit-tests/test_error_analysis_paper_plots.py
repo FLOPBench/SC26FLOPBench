@@ -147,8 +147,14 @@ def test_format_model_label_normalizes_claude_opus_variant():
 
 
 def test_filter_only_shared_samples_keeps_model_matched_rows():
+	# The shared-samples filter requires a kernel to appear for every combination
+	# of model × prompt config × GPU.  With 2 models, 1 GPU, and 2 required
+	# prompt configs (use_sass=False and use_sass=True, both with use_imix=False),
+	# required_combination_count = 2 × 2 × 1 = 4.  _Zshared must supply all four
+	# rows; _Zunshared only has one model so it is excluded.
 	sample_df = pd.DataFrame(
 		[
+			# _Zshared — both models, both prompt configs, same GPU
 			{
 				"program_name": "demo-cuda",
 				"kernel_mangled_name": "_Zshared",
@@ -162,11 +168,30 @@ def test_filter_only_shared_samples_keeps_model_matched_rows():
 				"program_name": "demo-cuda",
 				"kernel_mangled_name": "_Zshared",
 				"gpu": "A100",
+				"use_sass": True,
+				"use_imix": False,
+				"model_name": "GPT 5.4",
+				"abs_ai_pct_error": 10.5,
+			},
+			{
+				"program_name": "demo-cuda",
+				"kernel_mangled_name": "_Zshared",
+				"gpu": "A100",
 				"use_sass": False,
 				"use_imix": False,
 				"model_name": "GPT OSS",
 				"abs_ai_pct_error": 11.0,
 			},
+			{
+				"program_name": "demo-cuda",
+				"kernel_mangled_name": "_Zshared",
+				"gpu": "A100",
+				"use_sass": True,
+				"use_imix": False,
+				"model_name": "GPT OSS",
+				"abs_ai_pct_error": 11.5,
+			},
+			# _Zunshared — only one model, should be excluded
 			{
 				"program_name": "demo-cuda",
 				"kernel_mangled_name": "_Zunshared",
@@ -180,7 +205,8 @@ def test_filter_only_shared_samples_keeps_model_matched_rows():
 	)
 
 	filtered_df = paper_plots._filter_only_shared_samples(sample_df)
-	assert filtered_df.shape[0] == 2
+	# 4 rows kept: 2 models × 2 prompt configs for _Zshared
+	assert filtered_df.shape[0] == 4
 	assert filtered_df["kernel_mangled_name"].unique().tolist() == ["_Zshared"]
 
 
