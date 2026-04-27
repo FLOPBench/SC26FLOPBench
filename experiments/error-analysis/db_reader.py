@@ -42,8 +42,8 @@ feature_db_manager = _load_module(
 	os.path.join("experiments", "feature-voting", "db_manager.py"),
 )
 visualize_results = _load_module(
-	"error_analysis_visualize_results",
-	os.path.join("experiments", "direct-prompting", "visualize_results.py"),
+		"error_analysis_result_viz_helper",
+		os.path.join("experiments", "direct-prompting", "result_viz_helper.py"),
 )
 run_voting_queries = _load_module(
 	"error_analysis_run_voting_queries",

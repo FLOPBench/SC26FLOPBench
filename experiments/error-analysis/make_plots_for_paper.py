@@ -73,8 +73,8 @@ def _load_module(module_name: str, relative_path: str):
 
 
 direct_visualize_results = _load_module(
-	"error_analysis_direct_visualize_results",
-	os.path.join("experiments", "direct-prompting", "visualize_results.py"),
+	"error_analysis_result_viz_helper",
+	os.path.join("experiments", "direct-prompting", "result_viz_helper.py"),
 )
 
 

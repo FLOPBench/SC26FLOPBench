@@ -503,8 +503,8 @@ def _dedupe_generation_records(records: Iterable[SourceGenerationRecord]) -> lis
 
 def _load_samples_dataframe(db_uri: str, include_dry_run: bool):
 	visualize_results = _load_module(
-		"visualize_results_for_request_metadata",
-		os.path.join("experiments", "direct-prompting", "visualize_results.py"),
+		"result_viz_helper_for_request_metadata",
+		os.path.join("experiments", "direct-prompting", "result_viz_helper.py"),
 	)
 	parser = visualize_results.CheckpointDBParser(db_uri)
 	attempt_tracker = visualize_results.QueryAttemptTracker(db_uri)

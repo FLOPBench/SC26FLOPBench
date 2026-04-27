@@ -20,7 +20,7 @@ def _load_module(module_name: str, relative_path: str):
 
 prompts = _load_module("direct_prompting_prompts", "experiments/direct-prompting/prompts.py")
 run_queries = _load_module("direct_prompting_run_queries", "experiments/direct-prompting/run_queries.py")
-visualize_results = _load_module("direct_prompting_visualize_results", "experiments/direct-prompting/visualize_results.py")
+visualize_results = _load_module("direct_prompting_result_viz_helper", "experiments/direct-prompting/result_viz_helper.py")
 make_plots_for_paper = _load_module("direct_prompting_make_plots_for_paper", "experiments/direct-prompting/make_plots_for_paper.py")
 db_manager = _load_module("direct_prompting_db_manager", "experiments/direct-prompting/db_manager.py")
 
@@ -506,17 +506,6 @@ def test_filter_only_shared_samples_with_include_imix_requires_all_prompt_types(
         "full-sass-imix-model-a",
         "full-sass-imix-model-b",
     }
-
-
-def test_visualize_results_parser_accepts_only_shared_samples_flag():
-    parser = visualize_results.build_arg_parser()
-
-    default_args = parser.parse_args([])
-    flagged_args = parser.parse_args(["--onlySharedSamples", "--includeIMIX"])
-
-    assert default_args.onlySharedSamples is False
-    assert flagged_args.onlySharedSamples is True
-    assert flagged_args.includeIMIX is True
 
 
 def test_make_plots_for_paper_parser_accepts_only_shared_samples_flag():
