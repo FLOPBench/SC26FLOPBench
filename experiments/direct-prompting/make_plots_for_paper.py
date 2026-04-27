@@ -138,12 +138,6 @@ FIGURE12_8_HEATMAP_GAMMA = 1.6
 PERCENT_DIFF_LINEAR_MAX_X = 100.0
 PERCENT_DIFF_LINSCALE = 3.0
 PERCENT_DIFF_LEFT_VIEW_PADDING = 10.0
-LOG_RATIO_EPSILON = 1e-9
-LOG_RATIO_X_MIN = -18.0
-LOG_RATIO_X_MAX = 6.0
-LOG_RATIO_INNER_BOUND = 1.0
-LOG_RATIO_CENTER_FRACTION = 0.6
-LOG_RATIO_AXIS_EPSILON = 1e-3
 APE_LINEAR_MAX_X = 100.0
 APE_LINSCALE = 3.0
 APE_LEFT_VIEW_PADDING = 1.0
@@ -338,120 +332,6 @@ def _format_linear_tick_label(value: float) -> str:
 		return str(int(round(value)))
 	return f"{value:.2f}".rstrip("0").rstrip(".")
 
-
-def _log_ratio_scale_functions() -> tuple[Any, Any]:
-	left_outer_span = abs(LOG_RATIO_X_MIN) - LOG_RATIO_INNER_BOUND
-	right_outer_span = LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND
-	outer_fraction = 1.0 - LOG_RATIO_CENTER_FRACTION
-	total_outer_span = left_outer_span + right_outer_span
-	left_fraction = outer_fraction * left_outer_span / total_outer_span
-	right_fraction = outer_fraction * right_outer_span / total_outer_span
-	center_half_fraction = LOG_RATIO_CENTER_FRACTION / 2.0
-	log_denominator = math.log10(1.0 + LOG_RATIO_INNER_BOUND / LOG_RATIO_AXIS_EPSILON)
-
-	def _inner_forward(magnitude: np.ndarray) -> np.ndarray:
-		return np.log10(1.0 + magnitude / LOG_RATIO_AXIS_EPSILON) / log_denominator
-
-	def _inner_inverse(scaled: np.ndarray) -> np.ndarray:
-		return LOG_RATIO_AXIS_EPSILON * (np.power(10.0, scaled * log_denominator) - 1.0)
-
-	def forward(values: Any) -> Any:
-		array = np.asarray(values, dtype=float)
-		scaled = np.full_like(array, np.nan, dtype=float)
-		finite_mask = np.isfinite(array)
-		finite_values = array[finite_mask]
-		if finite_values.size:
-			finite_scaled = np.empty_like(finite_values, dtype=float)
-			left_outer_mask = finite_values <= -LOG_RATIO_INNER_BOUND
-			left_inner_mask = (finite_values > -LOG_RATIO_INNER_BOUND) & (finite_values < 0.0)
-			center_mask = np.isclose(finite_values, 0.0)
-			right_inner_mask = (finite_values > 0.0) & (finite_values < LOG_RATIO_INNER_BOUND)
-			right_outer_mask = finite_values >= LOG_RATIO_INNER_BOUND
-
-			finite_scaled[left_outer_mask] = (
-				(finite_values[left_outer_mask] - LOG_RATIO_X_MIN)
-				/ (-LOG_RATIO_INNER_BOUND - LOG_RATIO_X_MIN)
-			) * left_fraction
-			finite_scaled[left_inner_mask] = left_fraction + (
-				1.0 - _inner_forward(np.abs(finite_values[left_inner_mask]))
-			) * center_half_fraction
-			finite_scaled[center_mask] = left_fraction + center_half_fraction
-			finite_scaled[right_inner_mask] = left_fraction + center_half_fraction + (
-				_inner_forward(finite_values[right_inner_mask]) * center_half_fraction
-			)
-			finite_scaled[right_outer_mask] = left_fraction + LOG_RATIO_CENTER_FRACTION + (
-				(finite_values[right_outer_mask] - LOG_RATIO_INNER_BOUND)
-				/ (LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND)
-			) * right_fraction
-			scaled[finite_mask] = finite_scaled
-		if np.isscalar(values):
-			return float(scaled)
-		return scaled
-
-	def inverse(values: Any) -> Any:
-		array = np.asarray(values, dtype=float)
-		original = np.full_like(array, np.nan, dtype=float)
-		finite_mask = np.isfinite(array)
-		finite_values = array[finite_mask]
-		if finite_values.size:
-			finite_original = np.empty_like(finite_values, dtype=float)
-			left_outer_end = left_fraction
-			center_mid = left_fraction + center_half_fraction
-			right_inner_end = left_fraction + LOG_RATIO_CENTER_FRACTION
-
-			left_outer_mask = finite_values <= left_outer_end
-			left_inner_mask = (finite_values > left_outer_end) & (finite_values < center_mid)
-			center_mask = np.isclose(finite_values, center_mid)
-			right_inner_mask = (finite_values > center_mid) & (finite_values < right_inner_end)
-			right_outer_mask = finite_values >= right_inner_end
-
-			finite_original[left_outer_mask] = LOG_RATIO_X_MIN + (
-				finite_values[left_outer_mask] / left_fraction
-			) * (-LOG_RATIO_INNER_BOUND - LOG_RATIO_X_MIN)
-			finite_original[left_inner_mask] = -_inner_inverse(
-				1.0 - ((finite_values[left_inner_mask] - left_fraction) / center_half_fraction)
-			)
-			finite_original[center_mask] = 0.0
-			finite_original[right_inner_mask] = _inner_inverse(
-				(finite_values[right_inner_mask] - center_mid) / center_half_fraction
-			)
-			finite_original[right_outer_mask] = LOG_RATIO_INNER_BOUND + (
-				(finite_values[right_outer_mask] - right_inner_end) / right_fraction
-			) * (LOG_RATIO_X_MAX - LOG_RATIO_INNER_BOUND)
-			original[finite_mask] = finite_original
-		if np.isscalar(values):
-			return float(original)
-		return original
-
-	return forward, inverse
-
-
-def _log_ratio_axis_config(values: pd.Series) -> Dict[str, Any]:
-	_ = pd.to_numeric(values, errors="coerce")
-	tick_values = [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0]
-	tick_labels = [
-		"-18",
-		"-12",
-		"-6",
-		"-3",
-		"-2",
-		"-1",
-		r"$-10^{-1}$",
-		r"$-10^{-2}$",
-		"0",
-		r"$10^{-2}$",
-		r"$10^{-1}$",
-		"1",
-		"2",
-		"4",
-		"6",
-	]
-	return {
-		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
-		"x_ticks": tick_values,
-		"x_tick_labels": tick_labels,
-		"scale_functions": _log_ratio_scale_functions(),
-	}
 
 
 def _classify_bound(ai_value: Any, balance_point: Any) -> str:
@@ -908,39 +788,6 @@ def _prepare_ai_ape_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
 	ai_ape_long_df = ai_pct_long_df.copy()
 	ai_ape_long_df["ai_ape"] = pd.to_numeric(ai_ape_long_df["ai_pct_diff"], errors="coerce").abs()
 	return ai_ape_long_df.drop(columns=["ai_pct_diff"])
-
-
-def _prepare_ai_log_ratio_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
-	rows: List[Dict[str, Any]] = []
-	for _, row in completed_df.iterrows():
-		for precision in AI_PRECISIONS:
-			expected_ai = pd.to_numeric(row[f"expected_ai_{precision}"], errors="coerce")
-			if not _is_nonzero_expected_ai(expected_ai):
-				continue
-			predicted_ai = pd.to_numeric(row[f"predicted_ai_{precision}"], errors="coerce")
-			if pd.isna(predicted_ai) or not math.isfinite(float(predicted_ai)):
-				continue
-			adjusted_expected_ai = float(expected_ai) + LOG_RATIO_EPSILON
-			adjusted_predicted_ai = float(predicted_ai) + LOG_RATIO_EPSILON
-			if adjusted_expected_ai <= 0.0 or adjusted_predicted_ai <= 0.0:
-				continue
-			ai_log_ratio = math.log10(adjusted_predicted_ai / adjusted_expected_ai)
-			if not math.isfinite(ai_log_ratio):
-				continue
-			rows.append(
-				{
-					"model_name": row["model_name"],
-					"gpu": row["gpu"],
-					"runtime": row["runtime"],
-					"use_sass": bool(row["use_sass"]),
-					"precision": AI_LABELS[precision],
-					"ai_log_ratio": float(ai_log_ratio),
-				}
-			)
-	return pd.DataFrame(
-		rows,
-		columns=["model_name", "gpu", "runtime", "use_sass", "precision", "ai_log_ratio"],
-	)
 
 
 def _prepare_token_long_df(completed_df: pd.DataFrame) -> pd.DataFrame:
@@ -1414,13 +1261,6 @@ def _summarize_bound_metrics(plot_df: pd.DataFrame, group_fields: List[str]) -> 
 	return result[preferred_columns]
 
 
-def _write_summary_csv(df: pd.DataFrame, output_path: Path) -> None:
-	if df.empty:
-		pd.DataFrame().to_csv(output_path, index=False)
-		return
-	df.to_csv(output_path, index=False)
-
-
 def _format_boxplot_summary_table(
 	metric_long_df: pd.DataFrame,
 	*,
@@ -1515,26 +1355,6 @@ def _write_paper_summary_tables(
 	if expected_rai_distribution_df is None:
 		expected_rai_distribution_df = _summarize_expected_rai_distribution(plot_df)
 
-	summary_paths = {
-		"RAI error summary by model": output_dir / "table_rq1_ai_error_by_model.csv",
-		"RAI error summary by GPU": output_dir / "table_rq1_ai_error_by_gpu.csv",
-		"RAI error summary by runtime": output_dir / "table_rq1_ai_error_by_runtime.csv",
-		"Bound-class summary by model": output_dir / "table_rq1_bound_metrics_by_model.csv",
-		"Bound-class summary by GPU": output_dir / "table_rq1_bound_metrics_by_gpu.csv",
-		"Bound-class summary by runtime": output_dir / "table_rq1_bound_metrics_by_runtime.csv",
-		"Expected RAI distribution by GPU / precision": output_dir / "table_figure6_expected_rai_distribution_by_gpu_precision.csv",
-	}
-
-	_write_summary_csv(ai_by_model, summary_paths["RAI error summary by model"])
-	_write_summary_csv(ai_by_gpu, summary_paths["RAI error summary by GPU"])
-	_write_summary_csv(ai_by_runtime, summary_paths["RAI error summary by runtime"])
-	_write_summary_csv(bound_by_model, summary_paths["Bound-class summary by model"])
-	_write_summary_csv(bound_by_gpu, summary_paths["Bound-class summary by GPU"])
-	_write_summary_csv(bound_by_runtime, summary_paths["Bound-class summary by runtime"])
-	_write_summary_csv(
-		expected_rai_distribution_df,
-		summary_paths["Expected RAI distribution by GPU / precision"],
-	)
 	figure12_8_threshold_table_df = _build_figure12_8_pct_threshold_table(plot_df)
 	figure12_8_threshold_table_path = output_dir / "table_figure12_8_threshold_coverage.tex"
 	_write_figure12_8_booktabs_table(figure12_8_threshold_table_df, figure12_8_threshold_table_path)
@@ -1582,28 +1402,6 @@ def _write_paper_summary_tables(
 		value_field="ai_pct_diff",
 		table_label="figure13_rai_percent_difference_summary_by_runtime",
 	)
-	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
-	figure14_summary = _format_boxplot_summary_table(
-		ai_log_ratio_long_df,
-		group_field="model_name",
-		group_label="Model",
-		value_field="ai_log_ratio",
-		table_label="figure14_rai_log10_ratio_error_summary",
-	)
-	figure15_summary = _format_boxplot_summary_table(
-		ai_log_ratio_long_df,
-		group_field="gpu",
-		group_label="GPU",
-		value_field="ai_log_ratio",
-		table_label="figure15_rai_log10_ratio_error_summary_by_gpu",
-	)
-	figure16_summary = _format_boxplot_summary_table(
-		ai_log_ratio_long_df,
-		group_field="runtime",
-		group_label="Runtime",
-		value_field="ai_log_ratio",
-		table_label="figure16_rai_log10_ratio_error_summary_by_runtime",
-	)
 	pct_error_thresholds_by_model = _summarize_pct_error_thresholds(ai_pct_long_df, ["model_name"])
 	pct_error_thresholds_by_gpu = _summarize_pct_error_thresholds(ai_pct_long_df, ["gpu"])
 	pct_error_thresholds_by_runtime = _summarize_pct_error_thresholds(ai_pct_long_df, ["runtime"])
@@ -1636,9 +1434,6 @@ def _write_paper_summary_tables(
 	print(figure11_summary)
 	print(figure12_summary)
 	print(figure13_summary)
-	print(figure14_summary)
-	print(figure15_summary)
-	print(figure16_summary)
 	print(figure8_summary)
 	print(figure9_summary)
 	print(figure10_summary)
@@ -1671,8 +1466,6 @@ def _write_paper_summary_tables(
 	)
 
 	print("\nPaper summary tables written to:")
-	for summary_name, summary_path in summary_paths.items():
-		print(f"- {summary_name}: {summary_path}")
 	print(f"- Figure 12.8 threshold coverage table: {figure12_8_threshold_table_path}")
 
 
@@ -2260,159 +2053,6 @@ def _save_figure13_ai_pct_boxplots_by_runtime(plot_df: pd.DataFrame, output_path
 	)
 
 
-def _save_figure14_ai_log_ratio_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
-	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
-	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
-		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
-		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
-		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
-		"scale_functions": _log_ratio_scale_functions(),
-	}
-	_save_ai_metric_boxplots(
-		ai_log_ratio_long_df,
-		output_path,
-		group_field="model_name",
-		group_label="Model Name",
-		x_value_field="ai_log_ratio",
-		x_axis_label="Signed Log10 Ratio Error of Predicted RAI",
-		reference_lines=[0.0],
-		x_ticks=axis_config["x_ticks"],
-		x_tick_labels=axis_config["x_tick_labels"],
-		x_limits=axis_config["x_limits"],
-		x_scale="function",
-		x_scale_functions=axis_config["scale_functions"],
-		draw_reference_lines_behind_data=True,
-	)
-
-
-def _save_figure15_ai_log_ratio_boxplots_by_gpu(plot_df: pd.DataFrame, output_path: Path) -> None:
-	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
-	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
-		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
-		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
-		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
-		"scale_functions": _log_ratio_scale_functions(),
-	}
-	model_order = sorted(ai_log_ratio_long_df["model_name"].dropna().unique().tolist()) if not ai_log_ratio_long_df.empty else []
-	if len(model_order) > 3:
-		raise RuntimeError(
-			f"Figure 15 expects at most 3 model-name columns, but found {len(model_order)}: {model_order}"
-		)
-	gpu_set = set(ai_log_ratio_long_df["gpu"].dropna().tolist()) if not ai_log_ratio_long_df.empty else set()
-	gpu_order = [gpu_name for gpu_name in GPU_ROOFLINE_TABLE.keys() if gpu_name in gpu_set]
-	gpu_order.extend(sorted(gpu_set - set(gpu_order)))
-	precision_order = [AI_LABELS[precision] for precision in AI_PRECISIONS]
-	sns.set_theme(style="whitegrid")
-	fig, axes = plt.subplots(2, 3, figsize=_scaled_figsize(16.5, 9.5), sharex=True, sharey=True)
-	legend_handles: List[Any] = []
-	legend_labels: List[str] = []
-	reference_line_zorder = 1.5
-	boxplot_zorder = 2.0
-
-	for row_index, use_sass in enumerate(SASS_PANEL_ORDER):
-		for col_index in range(3):
-			axis = axes[row_index][col_index]
-			if col_index >= len(model_order):
-				axis.set_axis_off()
-				continue
-
-			model_name = model_order[col_index]
-			subset = ai_log_ratio_long_df[
-				(ai_log_ratio_long_df["use_sass"] == use_sass)
-				& (ai_log_ratio_long_df["model_name"] == model_name)
-			].copy()
-
-			axis.axvline(
-				0.0,
-				color="green",
-				linestyle="--",
-				linewidth=1.5,
-				zorder=reference_line_zorder,
-			)
-			if subset.empty:
-				axis.text(0.5, 0.5, "No completed samples", ha="center", va="center", transform=axis.transAxes)
-			else:
-				sns.boxplot(
-					data=subset,
-					x="ai_log_ratio",
-					y="gpu",
-					hue="precision",
-					order=gpu_order,
-					hue_order=precision_order,
-					orient="h",
-					ax=axis,
-					zorder=boxplot_zorder,
-				)
-
-			axis.set_xscale("function", functions=axis_config["scale_functions"])
-			_set_symlog_ticks(
-				axis,
-				axis_config["x_ticks"],
-				axis_config["x_tick_labels"],
-				x_limits=axis_config["x_limits"],
-			)
-			axis.tick_params(axis="x", labelsize=8, labelbottom=(row_index == 1))
-			if row_index == 0:
-				axis.set_title(model_name)
-			if col_index == 0:
-				axis.set_ylabel(f"{SASS_PANEL_LABELS[use_sass]}\nGPU")
-			else:
-				axis.set_ylabel("")
-			axis.set_xlabel("Signed Log10 Ratio Error of Predicted RAI" if row_index == 1 else "")
-
-			legend = axis.get_legend()
-			if legend is not None:
-				if not legend_handles:
-					handle_by_label = {}
-					handles, labels = axis.get_legend_handles_labels()
-					for handle, label in zip(handles, labels):
-						if label in precision_order and label not in handle_by_label:
-							handle_by_label[label] = handle
-					legend_labels = [label for label in precision_order if label in handle_by_label]
-					legend_handles = [handle_by_label[label] for label in legend_labels]
-				legend.remove()
-
-	if legend_handles:
-		fig.legend(
-			legend_handles,
-			legend_labels,
-			title="Precision",
-			loc="upper center",
-			bbox_to_anchor=(0.5, 0.995),
-			ncol=len(legend_labels),
-			frameon=False,
-		)
-
-	fig.tight_layout(rect=(0, 0, 1, 0.94))
-	fig.savefig(output_path, dpi=200, bbox_inches="tight")
-	plt.close(fig)
-
-
-def _save_figure16_ai_log_ratio_boxplots_by_runtime(plot_df: pd.DataFrame, output_path: Path) -> None:
-	ai_log_ratio_long_df = _prepare_ai_log_ratio_long_df(plot_df)
-	axis_config = _log_ratio_axis_config(ai_log_ratio_long_df["ai_log_ratio"]) if not ai_log_ratio_long_df.empty else {
-		"x_limits": (LOG_RATIO_X_MIN, LOG_RATIO_X_MAX),
-		"x_ticks": [-18.0, -12.0, -6.0, -3.0, -2.0, -1.0, -0.1, -0.01, 0.0, 0.01, 0.1, 1.0, 2.0, 4.0, 6.0],
-		"x_tick_labels": ["-18", "-12", "-6", "-3", "-2", "-1", r"$-10^{-1}$", r"$-10^{-2}$", "0", r"$10^{-2}$", r"$10^{-1}$", "1", "2", "4", "6"],
-		"scale_functions": _log_ratio_scale_functions(),
-	}
-	_save_ai_metric_boxplots(
-		ai_log_ratio_long_df,
-		output_path,
-		group_field="runtime",
-		group_label="Runtime",
-		x_value_field="ai_log_ratio",
-		x_axis_label="Signed Log10 Ratio Error of Predicted RAI",
-		reference_lines=[0.0],
-		x_ticks=axis_config["x_ticks"],
-		x_tick_labels=axis_config["x_tick_labels"],
-		x_limits=axis_config["x_limits"],
-		x_scale="function",
-		x_scale_functions=axis_config["scale_functions"],
-		draw_reference_lines_behind_data=True,
-	)
-
-
 def _save_figure8_ai_ape_boxplots(plot_df: pd.DataFrame, output_path: Path) -> None:
 	ai_ape_long_df = _prepare_ai_ape_long_df(plot_df)
 	axis_config = _ape_axis_config(ai_ape_long_df["ai_ape"]) if not ai_ape_long_df.empty else {
@@ -2825,9 +2465,6 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	figure12_5_path = output_dir / "figure12_5_ai_percent_difference_boxplots_by_gpu_and_model.png"
 	figure12_8_path = output_dir / "figure12_8_ai_percent_difference_boxplots_by_gpu_runtime_and_model.png"
 	figure13_path = output_dir / "figure13_ai_percent_difference_boxplots_by_runtime.png"
-	figure14_path = output_dir / "figure14_ai_log10_ratio_error_boxplots.png"
-	figure15_path = output_dir / "figure15_ai_log10_ratio_error_boxplots_by_gpu.png"
-	figure16_path = output_dir / "figure16_ai_log10_ratio_error_boxplots_by_runtime.png"
 	figure8_path = output_dir / "figure8_ai_absolute_percent_error_boxplots.png"
 	figure9_path = output_dir / "figure9_ai_absolute_percent_error_boxplots_by_gpu.png"
 	figure10_path = output_dir / "figure10_ai_absolute_percent_error_boxplots_by_runtime.png"
@@ -2844,9 +2481,6 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	_save_figure12_5_ai_pct_boxplots_by_gpu_and_model(plot_df, figure12_5_path)
 	_save_figure12_8_ai_pct_boxplots_by_gpu_runtime_and_model(plot_df, figure12_8_path)
 	_save_figure13_ai_pct_boxplots_by_runtime(plot_df, figure13_path)
-	_save_figure14_ai_log_ratio_boxplots(plot_df, figure14_path)
-	_save_figure15_ai_log_ratio_boxplots_by_gpu(plot_df, figure15_path)
-	_save_figure16_ai_log_ratio_boxplots_by_runtime(plot_df, figure16_path)
 	_save_figure8_ai_ape_boxplots(plot_df, figure8_path)
 	_save_figure9_ai_ape_boxplots_by_gpu(plot_df, figure9_path)
 	_save_figure10_ai_ape_boxplots_by_runtime(plot_df, figure10_path)
@@ -2865,9 +2499,6 @@ def build_paper_plots(db_uri: str, output_dir: Path, include_dry_run: bool, only
 	print(f"- {figure12_5_path}")
 	print(f"- {figure12_8_path}")
 	print(f"- {figure13_path}")
-	print(f"- {figure14_path}")
-	print(f"- {figure15_path}")
-	print(f"- {figure16_path}")
 	print(f"- {figure8_path}")
 	print(f"- {figure9_path}")
 	print(f"- {figure10_path}")
