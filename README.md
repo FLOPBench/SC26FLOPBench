@@ -335,7 +335,13 @@ pytest -v
 │       └── omp/           # OpenMP executables (300+ expected)
 ├── unit-tests/            # Test suite
 ├── experiments/
-│   └── llm_models.py      # Shared LLM factory helpers (OpenRouter/Azure)
+│   ├── llm_models.py          # Shared LLM factory helpers (OpenRouter/Azure)
+│   └── direct-prompting/
+│       ├── prompts.py             # Prompt generator and Pydantic targets
+│       ├── graph.py               # LangGraph StateGraph nodes
+│       ├── db_manager.py          # PostgreSQL setup and checkpoint stats
+│       ├── result_viz_helper.py   # Shared DB-extraction and plot utility library
+│       └── make_plots_for_paper.py  # Generates paper figures (PNGs and TEX table)
 ├── Dockerfile             # Container definition
 └── AGENTS.md              # Full documentation
 ```

@@ -149,7 +149,7 @@ Verifies helper functions in `dataset-creation/make-gpuFLOPBench-dataset.py` use
 
 Verifies the direct-prompting experiment modules: evidence configurations, DB checkpoint parsing, shared-sample filtering, prompt generation, and visualization/plot helpers.
 
-Covers `experiments/direct-prompting/` modules: `prompts.py`, `run_queries.py`, `visualize_results.py`, `make_plots_for_paper.py`, `db_manager.py`.
+Covers `experiments/direct-prompting/` modules: `prompts.py`, `run_queries.py`, `result_viz_helper.py`, `make_plots_for_paper.py`, `db_manager.py`.
 
 **Key test areas**:
 - `test_evidence_thread_part_encodes_all_configurations()`: Thread ID parts correctly encode `use_sass`/`use_imix` flags
@@ -166,7 +166,7 @@ Covers `experiments/direct-prompting/` modules: `prompts.py`, `run_queries.py`, 
 - `test_summarize_expected_rai_distribution_*()`: RAI distribution summaries count unique kernels per GPU/precision
 - `test_classify_ai_with_zero_*()`: Zero bandwidth, zero compute, and NaN are classified correctly
 - `test_figure*()`: Plot-saving helpers write PNG output files
-- `test_percent_diff_axis_config_*()`, `test_ape_axis_config_*()`, `test_log_ratio_axis_config_*()`: Axis configuration helpers return correct parameters
+- `test_percent_diff_axis_config_*()`, `test_ape_axis_config_*()`: Axis configuration helpers return correct parameters
 - `test_summarize_pct_error_thresholds_*()`: Threshold tables count correctly
 - `test_write_paper_summary_tables_*()`: Paper summary table output is correct
 
@@ -243,17 +243,6 @@ Verifies source-file scraping functions in `dataset-creation/scrape-sources.py`.
 - `dataset-creation/scrape-sources.py` must be importable
 - `dataset-creation/scraped_sources.json` must exist for the JSON structure test
 - Built executables in `build/bin/` for the extraction test
-
-### test_tabularize_gpuflops_db_results.py
-
-Verifies shared-sample filtering and result-tabulation helpers in `experiments/direct-prompting/tabularize_gpuflops_db_results.py`.
-
-**Tests**:
-- `test_filter_only_shared_samples_requires_all_gpu_model_prompt_combinations()`: Only kernel identities present for every GPU × model × prompt-type combination are kept
-- `test_summarize_combo_overlap_reports_shared_identity_totals()`: The combo-overlap summary correctly counts shared identities across model/prompt-type pairs
-
-**Requirements**:
-- `experiments/direct-prompting/tabularize_gpuflops_db_results.py` must be importable
 
 ## Test Configuration
 
@@ -499,9 +488,8 @@ When modifying infrastructure:
 5. **Dataset-creation helpers**: Update `test_dataset_merger.py`
 6. **Direct-prompting experiment changes**: Update `test_direct_prompting_evidence_config.py`
 7. **Error-analysis plot changes**: Update `test_error_analysis_paper_plots.py`
-8. **Tabulation/shared-sample logic**: Update `test_tabularize_gpuflops_db_results.py`
-9. **Source scraping**: Update `test_source_scraping_functions.py`
-10. **Feature-voting scheduler**: Update `test_feature_voting_scheduler.py`
+8. **Source scraping**: Update `test_source_scraping_functions.py`
+9. **Feature-voting scheduler**: Update `test_feature_voting_scheduler.py`
 
 ### Test Data
 

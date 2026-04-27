@@ -35,9 +35,11 @@ gpuFLOPBench-updated/
 ├── experiments/               # Direct testing and prompting experiments
 │   ├── llm_models.py          # Shared LLM factory helpers (OpenRouter/Azure)
 │   └── direct-prompting/      # Predict precision/DRAM stats via LLM graphs
-│       ├── prompts.py         # Prompt generator and Pydantic targets
-│       ├── graph.py           # LangGraph StateGraph nodes and LLM query definitions
-│       └── db_manager.py      # Automated default config and Checkpoint parser stats
+│       ├── prompts.py             # Prompt generator and Pydantic targets
+│       ├── graph.py               # LangGraph StateGraph nodes and LLM query definitions
+│       ├── db_manager.py          # Automated default config and Checkpoint parser stats
+│       ├── result_viz_helper.py   # Shared DB-extraction and plot utility library
+│       └── make_plots_for_paper.py  # Generates paper figures (PNGs and TEX table)
 └── AGENTS.md                  # This file
 
 ```
@@ -311,7 +313,7 @@ python3 cuda-profiling/gatherData.py
 ### Container Contents
 
 - **Base**: `nvidia/cuda:12.2.0-devel-ubuntu22.04`
-- **Compilers**: clang-20, clang++-20 (LLVM 20)
+- **Compilers**: clang-21, clang++-21 (LLVM 21)
 - **Tools**: cmake, git, cuobjdump, ncu, objdump
 - **Python**: Python 3.11 via Miniconda with pandas, numpy, pyyaml, tqdm
 
@@ -371,6 +373,8 @@ The `experiments/direct-prompting` directory contains LangGraph pipelines design
 - `prompts.py`: Pydantic structured output models and dynamic prompt generators (XML format).
 - `graph.py`: The `StateGraph` definition combining queries, validation logic, token counting, and integration with `PostgresSaver`.
 - `db_manager.py`: Automated setup configuring default local PostgreSQL tables out of the box and extracting query executions to calculate run summaries (time, cost).
+- `result_viz_helper.py`: Shared library for extracting data from PostgreSQL checkpoints and plot utility helpers (no standalone CLI).
+- `make_plots_for_paper.py`: Generates all paper figures — 15 PNGs and one TEX table (`table_figure12_8_threshold_coverage.tex`).
 
 ## Testing
 
@@ -403,10 +407,10 @@ export PATH=$CUDA_HOME/bin:$PATH
 
 **Clang not found**:
 ```bash
-# Install LLVM 20
+# Install LLVM 21
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
-./llvm.sh 20 all
+./llvm.sh 21 all
 ```
 
 ### Profiling Issues
@@ -450,8 +454,10 @@ When modifying this infrastructure:
 2. **gatherData.py**: Maintain profiling logic and workflow for NCU runs
 3. **cuda-profiling/utils.py**: Maintain demangling and kernel discovery helpers
 4. **Dockerfile**: Keep base image updated, ensure all tools available
-5. **Tests**: Add tests for new functionality
-6. **Documentation**: Update this file for any workflow changes
+5. **experiments/direct-prompting/result_viz_helper.py**: Pure library — no CLI entrypoint; maintain DB-extraction and plot utilities
+6. **experiments/direct-prompting/make_plots_for_paper.py**: Generates paper figures; outputs are PNGs and one TEX table (no CSV outputs)
+7. **Tests**: Add tests for new functionality
+8. **Documentation**: Update this file for any workflow changes
 
 ## License
 
