@@ -424,31 +424,6 @@ def _ordered_model_values(model_values: pd.Series) -> list[str]:
 	)
 
 
-def _column_order(association_df: pd.DataFrame) -> list[str]:
-	if association_df.empty:
-		return []
-	if bool(association_df["collapsed_model"].iloc[0]):
-		return sorted(association_df["gpu"].dropna().unique().tolist())
-	unique_pairs = association_df[["gpu", "model_label", "column_key"]].drop_duplicates().copy()
-	return [row["column_key"] for _, row in unique_pairs.sort_values(["gpu", "model_label"], kind="stable").iterrows()]
-
-
-def _gpu_group_centers(column_order: list[str]) -> list[tuple[float, str]]:
-	if not column_order:
-		return []
-	centers: list[tuple[float, str]] = []
-	start_index = 0
-	current_gpu = column_order[0].split("::", maxsplit=1)[0]
-	for column_index, column_name in enumerate(column_order[1:], start=1):
-		gpu_name = column_name.split("::", maxsplit=1)[0]
-		if gpu_name != current_gpu:
-			centers.append((((start_index + (column_index - 1)) / 2.0) + 0.5, current_gpu))
-			start_index = column_index
-			current_gpu = gpu_name
-	centers.append((((start_index + (len(column_order) - 1)) / 2.0) + 0.5, current_gpu))
-	return centers
-
-
 def _heatmap_annotation(score_df: pd.DataFrame) -> pd.DataFrame:
 	annotation_df = pd.DataFrame("", index=score_df.index, columns=score_df.columns, dtype=object)
 	for row_index in score_df.index:
@@ -941,116 +916,6 @@ def _save_model_prompt_type_feature_summary_heatmap(
 	plt.close(fig)
 
 
-def _save_association_heatmap_grid(
-	association_df: pd.DataFrame,
-	prompt_type: str,
-	output_dir: Path,
-	*,
-	feature_order: list[str],
-	column_order: list[str],
-	figure_suffix: str,
-	figure_descriptor: str,
-) -> None:
-	evidence_df = association_df[association_df["prompt_type"] == prompt_type].copy()
-	if evidence_df.empty:
-		return
-
-	precisions = [precision for precision in db_reader.AI_PRECISIONS if precision in evidence_df["precision"].unique()]
-	if not precisions and ALL_PRECISIONS_LABEL in evidence_df["precision"].unique():
-		precisions = [ALL_PRECISIONS_LABEL]
-	runtimes = [runtime for runtime in RUNTIME_ORDER if runtime in evidence_df["runtime"].unique()]
-	if not precisions or not runtimes:
-		return
-
-	collapsed_model = bool(evidence_df["collapsed_model"].iloc[0])
-
-	fig_width = max(12.0, 1.1 * len(column_order) + 3.5)
-	fig_height = max(8.5, 0.5 * len(feature_order) * len(precisions) + 2.0)
-	fig, axes = plt.subplots(len(precisions), len(runtimes), figsize=(fig_width, fig_height), squeeze=False)
-
-	first_heatmap = None
-	for row_index, precision in enumerate(precisions):
-		for column_index, runtime in enumerate(runtimes):
-			ax = axes[row_index][column_index]
-			panel_df = evidence_df[
-				(evidence_df["precision"] == precision)
-				& (evidence_df["runtime"] == runtime)
-			].copy()
-			ax.set_facecolor("#ece8dc")
-			if panel_df.empty:
-				ax.axis("off")
-				ax.set_title(f"{precision.upper()} | {runtime.upper()}\nNo Data")
-				continue
-
-			score_df = panel_df.pivot(index="feature_label", columns="column_key", values="association_score")
-			score_df = score_df.reindex(index=feature_order, columns=column_order)
-			annotation_df = _heatmap_annotation(score_df)
-			heatmap = sns.heatmap(
-				score_df,
-				mask=score_df.isna(),
-				annot=annotation_df,
-				fmt="",
-				cmap="RdBu_r",
-				vmin=-1.0,
-				vmax=1.0,
-				center=0.0,
-				linewidths=0.5,
-				linecolor="#ffffff",
-				cbar=False,
-				ax=ax,
-				annot_kws={"fontsize": 7},
-			)
-			if first_heatmap is None:
-				first_heatmap = heatmap.collections[0]
-
-			if not collapsed_model:
-				for separator_index in range(1, len(column_order)):
-					previous_gpu = column_order[separator_index - 1].split("::", maxsplit=1)[0]
-					current_gpu = column_order[separator_index].split("::", maxsplit=1)[0]
-					if previous_gpu != current_gpu:
-						ax.axvline(separator_index, color="#444444", linewidth=1.25)
-
-			ax.set_title(f"{precision.upper()} | {runtime.upper()}")
-			ax.set_xlabel("GPU" if collapsed_model else "GPU / Model")
-			ax.set_ylabel("Feature" if column_index == 0 else "")
-			if collapsed_model:
-				ax.set_xticklabels(column_order)
-			else:
-				ax.set_xticklabels([column_name.split("::", maxsplit=1)[1] for column_name in column_order])
-			ax.tick_params(axis="x", labelrotation=35, labelsize=8)
-			ax.tick_params(axis="y", labelsize=8)
-			for tick_label in ax.get_xticklabels():
-				tick_label.set_ha("right")
-				tick_label.set_rotation_mode("anchor")
-
-			if not collapsed_model:
-				top_axis = ax.twiny()
-				top_axis.set_xlim(ax.get_xlim())
-				gpu_centers = _gpu_group_centers(column_order)
-				top_axis.set_xticks([center for center, _ in gpu_centers])
-				top_axis.set_xticklabels([gpu_name for _, gpu_name in gpu_centers], fontsize=9)
-				top_axis.tick_params(axis="x", labelrotation=0, length=0, pad=4)
-				top_axis.spines["top"].set_visible(False)
-				top_axis.spines["bottom"].set_visible(False)
-				top_axis.spines["left"].set_visible(False)
-				top_axis.spines["right"].set_visible(False)
-
-	if first_heatmap is not None:
-		colorbar_axis = fig.add_axes([0.945, 0.14, 0.015, 0.70])
-		colorbar = fig.colorbar(first_heatmap, cax=colorbar_axis)
-		colorbar.set_label("Cliff's Delta: Positive Means Higher AI Error When Feature Is Present")
-
-	fig.suptitle(
-		f"Feature Association With AI Misprediction\n{PROMPT_TYPE_LABEL}: {prompt_type}{figure_descriptor}",
-		fontsize=14,
-		y=0.995,
-	)
-	fig.subplots_adjust(left=0.20, right=0.92, bottom=0.12, top=0.90, wspace=0.28, hspace=0.34)
-	figure_path = output_dir / f"{_safe_filename(prompt_type)}{figure_suffix}_feature_association_heatmaps.png"
-	fig.savefig(figure_path, bbox_inches="tight")
-	plt.close(fig)
-
-
 def _save_precision_summary_bars(association_df: pd.DataFrame, output_dir: Path) -> None:
 	valid_df = association_df[association_df["is_valid"]].copy()
 	if valid_df.empty:
@@ -1128,27 +993,6 @@ def generate_paper_plots(
 		print("No sample-level feature associations could be computed.")
 		return association_df
 
-	for summary_mode, descriptor, _, _ in SUMMARY_VARIANTS:
-		mode_df = association_df[association_df["summary_mode"] == summary_mode].copy()
-		if mode_df.empty:
-			continue
-		feature_order = _feature_order(mode_df)
-		column_order = _column_order(mode_df)
-		figure_suffix = "" if summary_mode == "full" else f"_{summary_mode}"
-		figure_descriptor = "" if not descriptor else f"\n{descriptor}"
-		for prompt_type in [
-			direct_visualize_results.PLOT_EVIDENCE_CONFIGURATION_LABELS[(False, False)],
-			direct_visualize_results.PLOT_EVIDENCE_CONFIGURATION_LABELS[(True, False)],
-		]:
-			_save_association_heatmap_grid(
-				mode_df,
-				prompt_type,
-				output_dir,
-				feature_order=feature_order,
-				column_order=column_order,
-				figure_suffix=figure_suffix,
-				figure_descriptor=figure_descriptor,
-			)
 	runtime_summary_df = _build_runtime_feature_summary_dataframe(
 		feature_long_df,
 		min_present=min_present,
@@ -1201,7 +1045,6 @@ def generate_paper_plots(
 		[association_df, runtime_summary_df, gpu_summary_df, model_summary_df, model_prompt_type_summary_df],
 		ignore_index=True,
 	)
-	combined_association_df.to_csv(output_dir / "feature_error_associations.csv", index=False)
 	return combined_association_df
 
 
