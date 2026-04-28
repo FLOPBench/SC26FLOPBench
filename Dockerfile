@@ -39,6 +39,7 @@ RUN apt-get update && \
     wget \
     curl \
     unzip \
+    zip \
     # LLVM/Clang 20 toolchain
     lsb-release \
     software-properties-common \
