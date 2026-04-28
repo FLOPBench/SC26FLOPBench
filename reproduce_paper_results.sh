@@ -105,49 +105,53 @@ cd "$SCRIPT_DIR"
 log_info "request_metadata restored."
 
 # ---------------------------------------------------------------------------
-# Step 5 — Generate paper figures and listings
+# Step 5 — Artifact evaluation tests (against committed reference files)
 # ---------------------------------------------------------------------------
-log_info "[5/6] Generating paper figures and listings..."
-
-# Listing 1 and Listing 3
-cd "$SCRIPT_DIR/experiments/direct-prompting"
-python print_prompt_for_paper_listing_1.py \
-    --listing1Path listing1.txt \
-    --listing2Path listing2.txt
-log_info "  listing1.txt and listing2.txt written."
-
-# Direct-prompting figures (Figures 2, 6, 7; Table 3)
-python make_plots_for_paper.py \
-    --onlySharedSamples \
-    --outputDir paper-figure-output
-log_info "  Direct-prompting figures written to paper-figure-output/."
-
-# Request-metadata figures (Figures 9 & 10)
-python fetch_openrouter_request_metadata.py \
-    --makePlotsForPaper \
-    --onlySharedSamples \
-    --plotOutputDir paper-figure-output/request-metadata
-log_info "  Request-metadata figures written to paper-figure-output/request-metadata/."
-
-# Error-analysis figure (Figure 8)
-cd "$SCRIPT_DIR/experiments/error-analysis"
-python make_plots_for_paper.py \
-    --outputDir paper-figure-output
-log_info "  Error-analysis figure written to paper-figure-output/."
-
-cd "$SCRIPT_DIR"
-
-# ---------------------------------------------------------------------------
-# Step 6 — Artifact evaluation tests
-# ---------------------------------------------------------------------------
-log_info "[6/6] Running artifact evaluation tests..."
+log_info "[5/6] Running artifact evaluation tests..."
 
 cd "$SCRIPT_DIR/unit-tests"
 pytest test_artifact_evaluation.py -m slow -v
 cd "$SCRIPT_DIR"
 
+log_info "Artifact evaluation tests passed."
+
+# ---------------------------------------------------------------------------
+# Step 6 — Generate paper figures and listings
+# ---------------------------------------------------------------------------
+log_info "[6/6] Generating paper figures and listings..."
+# Outputs go to paper-figure-output-reproduced/ to avoid overwriting the
+# committed reference files that step 5 validated against.
+
+# Listing 1 and Listing 3
+cd "$SCRIPT_DIR/experiments/direct-prompting"
+python print_prompt_for_paper_listing_1.py \
+    --listing1Path paper-figure-output-reproduced/listing1.txt \
+    --listing2Path paper-figure-output-reproduced/listing2.txt
+log_info "  listing1.txt and listing2.txt written."
+
+# Direct-prompting figures (Figures 2, 6, 7; Table 3)
+python make_plots_for_paper.py \
+    --onlySharedSamples \
+    --outputDir paper-figure-output-reproduced
+log_info "  Direct-prompting figures written to paper-figure-output-reproduced/."
+
+# Request-metadata figures (Figures 9 & 10)
+python fetch_openrouter_request_metadata.py \
+    --makePlotsForPaper \
+    --onlySharedSamples \
+    --plotOutputDir paper-figure-output-reproduced/request-metadata
+log_info "  Request-metadata figures written to paper-figure-output-reproduced/request-metadata/."
+
+# Error-analysis figure (Figure 8)
+cd "$SCRIPT_DIR/experiments/error-analysis"
+python make_plots_for_paper.py \
+    --outputDir paper-figure-output-reproduced
+log_info "  Error-analysis figure written to paper-figure-output-reproduced/."
+
+cd "$SCRIPT_DIR"
+
 echo ""
 log_info "All steps completed successfully."
 log_info "Paper figures are in:"
-log_info "  experiments/direct-prompting/paper-figure-output/"
-log_info "  experiments/error-analysis/paper-figure-output/"
+log_info "  experiments/direct-prompting/paper-figure-output-reproduced/"
+log_info "  experiments/error-analysis/paper-figure-output-reproduced/"
