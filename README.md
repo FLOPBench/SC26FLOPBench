@@ -81,7 +81,7 @@ The complete pipeline runs in five phases: building and profiling HeCBench bench
 export OPENROUTER_API_KEY=your_key_here
 ```
 
-Pre-collected database dumps (`gpuflops_db.dump`, `code_features_db.dump`) are committed in the repo and can be restored with `--importDBDumpFile` to reproduce paper results without re-running LLM queries.
+Pre-collected database dumps (`gpuflops_db.dump`, `code_features_db.dump`) are committed in the repo and can be restored with `--importAndExit` to reproduce paper results without re-running LLM queries.
 
 ---
 
@@ -208,11 +208,11 @@ To reproduce paper results without re-running LLM queries, restore the committed
 ```bash
 # Restore feature-voting database
 cd experiments/feature-voting
-python run_voting_queries.py --importDBDumpFile code_features_db.dump --exportDBOnly
+python run_voting_queries.py --importAndExit
 
 # Restore direct-prompting database
 cd experiments/direct-prompting
-python run_queries.py --importDBDumpFile gpuflops_db.dump --exportDBOnly
+python run_queries.py --importAndExit
 ```
 
 #### Step 3.1 — Feature voting: classify kernel code features
@@ -357,7 +357,7 @@ Key files:
 - `graph.py` — LangGraph `StateGraph` for the single-query pipeline
 - `prompts.py` — `CodeFeatureFlags` Pydantic model and XML prompt generator
 - `db_manager.py` — PostgreSQL lifecycle, dump/restore, checkpoint parsing
-- `code_features_db.dump` — pre-collected results dump (restore with `--importDBDumpFile`)
+- `code_features_db.dump` — pre-collected results dump (restore with `--importAndExit`)
 
 ### Direct Prompting (`experiments/direct-prompting/`)
 
@@ -372,7 +372,7 @@ Key files:
 - `make_plots_for_paper.py` — generates Figures 2, 6, 7 and Table 3
 - `fetch_openrouter_request_metadata.py` — fetches per-request cost/timing metadata from OpenRouter; generates Figures 9 and 10
 - `print_prompt_for_paper_listing_1.py` — exports Listings 1 and 3
-- `gpuflops_db.dump` — pre-collected results dump (restore with `--importDBDumpFile`)
+- `gpuflops_db.dump` — pre-collected results dump (restore with `--importAndExit`)
 
 ### Error Analysis (`experiments/error-analysis/`)
 

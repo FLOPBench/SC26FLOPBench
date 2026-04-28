@@ -772,6 +772,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--deleteDBFreshStart", action="store_true", help="Drop gpuflops_db before execution and treat this run as a fresh start; if combined with --importDBDumpFile, the database is wiped first, then the dump is restored, and restored completed queries are still eligible for skipping")
     parser.add_argument("--dumpDBOnFinish", action="store_true", help="After a successful run, dump the final gpuflops_db contents to experiments/direct-prompting/gpuflops_db.dump")
     parser.add_argument("--exportDBOnly", action="store_true", help="Skip query execution and only export the current gpuflops_db state to experiments/direct-prompting/gpuflops_db.dump after any requested wipe/restore steps")
+    parser.add_argument("--importAndExit", action="store_true", help="Drop and recreate gpuflops_db from the committed dump file (gpuflops_db.dump in the same directory), then exit immediately without running any queries")
     parser.add_argument("--singleDryRun", action="store_true", help="Perform a single dry run query of only the first kernel to verify LLM API functionality")
     parser.add_argument("--verbose", action="store_true", help="Print the results of each query after it finishes")
     parser.add_argument("--printPrompts", action="store_true", help="Print the full system and human prompts for each query")
@@ -785,6 +786,13 @@ if __name__ == "__main__":
 
     ensure_postgres_running()
     default_dump_file = os.path.join(os.path.dirname(__file__), "gpuflops_db.dump")
+
+    if args.importAndExit:
+        print(f"Wiping database and restoring from committed dump: {default_dump_file}")
+        wipe_database()
+        restore_database_from_dump(default_dump_file)
+        print("Database successfully restored. Exiting.")
+        sys.exit(0)
 
     if args.deleteDBFreshStart:
         print("Deleting PostgreSQL database for a fresh start...")
