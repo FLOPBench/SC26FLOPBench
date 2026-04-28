@@ -221,7 +221,18 @@ def restore_database_from_dump(
         env=_postgres_command_env(password),
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "pg_restore failed")
+        # pg_restore exits with code 1 when it encounters unknown SET parameters
+        # (e.g. transaction_timeout, introduced in PG17) even though all data
+        # was restored successfully.  Treat that specific case as a warning.
+        non_timeout_errors = [
+            line for line in result.stderr.splitlines()
+            if line and "transaction_timeout" not in line
+            and "errors ignored on restore" not in line
+        ]
+        if non_timeout_errors:
+            raise RuntimeError(result.stderr.strip() or "pg_restore failed")
+        if result.stderr.strip():
+            print(f"pg_restore warning (non-fatal): {result.stderr.strip()}")
 
     return target_uri
 

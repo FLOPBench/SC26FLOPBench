@@ -4,11 +4,11 @@
 # Reproduces all paper results end-to-end without requiring a GPU or live
 # LLM API access.  The script:
 #
-#   1. Pulls the required LFS files (gpuFLOPBench.json, sass_files.zip,
+#   1. Pulls the required LFS files (gpuFLOPBench.json, all-NCU-GPU-Data.csv,
 #      gpuflops_db.dump, code_features_db.dump).
-#   2. Unzips the SASS archive into scraped-sass/.
-#   3. Restores the feature-voting PostgreSQL database from its dump.
-#   4. Restores the direct-prompting PostgreSQL database from its dump.
+#   2. Restores the feature-voting PostgreSQL database from its dump.
+#   3. Restores the direct-prompting PostgreSQL database from its dump.
+#   4. Restores the request-metadata PostgreSQL database from its dump.
 #   5. Generates all paper figures and listings.
 #   6. Runs the artifact-evaluation unit tests to verify SHA-256 hashes.
 #
@@ -22,7 +22,7 @@
 #   ./reproduce_paper_results.sh
 #
 # Pre-collected request_metadata.dump is committed in the repo and restored in
-# step 5 so that Figures 9 & 10 can be reproduced without a live OPENROUTER_API_KEY.
+# step 4 so that Figures 9 & 10 can be reproduced without a live OPENROUTER_API_KEY.
 
 set -e
 set -o pipefail
@@ -42,22 +42,16 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # ---------------------------------------------------------------------------
 # Step 1 — Pull required LFS files
 # ---------------------------------------------------------------------------
-log_info "[1/7] Pulling required LFS files..."
+log_info "[1/6] Pulling required LFS files..."
 
 # In CI the files are already present via actions/checkout lfs:true + volume
 # mount.  For local runs, git lfs pull fetches any missing content.
-git lfs pull --include \
-    "dataset-creation/gpuFLOPBench.json,\
-cuda-profiling/collected-data/scraped-sass/sass_files.zip,\
-experiments/direct-prompting/gpuflops_db.dump,\
-experiments/direct-prompting/request_metadata.dump,\
-experiments/feature-voting/code_features_db.dump" \
-    || log_warn "git lfs pull encountered an error; continuing (files may already be present)."
+git lfs fetch --all
 
 # Verify required files are present at full content (not LFS pointers)
 REQUIRED_FILES=(
     "dataset-creation/gpuFLOPBench.json"
-    "cuda-profiling/collected-data/scraped-sass/sass_files.zip"
+    "cuda-profiling/collected-data/all-NCU-GPU-Data.csv"
     "experiments/direct-prompting/gpuflops_db.dump"
     "experiments/direct-prompting/request_metadata.dump"
     "experiments/feature-voting/code_features_db.dump"
@@ -78,18 +72,9 @@ done
 log_info "LFS files verified."
 
 # ---------------------------------------------------------------------------
-# Step 2 — Unzip SASS archive
+# Step 2 — Restore feature-voting database
 # ---------------------------------------------------------------------------
-log_info "[2/7] Extracting SASS files from sass_files.zip..."
-
-python cuda-profiling/collected-data/unzip_collected_data.py --extract
-
-log_info "SASS extraction complete."
-
-# ---------------------------------------------------------------------------
-# Step 3 — Restore feature-voting database
-# ---------------------------------------------------------------------------
-log_info "[3/7] Restoring feature-voting database from committed dump..."
+log_info "[2/6] Restoring feature-voting database from committed dump..."
 
 cd "$SCRIPT_DIR/experiments/feature-voting"
 python run_voting_queries.py --importAndExit
@@ -98,9 +83,9 @@ cd "$SCRIPT_DIR"
 log_info "code_features_db restored."
 
 # ---------------------------------------------------------------------------
-# Step 4 — Restore direct-prompting database
+# Step 3 — Restore direct-prompting database
 # ---------------------------------------------------------------------------
-log_info "[4/7] Restoring direct-prompting database from committed dump..."
+log_info "[3/6] Restoring direct-prompting database from committed dump..."
 
 cd "$SCRIPT_DIR/experiments/direct-prompting"
 python run_queries.py --importAndExit
@@ -109,9 +94,9 @@ cd "$SCRIPT_DIR"
 log_info "gpuflops_db restored."
 
 # ---------------------------------------------------------------------------
-# Step 5 — Restore request-metadata database
+# Step 4 — Restore request-metadata database
 # ---------------------------------------------------------------------------
-log_info "[5/7] Restoring request-metadata database from committed dump..."
+log_info "[4/6] Restoring request-metadata database from committed dump..."
 
 cd "$SCRIPT_DIR/experiments/direct-prompting"
 python fetch_openrouter_request_metadata.py --importAndExit
@@ -120,9 +105,9 @@ cd "$SCRIPT_DIR"
 log_info "request_metadata restored."
 
 # ---------------------------------------------------------------------------
-# Step 6 — Generate paper figures and listings
+# Step 5 — Generate paper figures and listings
 # ---------------------------------------------------------------------------
-log_info "[6/7] Generating paper figures and listings..."
+log_info "[5/6] Generating paper figures and listings..."
 
 # Listing 1 and Listing 3
 cd "$SCRIPT_DIR/experiments/direct-prompting"
@@ -155,7 +140,7 @@ cd "$SCRIPT_DIR"
 # ---------------------------------------------------------------------------
 # Step 6 — Artifact evaluation tests
 # ---------------------------------------------------------------------------
-log_info "[7/7] Running artifact evaluation tests..."
+log_info "[6/6] Running artifact evaluation tests..."
 
 cd "$SCRIPT_DIR/unit-tests"
 pytest test_artifact_evaluation.py -m slow -v

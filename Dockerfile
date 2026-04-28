@@ -55,8 +55,18 @@ RUN apt-get update && \
     vim \
     less \
     htop \
-    postgresql \
+    postgresql-16 \
+    postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure PostgreSQL: set the postgres user password to match db_manager.py defaults
+# pg_ctlcluster needs locale settings to start cleanly inside a container
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+RUN locale-gen en_US.UTF-8 || true
+RUN pg_ctlcluster 16 main start && \
+    su -c "psql -c \"ALTER USER postgres PASSWORD 'postgres';\"" postgres && \
+    pg_ctlcluster 16 main stop
 
 # Install LLVM/Clang 21
 RUN wget https://apt.llvm.org/llvm.sh && \
