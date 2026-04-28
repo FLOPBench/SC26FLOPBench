@@ -101,13 +101,11 @@ RUN source ~/anaconda3/bin/activate && \
 
 # Copy requirements files first so pip install is cached independently of other source changes
 COPY requirements.txt /gpuFLOPBench-updated/requirements.txt
-COPY unit-tests/requirements.txt /gpuFLOPBench-updated/unit-tests/requirements.txt
 
 # Install Python dependencies in conda environment from requirements files
 RUN source ~/anaconda3/bin/activate && \
     conda activate gpuflopbench-updated && \
-    pip install --no-cache-dir -r /gpuFLOPBench-updated/requirements.txt && \
-    pip install --no-cache-dir -r /gpuFLOPBench-updated/unit-tests/requirements.txt
+    pip install --no-cache-dir -r /gpuFLOPBench-updated/requirements.txt
 
 # Set working directory
 WORKDIR /gpuFLOPBench-updated
