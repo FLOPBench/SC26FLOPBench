@@ -123,13 +123,27 @@ python extact_sass_from_built_executables.py
 
 Disassembles executables in `build/bin/` using `cuobjdump` and `llvm-objdump`. Produces:
 - `cuda-profiling/collected-data/scraped-sass/*.sass` — SASS disassembly per benchmark
-- `cuda-profiling/collected-data/scraped_files.zip` — zipped SASS archive
+- `cuda-profiling/collected-data/scraped-sass/sass_files.zip` — zipped SASS archive
+
+> **Using pre-collected data**: if you want to skip this step, a committed `sass_files.zip` is already in `scraped-sass/`. Run `python unzip_collected_data.py --extract` (see Step 1.4) to restore all `.sass` files from it.
 
 #### Step 1.4 — Collect profiling results from all GPUs
 
-After profiling on each GPU system, collect the results into `cuda-profiling/collected-data/`. Either:
-- Unzip each `profiling-results-*.zip` archive into the matching GPU subdirectory (e.g. `collected-data/3080/`, `collected-data/A10/`, etc.), **or**
-- Unzip the pre-collected `NVIDIA*.zip` files already committed in `cuda-profiling/collected-data/`
+After profiling on each GPU system, collect the results into `cuda-profiling/collected-data/`. The helper script `cuda-profiling/collected-data/unzip_collected_data.py` handles this automatically.
+
+```bash
+cd cuda-profiling/collected-data
+
+# Preview what would be extracted (safe, no files written):
+python unzip_collected_data.py
+
+# Extract when ready:
+python unzip_collected_data.py --extract
+```
+
+The script unpacks each `NVIDIA_*_profiling-results-*.zip` into the matching GPU subdirectory (`3080/`, `A10/`, `A100/`, `H100/`) and, if present, restores SASS files from `scraped-sass/sass_files.zip` back into `scraped-sass/`.  Pre-collected archives for all four GPUs are committed in `cuda-profiling/collected-data/NVIDIA*.zip` and can be extracted this way without re-running profiling.
+
+Files that already exist at the destination are skipped by default; pass `--overwrite` to replace them.
 
 Each GPU subdirectory must contain the `*.ncu-rep` report files before the next step.
 
@@ -144,6 +158,7 @@ Reads `*.ncu-rep` files from the `3080/`, `A10/`, `A100/`, and `H100/` subdirect
 - `cuda-profiling/collected-data/all-NCU-GPU-Data.csv`
 
 This CSV can also be visualized interactively with `cuda-profiling/collected-data/compare_gpus.ipynb`.
+If you have another GPU, you'll need to manually add it to the script to parse the manually-collected `*.ncu-rep` files correctly.
 
 #### Step 1.6 — Scrape benchmark source files
 
