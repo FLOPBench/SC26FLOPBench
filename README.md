@@ -62,6 +62,313 @@ Common options:
 - --skipConfirm: skip the interactive confirmation prompt
 - --zipOnly: skip profiling and only create the results archive
 
+---
+
+## End-to-End Workflow
+
+The complete pipeline runs in five phases: building and profiling HeCBench benchmarks, constructing the structured dataset, running LLM experiments, generating paper figures and listings, and validating results with the test suite.
+
+### Prerequisites
+
+**Build & Profile:**
+- LLVM/Clang 21+, CMake 3.21+, CUDA Toolkit v13.0, NVIDIA GPU, Nsight Compute (`ncu`)
+
+**LLM Experiments:**
+- PostgreSQL (scripts auto-start the local cluster via `pg_ctlcluster` when needed)
+- `OPENROUTER_API_KEY` environment variable set to a valid [OpenRouter](https://openrouter.ai/) API key:
+
+```bash
+export OPENROUTER_API_KEY=your_key_here
+```
+
+Pre-collected database dumps (`gpuflops_db.dump`, `code_features_db.dump`) are committed in the repo and can be restored with `--importDBDumpFile` to reproduce paper results without re-running LLM queries.
+
+---
+
+### Phase 1 — Build, Profile & Collect Data
+
+#### Step 1.1 — Build all benchmarks
+
+```bash
+./runBuild.sh
+```
+
+Compiles all CUDA and OpenMP benchmarks using the LLVM toolchain. Executables land in `build/bin/cuda/` (488 expected) and `build/bin/omp/` (318 expected).
+
+#### Step 1.2 — Profile with Nsight Compute
+
+```bash
+./runProfiling.sh
+```
+
+Runs `cuda-profiling/gatherData.py` against the installed GPU. This step must be run separately on each target GPU (3080, A10, A100, H100). Produces:
+- `cuda-profiling/gpuData.csv` — per-kernel roofline metrics
+- `cuda-profiling/ncu-rep-results/*.ncu-rep` — raw Nsight Compute reports
+- `cuda-profiling/profiling-results-*.zip` — archive containing the CSV, logs, and NCU reports
+
+Common options passed through to `gatherData.py`:
+- `--cudaOnly` / `--ompOnly`: limit to CUDA or OpenMP targets
+- `--samples N`: repeat profiling per target (default: 3)
+- `--timeout SEC`: per-run timeout (default: 120)
+- `--rerunTimeouts`: re-run targets that previously timed out
+- `--skipConfirm`: skip the interactive confirmation prompt
+- `--zipOnly`: skip profiling and only create the results archive
+
+#### Step 1.3 — Extract SASS from built executables
+
+```bash
+cd cuda-profiling/collected-data
+python extact_sass_from_built_executables.py
+```
+
+Disassembles executables in `build/bin/` using `cuobjdump` and `llvm-objdump`. Produces:
+- `cuda-profiling/collected-data/scraped-sass/*.sass` — SASS disassembly per benchmark
+- `cuda-profiling/collected-data/scraped_files.zip` — zipped SASS archive
+
+#### Step 1.4 — Collect profiling results from all GPUs
+
+After profiling on each GPU system, collect the results into `cuda-profiling/collected-data/`. Either:
+- Unzip each `profiling-results-*.zip` archive into the matching GPU subdirectory (e.g. `collected-data/3080/`, `collected-data/A10/`, etc.), **or**
+- Unzip the pre-collected `NVIDIA*.zip` files already committed in `cuda-profiling/collected-data/`
+
+Each GPU subdirectory must contain the `*.ncu-rep` report files before the next step.
+
+#### Step 1.5 — Condense per-GPU NCU reports into a single CSV
+
+```bash
+cd cuda-profiling/collected-data
+python condense_perf_counter_data.py
+```
+
+Reads `*.ncu-rep` files from the `3080/`, `A10/`, `A100/`, and `H100/` subdirectories and produces:
+- `cuda-profiling/collected-data/all-NCU-GPU-Data.csv`
+
+This CSV can also be visualized interactively with `cuda-profiling/collected-data/compare_gpus.ipynb`.
+
+#### Step 1.6 — Scrape benchmark source files
+
+```bash
+python dataset-creation/scrape-sources.py
+```
+
+Parses compiler-generated `.d` dependency files in `build/src/` to map each benchmark to the source and header files it compiled. Produces:
+- `dataset-creation/scraped_sources.json`
+
+---
+
+### Phase 2 — Build the gpuFLOPBench Dataset
+
+```bash
+python dataset-creation/make-gpuFLOPBench-dataset.py
+```
+
+Merges profiling metrics, SASS disassembly, and scraped source code into a single structured JSON. Depends on:
+- `cuda-profiling/collected-data/all-NCU-GPU-Data.csv`
+- `dataset-creation/scraped_sources.json`
+- `cuda-profiling/collected-data/scraped-sass/`
+
+Produces:
+- `dataset-creation/gpuFLOPBench.json` — the dataset read by all LLM experiment scripts
+
+---
+
+### Phase 3 — LLM Experiments
+
+Both experiments use [OpenRouter](https://openrouter.ai/) to query LLMs and persist results in local PostgreSQL databases via LangGraph checkpoints. Scripts auto-start PostgreSQL if the local cluster is offline.
+
+Run a **dry run** first to verify API connectivity before committing to a full batch:
+
+```bash
+# Feature-voting dry run
+cd experiments/feature-voting
+python run_voting_queries.py --singleDryRun --modelNames "openai/gpt-5.1-codex-mini"
+
+# Direct-prompting dry run
+cd experiments/direct-prompting
+python run_queries.py --singleDryRun --modelName "openai/gpt-5.1-codex-mini"
+```
+
+To reproduce paper results without re-running LLM queries, restore the committed database dumps:
+
+```bash
+# Restore feature-voting database
+cd experiments/feature-voting
+python run_voting_queries.py --importDBDumpFile code_features_db.dump --exportDBOnly
+
+# Restore direct-prompting database
+cd experiments/direct-prompting
+python run_queries.py --importDBDumpFile gpuflops_db.dump --exportDBOnly
+```
+
+#### Step 3.1 — Feature voting: classify kernel code features
+
+```bash
+cd experiments/feature-voting
+python run_voting_queries.py \
+    --trials 3 \
+    --modelNames "openai/gpt-5.1-codex-mini" \
+    --queryBatchSize 4
+```
+
+Asks LLMs to statically classify 12 boolean code-feature flags for each benchmark kernel using source code only (no GPU or hardware data). Stores results in the `code_features_db` PostgreSQL database. See `experiments/feature-voting/runExperiments.sh` for the multi-model invocations used in the paper.
+
+Key options:
+- `--modelNames`: comma-separated OpenRouter model identifiers (multiple models per run supported)
+- `--trials N`: repeat trials per kernel per model (default: 1)
+- `--queryBatchSize N`: parallel queries per batch (default: 4)
+- `--maxSpend USD`: hard spend cap for this run
+- `--dumpDBOnFinish`: export `code_features_db.dump` when the run completes
+
+#### Step 3.2 — Direct prompting: predict arithmetic intensity and DRAM traffic
+
+```bash
+cd experiments/direct-prompting
+python run_queries.py \
+    --trials 1 \
+    --modelName "openai/gpt-5.1-codex-mini" \
+    --queryBatchSize 4
+```
+
+Queries LLMs to predict per-kernel arithmetic intensity (AI) and DRAM traffic from benchmark source code. Optionally augmented with SASS disassembly (`--useSASS`) or static instruction-mix data (`--useIMIX`). Stores results in the `gpuflops_db` PostgreSQL database. See `experiments/direct-prompting/runExperiments.sh` for the multi-configuration invocations used in the paper.
+
+Key options:
+- `--modelName`: OpenRouter model identifier (default: `openai/gpt-5.1-codex-mini`)
+- `--useSASS`: include SASS disassembly in the prompt
+- `--useIMIX`: include static instruction-mix data in the prompt
+- `--trials N`: repeat trials per query (default: 1)
+- `--queryBatchSize N`: parallel queries per batch (default: 1)
+- `--maxSpend USD`: hard spend cap for this run
+- `--dumpDBOnFinish`: export `gpuflops_db.dump` when the run completes
+
+---
+
+### Phase 4 — Paper Figures, Tables & Listings
+
+All figure-generation scripts read directly from the PostgreSQL databases populated in Phase 3. The exact commands below are those verified by `unit-tests/test_artifact_evaluation.py`.
+
+#### Step 4.1 — Export paper prompt listings
+
+```bash
+cd experiments/direct-prompting
+python print_prompt_for_paper_listing_1.py \
+    --listing1Path listing1.txt \
+    --listing2Path listing2.txt
+```
+
+Produces:
+- `experiments/direct-prompting/listing1.txt` → Listing 1
+- `experiments/direct-prompting/listing2.txt` → Listing 3
+
+#### Step 4.2 — Direct-prompting paper figures
+
+```bash
+cd experiments/direct-prompting
+python make_plots_for_paper.py \
+    --onlySharedSamples \
+    --outputDir paper-figure-output
+```
+
+Produces:
+- `paper-figure-output/figure6_expected_rai_distribution_by_gpu_precision.png` → Figure 2
+- `paper-figure-output/figure11_ai_percent_difference_boxplots.png` → Figure 6
+- `paper-figure-output/figure2_5_ai_bound_confusion_heatmaps_with_zero.png` → Figure 7
+- `paper-figure-output/table_figure12_8_threshold_coverage.tex` → Table 3
+
+#### Step 4.3 — OpenRouter request-metadata figures
+
+```bash
+cd experiments/direct-prompting
+python fetch_openrouter_request_metadata.py \
+    --makePlotsForPaper \
+    --onlySharedSamples \
+    --plotOutputDir paper-figure-output/request-metadata
+```
+
+Fetches per-request timing and cost metadata from the OpenRouter API (requires `OPENROUTER_API_KEY`) and produces:
+- `paper-figure-output/request-metadata/plot3_cost_distribution.png` → Figure 9
+- `paper-figure-output/request-metadata/plot2_query_time_distribution.png` → Figure 10
+
+#### Step 4.4 — Error-analysis feature-association figure
+
+```bash
+cd experiments/error-analysis
+python make_plots_for_paper.py --outputDir paper-figure-output
+```
+
+Joins `gpuflops_db` and `code_features_db`, computes Cliff's delta associations between code features and AI prediction error, and produces:
+- `paper-figure-output/figure1_model_feature_association_heatmap.png` → Figure 8
+
+---
+
+### Phase 5 — Run Tests
+
+```bash
+./runTests.sh --noGPU    # skip GPU-dependent and artifact-evaluation tests
+./runTests.sh            # full suite including artifact evaluation
+```
+
+The artifact evaluation tests (`unit-tests/test_artifact_evaluation.py`) re-run each figure-generation script into a temporary directory and verify SHA-256 hashes against the committed reference outputs in `paper-figure-output/`.
+
+---
+
+## Paper Artifacts
+
+| Paper artifact | Generated file |
+|---|---|
+| Figure 2 | `experiments/direct-prompting/paper-figure-output/figure6_expected_rai_distribution_by_gpu_precision.png` |
+| Figure 6 | `experiments/direct-prompting/paper-figure-output/figure11_ai_percent_difference_boxplots.png` |
+| Figure 7 | `experiments/direct-prompting/paper-figure-output/figure2_5_ai_bound_confusion_heatmaps_with_zero.png` |
+| Table 3 | `experiments/direct-prompting/paper-figure-output/table_figure12_8_threshold_coverage.tex` |
+| Figure 8 | `experiments/error-analysis/paper-figure-output/figure1_model_feature_association_heatmap.png` |
+| Figure 9 | `experiments/direct-prompting/paper-figure-output/request-metadata/plot3_cost_distribution.png` |
+| Figure 10 | `experiments/direct-prompting/paper-figure-output/request-metadata/plot2_query_time_distribution.png` |
+| Listing 1 | `experiments/direct-prompting/listing1.txt` |
+| Listing 3 | `experiments/direct-prompting/listing2.txt` |
+
+---
+
+## Experiments
+
+### Feature Voting (`experiments/feature-voting/`)
+
+The feature-voting experiment asks one or more LLMs to inspect benchmark source code and return a structured boolean checklist of code features for the first execution path of the target kernel. This is a data-collection experiment only — it does not use GPU metrics, SASS, or IMIX evidence. Each query covers a single (program, kernel, model, trial) combination and is GPU-agnostic.
+
+The 12 boolean feature flags include:
+- **Execution-path flags**: `has_branching`, `has_data_dependent_branching`, `has_flop_division`, `uses_preprocessor_defines`, `has_common_float_subexpr`, `has_loop_invariant_flops`, `has_special_math_functions`, `calls_device_function`
+- **Host-side setup flags**: `has_rng_input_data`, `reads_input_values_from_file`, `has_constant_propagatable_gridsz`, `has_constant_propagatable_blocksz`
+
+Key files:
+- `run_voting_queries.py` — top-level runner; reads `gpuFLOPBench.json`, manages resume/retry, writes to `code_features_db`
+- `graph.py` — LangGraph `StateGraph` for the single-query pipeline
+- `prompts.py` — `CodeFeatureFlags` Pydantic model and XML prompt generator
+- `db_manager.py` — PostgreSQL lifecycle, dump/restore, checkpoint parsing
+- `code_features_db.dump` — pre-collected results dump (restore with `--importDBDumpFile`)
+
+### Direct Prompting (`experiments/direct-prompting/`)
+
+The direct-prompting experiment queries LLMs to predict per-kernel arithmetic intensity (AI) and DRAM traffic from benchmark source code, optionally augmented with SASS disassembly or static instruction-mix (IMIX) data. Predictions are compared against NCU ground-truth measurements across four GPUs (3080, A10, A100, H100).
+
+Key files:
+- `run_queries.py` — top-level runner; reads `gpuFLOPBench.json`, manages resume/retry, writes to `gpuflops_db`
+- `graph.py` — LangGraph `StateGraph` for the single-query pipeline
+- `prompts.py` — structured output models and XML prompt generator
+- `db_manager.py` — PostgreSQL lifecycle, dump/restore, checkpoint parsing
+- `result_viz_helper.py` — shared library for extracting data from PostgreSQL checkpoints and plot utilities (no standalone CLI)
+- `make_plots_for_paper.py` — generates Figures 2, 6, 7 and Table 3
+- `fetch_openrouter_request_metadata.py` — fetches per-request cost/timing metadata from OpenRouter; generates Figures 9 and 10
+- `print_prompt_for_paper_listing_1.py` — exports Listings 1 and 3
+- `gpuflops_db.dump` — pre-collected results dump (restore with `--importDBDumpFile`)
+
+### Error Analysis (`experiments/error-analysis/`)
+
+The error-analysis experiment joins results from `gpuflops_db` and `code_features_db` to study which kernel code features are associated with higher AI prediction error. It uses Cliff's delta to measure present-vs.-absent effect sizes across all (GPU, runtime, precision, model, prompt-type) combinations, rendering feature-association heatmaps for the paper.
+
+Key files:
+- `db_reader.py` — loads and merges both databases; produces `sample_with_features_df` for plotting
+- `make_plots_for_paper.py` — computes Cliff's delta associations and renders heatmaps; produces Figure 8
+
+---
+
 ## Docker Usage
 
 ⚠️ **Storage Requirements**: The Docker container requires approximately 15 GB for the base image, expanding to 40 GB when built, and up to 50 GB when building codes and gathering profiling data. Ensure sufficient disk space before proceeding.
@@ -321,29 +628,65 @@ pytest -v
 ## Project Structure
 
 ```
-├── HeCBench/              # Submodule: benchmark suite
-├── runBuild.sh            # Build script
-├── runTests.sh            # Test script
-├── cuda-profiling/
-│   ├── gatherData.py      # Profiling script
-│   ├── gpuData.csv        # Output (generated, GPU-prefixed)
-│   ├── ncu-rep-results/   # NCU reports (generated)
-│   └── {GPU_NAME}_profiling-log-{TIMESTAMP}.json  # Per-run logs (generated)
-├── build/                 # Build artifacts (generated)
+├── HeCBench/                             # Git submodule: HeCBench benchmark suite
+├── runBuild.sh                           # Build all CUDA/OMP benchmarks with LLVM
+├── runProfiling.sh                       # Profile built executables with Nsight Compute
+├── runTests.sh                           # Test runner
+├── Dockerfile                            # Container definition
+├── requirements.txt                      # Python package dependencies
+├── build/                                # Build artifacts (generated)
 │   └── bin/
-│       ├── cuda/          # CUDA executables (450+ expected)
-│       └── omp/           # OpenMP executables (300+ expected)
-├── unit-tests/            # Test suite
+│       ├── cuda/                         # CUDA executables (488 expected)
+│       └── omp/                          # OMP executables (318 expected)
+├── cuda-profiling/
+│   ├── gatherData.py                     # Profiles built code; writes gpuData.csv and *.ncu-rep
+│   ├── utils.py                          # Demangling and kernel discovery helpers
+│   └── collected-data/
+│       ├── extact_sass_from_built_executables.py  # Extracts SASS from build/bin/ executables
+│       ├── condense_perf_counter_data.py          # Merges per-GPU *.ncu-rep → all-NCU-GPU-Data.csv
+│       ├── compare_gpus.ipynb                     # Interactive visualization of collected data
+│       ├── all-NCU-GPU-Data.csv                   # Merged profiling data across all GPUs (generated)
+│       ├── scraped-sass/                          # Per-benchmark SASS disassembly (generated)
+│       ├── NVIDIA*.zip                            # Pre-collected per-GPU profiling archives
+│       └── {3080,A10,A100,H100}/                  # Per-GPU unpacked NCU reports
+├── dataset-creation/
+│   ├── scrape-sources.py                 # Parses .d deps → scraped_sources.json
+│   ├── make-gpuFLOPBench-dataset.py      # Merges profiling + SASS + sources → gpuFLOPBench.json
+│   ├── sass_helper.py                    # SASS parsing helpers
+│   ├── sass_objs.py                      # SASS object model
+│   ├── scraped_sources.json              # Source files per benchmark (generated)
+│   └── gpuFLOPBench.json                 # Structured LLM experiment dataset (generated)
 ├── experiments/
-│   ├── llm_models.py          # Shared LLM factory helpers (OpenRouter/Azure)
-│   └── direct-prompting/
-│       ├── prompts.py             # Prompt generator and Pydantic targets
-│       ├── graph.py               # LangGraph StateGraph nodes
-│       ├── db_manager.py          # PostgreSQL setup and checkpoint stats
-│       ├── result_viz_helper.py   # Shared DB-extraction and plot utility library
-│       └── make_plots_for_paper.py  # Generates paper figures (PNGs and TEX table)
-├── Dockerfile             # Container definition
-└── AGENTS.md              # Full documentation
+│   ├── llm_models.py                     # Shared LLM factory helpers (OpenRouter/Azure)
+│   ├── feature-voting/
+│   │   ├── run_voting_queries.py         # Runner: gpuFLOPBench.json → code_features_db
+│   │   ├── graph.py                      # LangGraph pipeline for feature classification
+│   │   ├── prompts.py                    # CodeFeatureFlags Pydantic model and prompt generator
+│   │   ├── db_manager.py                 # PostgreSQL lifecycle, dump/restore, checkpoint parsing
+│   │   └── code_features_db.dump         # Pre-collected results dump
+│   ├── direct-prompting/
+│   │   ├── run_queries.py                # Runner: gpuFLOPBench.json → gpuflops_db
+│   │   ├── graph.py                      # LangGraph pipeline for AI/DRAM prediction
+│   │   ├── prompts.py                    # Structured output models and XML prompt generator
+│   │   ├── db_manager.py                 # PostgreSQL lifecycle, dump/restore, checkpoint parsing
+│   │   ├── result_viz_helper.py          # Shared DB-extraction and plot utilities (no CLI)
+│   │   ├── make_plots_for_paper.py       # Figures 2, 6, 7 and Table 3
+│   │   ├── fetch_openrouter_request_metadata.py   # Figures 9 and 10
+│   │   ├── print_prompt_for_paper_listing_1.py    # Listings 1 and 3
+│   │   ├── gpuflops_db.dump              # Pre-collected results dump
+│   │   └── paper-figure-output/          # Generated paper figures
+│   └── error-analysis/
+│       ├── db_reader.py                  # Loads and merges gpuflops_db + code_features_db
+│       ├── make_plots_for_paper.py       # Figure 8: feature-association heatmaps
+│       └── paper-figure-output/          # Generated paper figures
+├── unit-tests/
+│   ├── conftest.py
+│   ├── test_artifact_evaluation.py       # SHA-256 checks against committed reference figures
+│   ├── test_build_artifacts.py
+│   ├── test_demangling.py
+│   ├── test_kernel_extraction.py
+│   └── ...
+└── AGENTS.md                             # Full documentation
 ```
 
 ## Key Features
