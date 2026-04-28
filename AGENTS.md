@@ -375,6 +375,9 @@ The `experiments/direct-prompting` directory contains LangGraph pipelines design
 - `db_manager.py`: Automated setup configuring default local PostgreSQL tables out of the box and extracting query executions to calculate run summaries (time, cost).
 - `result_viz_helper.py`: Shared library for extracting data from PostgreSQL checkpoints and plot utility helpers (no standalone CLI).
 - `make_plots_for_paper.py`: Generates all paper figures — 15 PNGs and one TEX table (`table_figure12_8_threshold_coverage.tex`).
+- `fetch_openrouter_request_metadata.py`: Fetches per-request cost/timing metadata from OpenRouter and generates Figures 9 and 10; supports `--importAndExit`, `--exportDBOnly`, and `--importDBDumpFile` for the `request_metadata` database.
+- `gpuflops_db.dump`: Pre-collected direct-prompting results (restore with `--importAndExit` via `run_queries.py`).
+- `request_metadata.dump`: Pre-collected OpenRouter request-metadata (restore with `--importAndExit` via `fetch_openrouter_request_metadata.py`).
 
 ## Testing
 

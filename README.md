@@ -81,7 +81,7 @@ The complete pipeline runs in five phases: building and profiling HeCBench bench
 export OPENROUTER_API_KEY=your_key_here
 ```
 
-Pre-collected database dumps (`gpuflops_db.dump`, `code_features_db.dump`) are committed in the repo and can be restored with `--importAndExit` to reproduce paper results without re-running LLM queries.
+Pre-collected database dumps (`gpuflops_db.dump`, `code_features_db.dump`, `request_metadata.dump`) are committed in the repo and can be restored with `--importAndExit` to reproduce paper results without re-running LLM queries.
 
 ---
 
@@ -303,6 +303,16 @@ Fetches per-request timing and cost metadata from the OpenRouter API (requires `
 - `paper-figure-output/request-metadata/plot3_cost_distribution.png` → Figure 9
 - `paper-figure-output/request-metadata/plot2_query_time_distribution.png` → Figure 10
 
+If `request_metadata.dump` is already populated (e.g. restored via `--importAndExit`), these figures can be reproduced without a live API key:
+
+```bash
+python fetch_openrouter_request_metadata.py --importAndExit
+python fetch_openrouter_request_metadata.py \
+    --makePlotsForPaper \
+    --onlySharedSamples \
+    --plotOutputDir paper-figure-output/request-metadata
+```
+
 #### Step 4.4 — Error-analysis feature-association figure
 
 ```bash
@@ -373,6 +383,7 @@ Key files:
 - `fetch_openrouter_request_metadata.py` — fetches per-request cost/timing metadata from OpenRouter; generates Figures 9 and 10
 - `print_prompt_for_paper_listing_1.py` — exports Listings 1 and 3
 - `gpuflops_db.dump` — pre-collected results dump (restore with `--importAndExit`)
+- `request_metadata.dump` — pre-collected OpenRouter request-metadata dump (restore with `--importAndExit`)
 
 ### Error Analysis (`experiments/error-analysis/`)
 
@@ -689,6 +700,7 @@ pytest -v
 │   │   ├── fetch_openrouter_request_metadata.py   # Figures 9 and 10
 │   │   ├── print_prompt_for_paper_listing_1.py    # Listings 1 and 3
 │   │   ├── gpuflops_db.dump              # Pre-collected results dump
+│   │   ├── request_metadata.dump         # Pre-collected OpenRouter request-metadata dump
 │   │   └── paper-figure-output/          # Generated paper figures
 │   └── error-analysis/
 │       ├── db_reader.py                  # Loads and merges gpuflops_db + code_features_db

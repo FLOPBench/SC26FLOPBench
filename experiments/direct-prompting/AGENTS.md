@@ -249,6 +249,40 @@ python3 experiments/direct-prompting/print_highlevel_flopbench_stats_for_paper.p
 python3 experiments/direct-prompting/print_highlevel_flopbench_stats_for_paper.py --dataset dataset-creation/gpuFLOPBench.json
 ```
 
+## fetch_openrouter_request_metadata.py
+
+`fetch_openrouter_request_metadata.py` fetches per-request cost and timing metadata from the OpenRouter API for every generation ID stored in `gpuflops_db`, persists results in a separate `request_metadata` PostgreSQL database, and can generate the query-time and cost distribution figures (Figures 9 and 10) used in the paper.
+
+### Database Lifecycle Flags
+
+The script mirrors the dump/restore workflow used by `run_queries.py` and `run_voting_queries.py`:
+
+- `--importAndExit`: Drop and recreate `request_metadata` from the committed dump file (`request_metadata.dump` in the same directory), then exit immediately without fetching any generation IDs. Use this to restore the pre-collected database before running `--makePlotsForPaper`.
+- `--exportDBOnly`: Skip fetching and only export the current `request_metadata` database state to `request_metadata.dump` in the same directory.
+- `--importDBDumpFile PATH`: Restore the supplied PostgreSQL custom dump file into a freshly recreated `request_metadata` database before execution begins.
+
+### Usage
+
+```bash
+# Restore pre-collected metadata and generate paper figures (no API key required)
+cd experiments/direct-prompting
+python fetch_openrouter_request_metadata.py --importAndExit
+python fetch_openrouter_request_metadata.py \
+    --makePlotsForPaper \
+    --onlySharedSamples \
+    --plotOutputDir paper-figure-output/request-metadata
+
+# Export current request_metadata state to request_metadata.dump
+python fetch_openrouter_request_metadata.py --exportDBOnly
+
+# Fetch new metadata from OpenRouter API (requires OPENROUTER_API_KEY)
+python fetch_openrouter_request_metadata.py
+```
+
+### Dump File
+
+`request_metadata.dump` is committed as a Git LFS object alongside `gpuflops_db.dump` and `code_features_db.dump`. It contains all OpenRouter generation metadata needed to reproduce Figures 9 and 10 without re-querying the API.
+
 ## runExperiments.sh
 
 `runExperiments.sh` is a convenience wrapper that launches a small batch of representative `run_queries.py` configurations. At the time of writing it covers:

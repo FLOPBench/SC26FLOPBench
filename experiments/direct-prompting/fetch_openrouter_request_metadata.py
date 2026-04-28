@@ -12,7 +12,7 @@ import psycopg
 import requests
 from tqdm import tqdm
 
-from db_manager import CheckpointDBParser, ensure_postgres_running, setup_default_database
+from db_manager import CheckpointDBParser, dump_database, ensure_postgres_running, restore_database_from_dump, setup_default_database, wipe_database
 
 
 OPENROUTER_GENERATION_URL = "https://openrouter.ai/api/v1/generation"
@@ -1027,6 +1027,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--onlySharedSamples", action="store_true", help="Keep only joined benchmark/kernel identities that have at least one stored row (completed or failed) for every GPU, every model name, and both plotted prompt types: Source-Only and Source+SASS.")
 	parser.add_argument("--plotOutputDir", type=str, default=DEFAULT_PLOT_OUTPUT_DIR, help="Directory where --makePlotsForPaper artifacts will be written.")
 	parser.add_argument("--maxHttpErrorRepeats", type=int, default=DEFAULT_MAX_HTTP_ERROR_REPEATS, help="Maximum number of automatic repeat attempts for generation IDs whose latest stored status is http-error before they are treated as exhausted.")
+	parser.add_argument("--importDBDumpFile", type=str, default=None, help="Restore the supplied PostgreSQL custom dump file into a freshly recreated request_metadata database before execution begins.")
+	parser.add_argument("--importAndExit", action="store_true", help="Drop and recreate request_metadata from the committed dump file (request_metadata.dump in the same directory), then exit immediately without fetching any generation IDs.")
+	parser.add_argument("--exportDBOnly", action="store_true", help="Skip fetching and only export the current request_metadata database state to request_metadata.dump in the same directory.")
 	return parser
 
 
@@ -1035,8 +1038,27 @@ def main() -> None:
 	api_key = args.openrouterApiKey or _env_first("OPENROUTER_API_KEY", "OPENAI_API_KEY")
 
 	ensure_postgres_running()
+	default_dump_file = os.path.join(os.path.dirname(__file__), "request_metadata.dump")
+
+	if args.importAndExit:
+		print(f"Wiping database and restoring from committed dump: {default_dump_file}")
+		wipe_database(db_name=args.targetDbName)
+		restore_database_from_dump(default_dump_file, db_name=args.targetDbName)
+		print("Database successfully restored. Exiting.")
+		sys.exit(0)
+
 	source_db_uri = args.sourceDbUri or setup_default_database(db_name=args.sourceDbName)
-	target_db_uri = args.targetDbUri or setup_default_database(db_name=args.targetDbName)
+
+	if args.importDBDumpFile:
+		print(f"Restoring PostgreSQL database from dump: {args.importDBDumpFile}")
+		target_db_uri = restore_database_from_dump(args.importDBDumpFile, db_name=args.targetDbName)
+	else:
+		target_db_uri = args.targetDbUri or setup_default_database(db_name=args.targetDbName)
+
+	if args.exportDBOnly:
+		dump_path = dump_database(default_dump_file, db_name=args.targetDbName)
+		print(f"Database dump written to: {dump_path}")
+		sys.exit(0)
 
 	source_parser = CheckpointDBParser(source_db_uri)
 	target_store = RequestMetadataStore(target_db_uri)
