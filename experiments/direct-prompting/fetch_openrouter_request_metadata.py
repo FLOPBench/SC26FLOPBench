@@ -1035,7 +1035,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
 	args = build_arg_parser().parse_args()
-	api_key = args.openrouterApiKey or _env_first("OPENROUTER_API_KEY", "OPENAI_API_KEY")
 
 	ensure_postgres_running()
 	default_dump_file = os.path.join(os.path.dirname(__file__), "request_metadata.dump")
@@ -1130,6 +1129,7 @@ def main() -> None:
 		}
 
 		if pending_generation_records:
+			api_key = args.openrouterApiKey or _env_first("OPENROUTER_API_KEY", "OPENAI_API_KEY")
 			if not api_key:
 				raise RuntimeError(
 					"An OpenRouter API key is required via --openrouterApiKey or OPENROUTER_API_KEY when there are pending generation IDs to fetch."
