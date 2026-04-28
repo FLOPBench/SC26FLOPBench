@@ -1,0 +1,72 @@
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{@{}llllrrrrrr@{}}
+\toprule
+\multirow{2}{*}{Model} & \multirow{2}{*}{Runtime} & \multirow{2}{*}{Evidence} & \multirow{2}{*}{GPU} & \multicolumn{2}{c}{FP16} & \multicolumn{2}{c}{FP32} & \multicolumn{2}{c}{FP64} \\
+\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
+ &  &  &  & 10\% & 50\% & 10\% & 50\% & 10\% & 50\% \\
+\midrule
+\multirow{16}{*}{GPT 5.4} & \multirow{8}{*}{CUDA} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.930,0.930}18.9 & \cellcolor[rgb]{1.000,0.718,0.718}45.3 & \cellcolor[rgb]{1.000,0.891,0.891}25.0 & \cellcolor[rgb]{1.000,0.845,0.845}31.2 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.995,0.995}3.7 & \cellcolor[rgb]{1.000,0.763,0.763}40.7 & \cellcolor[rgb]{1.000,0.989,0.989}5.9 & \cellcolor[rgb]{1.000,0.811,0.811}35.3 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.999,0.999}1.0 & \cellcolor[rgb]{1.000,0.859,0.859}29.4 & \cellcolor[rgb]{1.000,0.617,0.617}54.9 & \cellcolor[rgb]{1.000,0.960,0.960}13.3 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.995,0.995}3.7 & \cellcolor[rgb]{1.000,0.881,0.881}26.4 & \cellcolor[rgb]{1.000,0.680,0.680}49.1 & \cellcolor[rgb]{1.000,0.891,0.891}25.0 & \cellcolor[rgb]{1.000,0.792,0.792}37.5 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.910,0.910}22.2 & \cellcolor[rgb]{1.000,0.690,0.690}48.1 & \cellcolor[rgb]{1.000,0.938,0.938}17.6 & \cellcolor[rgb]{1.000,0.700,0.700}47.1 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.891,0.891}25.0 & \cellcolor[rgb]{1.000,0.984,0.984}7.5 & \cellcolor[rgb]{1.000,0.755,0.755}41.5 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.602,0.602}56.2 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.878,0.878}26.9 & \cellcolor[rgb]{1.000,0.690,0.690}48.1 & \cellcolor[rgb]{1.000,0.833,0.833}32.7 & \cellcolor[rgb]{1.000,0.469,0.469}67.3 & \cellcolor[rgb]{1.000,0.989,0.989}5.9 & \cellcolor[rgb]{1.000,0.758,0.758}41.2 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,0.939,0.939}17.5 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 & \cellcolor[rgb]{1.000,0.897,0.897}24.1 & \cellcolor[rgb]{1.000,0.477,0.477}66.7 & \cellcolor[rgb]{1.000,0.964,0.964}12.5 & \cellcolor[rgb]{1.000,0.602,0.602}56.2 \\
+\cmidrule(lr){2-10}
+ & \multirow{8}{*}{OpenMP} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.946,0.946}16.1 & \cellcolor[rgb]{1.000,0.687,0.687}48.4 & \cellcolor[rgb]{1.000,0.955,0.955}14.3 & \cellcolor[rgb]{1.000,0.808,0.808}35.7 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.751,0.751}41.9 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.808,0.808}35.7 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.927,0.927}19.4 & \cellcolor[rgb]{1.000,0.751,0.751}41.9 & \cellcolor[rgb]{1.000,0.915,0.915}21.4 & \cellcolor[rgb]{1.000,0.592,0.592}57.1 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.862,0.862}29.0 & \cellcolor[rgb]{1.000,0.581,0.581}58.1 & \cellcolor[rgb]{1.000,0.915,0.915}21.4 & \cellcolor[rgb]{1.000,0.742,0.742}42.9 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.946,0.946}16.1 & \cellcolor[rgb]{1.000,0.781,0.781}38.7 & \cellcolor[rgb]{1.000,0.985,0.985}7.1 & \cellcolor[rgb]{1.000,0.507,0.507}64.3 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.962,0.962}12.9 & \cellcolor[rgb]{1.000,0.719,0.719}45.2 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.417,0.417}71.4 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.942,0.942}16.9 & \cellcolor[rgb]{1.000,0.855,0.855}29.9 & \cellcolor[rgb]{1.000,0.862,0.862}29.0 & \cellcolor[rgb]{1.000,0.581,0.581}58.1 & \cellcolor[rgb]{1.000,0.915,0.915}21.4 & \cellcolor[rgb]{1.000,0.417,0.417}71.4 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,0.985,0.985}7.3 & \cellcolor[rgb]{1.000,0.901,0.901}23.6 & \cellcolor[rgb]{1.000,0.836,0.836}32.3 & \cellcolor[rgb]{1.000,0.543,0.543}61.3 & \cellcolor[rgb]{1.000,0.865,0.865}28.6 & \cellcolor[rgb]{1.000,0.507,0.507}64.3 \\
+\midrule
+\multirow{16}{*}{GPT OSS} & \multirow{8}{*}{CUDA} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.851,0.851}30.4 & \cellcolor[rgb]{1.000,0.670,0.670}50.0 & \cellcolor[rgb]{1.000,0.955,0.955}14.3 & \cellcolor[rgb]{1.000,0.808,0.808}35.7 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 & \cellcolor[rgb]{1.000,0.978,0.978}9.1 & \cellcolor[rgb]{1.000,0.761,0.761}40.9 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.999,0.999}1.2 & \cellcolor[rgb]{1.000,0.868,0.868}28.2 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 & \cellcolor[rgb]{1.000,0.904,0.904}23.1 & \cellcolor[rgb]{1.000,0.783,0.783}38.5 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.998,0.998}2.3 & \cellcolor[rgb]{1.000,0.895,0.895}24.4 & \cellcolor[rgb]{1.000,0.708,0.708}46.3 & \cellcolor[rgb]{1.000,0.943,0.943}16.7 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.867,0.867}28.3 & \cellcolor[rgb]{1.000,0.647,0.647}52.2 & \cellcolor[rgb]{1.000,0.848,0.848}30.8 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.976,0.976}9.8 & \cellcolor[rgb]{1.000,0.708,0.708}46.3 & \cellcolor[rgb]{1.000,0.981,0.981}8.3 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.987,0.987}6.5 & \cellcolor[rgb]{1.000,0.945,0.945}16.3 & \cellcolor[rgb]{1.000,0.863,0.863}28.9 & \cellcolor[rgb]{1.000,0.704,0.704}46.7 & \cellcolor[rgb]{1.000,0.943,0.943}16.7 & \cellcolor[rgb]{1.000,0.753,0.753}41.7 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,0.993,0.993}4.4 & \cellcolor[rgb]{1.000,0.987,0.987}6.7 & \cellcolor[rgb]{1.000,0.834,0.834}32.6 & \cellcolor[rgb]{1.000,0.683,0.683}48.8 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.848,0.848}30.8 \\
+\cmidrule(lr){2-10}
+ & \multirow{8}{*}{OpenMP} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.943,0.943}16.7 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 & \cellcolor[rgb]{1.000,0.950,0.950}15.4 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.796,0.796}37.0 & \cellcolor[rgb]{1.000,0.983,0.983}7.7 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.883,0.883}26.1 & \cellcolor[rgb]{1.000,0.647,0.647}52.2 & \cellcolor[rgb]{1.000,0.935,0.935}18.2 & \cellcolor[rgb]{1.000,0.716,0.716}45.5 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.899,0.899}23.8 & \cellcolor[rgb]{1.000,0.644,0.644}52.4 & \cellcolor[rgb]{1.000,0.935,0.935}18.2 & \cellcolor[rgb]{1.000,0.515,0.515}63.6 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.897,0.897}24.1 & \cellcolor[rgb]{1.000,0.688,0.688}48.3 & \cellcolor[rgb]{1.000,0.891,0.891}25.0 & \cellcolor[rgb]{1.000,0.670,0.670}50.0 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.995,0.995}3.8 & \cellcolor[rgb]{1.000,0.817,0.817}34.6 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.854,0.854}30.0 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.999,0.999}1.7 & \cellcolor[rgb]{1.000,0.980,0.980}8.6 & \cellcolor[rgb]{1.000,0.870,0.870}28.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.558,0.558}60.0 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.899,0.899}23.8 & \cellcolor[rgb]{1.000,0.644,0.644}52.4 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.670,0.670}50.0 \\
+\midrule
+\multirow{16}{*}{Opus 4.6} & \multirow{8}{*}{CUDA} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.817,0.817}34.6 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 & \cellcolor[rgb]{1.000,0.960,0.960}13.3 & \cellcolor[rgb]{1.000,0.704,0.704}46.7 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.959,0.959}13.5 & \cellcolor[rgb]{1.000,0.729,0.729}44.2 & \cellcolor[rgb]{1.000,0.987,0.987}6.7 & \cellcolor[rgb]{1.000,0.635,0.635}53.3 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.998,0.998}2.0 & \cellcolor[rgb]{1.000,0.828,0.828}33.3 & \cellcolor[rgb]{1.000,0.502,0.502}64.7 & \cellcolor[rgb]{1.000,0.960,0.960}13.3 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.995,0.995}3.6 & \cellcolor[rgb]{1.000,0.777,0.777}39.2 & \cellcolor[rgb]{1.000,0.549,0.549}60.8 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.704,0.704}46.7 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.558,0.558}60.0 & \cellcolor[rgb]{1.000,0.848,0.848}30.8 & \cellcolor[rgb]{1.000,0.369,0.369}75.0 & \cellcolor[rgb]{1.000,0.742,0.742}42.9 & \cellcolor[rgb]{1.000,0.507,0.507}64.3 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,0.924,0.924}20.0 & \cellcolor[rgb]{1.000,0.769,0.769}40.0 & \cellcolor[rgb]{1.000,0.948,0.948}15.7 & \cellcolor[rgb]{1.000,0.617,0.617}54.9 & \cellcolor[rgb]{1.000,0.904,0.904}23.1 & \cellcolor[rgb]{1.000,0.343,0.343}76.9 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.681,0.681}49.0 & \cellcolor[rgb]{1.000,0.414,0.414}71.6 & \cellcolor[rgb]{1.000,0.729,0.729}44.2 & \cellcolor[rgb]{1.000,0.289,0.289}80.8 & \cellcolor[rgb]{1.000,0.670,0.670}50.0 & \cellcolor[rgb]{1.000,0.111,0.111}92.9 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,0.779,0.779}38.9 & \cellcolor[rgb]{1.000,0.567,0.567}59.3 & \cellcolor[rgb]{1.000,0.762,0.762}40.8 & \cellcolor[rgb]{1.000,0.248,0.248}83.7 & \cellcolor[rgb]{1.000,0.931,0.931}18.8 & \cellcolor[rgb]{1.000,0.369,0.369}75.0 \\
+\cmidrule(lr){2-10}
+ & \multirow{8}{*}{OpenMP} & \multirow{4}{*}{Source-Only} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.907,0.907}22.6 & \cellcolor[rgb]{1.000,0.543,0.543}61.3 & \cellcolor[rgb]{1.000,0.915,0.915}21.4 & \cellcolor[rgb]{1.000,0.670,0.670}50.0 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.976,0.976}9.7 & \cellcolor[rgb]{1.000,0.653,0.653}51.6 & \cellcolor[rgb]{1.000,0.987,0.987}6.7 & \cellcolor[rgb]{1.000,0.635,0.635}53.3 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.862,0.862}29.0 & \cellcolor[rgb]{1.000,0.618,0.618}54.8 & \cellcolor[rgb]{1.000,0.865,0.865}28.6 & \cellcolor[rgb]{1.000,0.507,0.507}64.3 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,1.000,1.000}0.0 & \cellcolor[rgb]{1.000,0.809,0.809}35.5 & \cellcolor[rgb]{1.000,0.581,0.581}58.1 & \cellcolor[rgb]{1.000,0.865,0.865}28.6 & \cellcolor[rgb]{1.000,0.592,0.592}57.1 \\
+\cmidrule(lr){3-10}
+ &  & \multirow{4}{*}{Source+SASS} & 3080 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.751,0.751}41.9 & \cellcolor[rgb]{1.000,0.543,0.543}61.3 & \cellcolor[rgb]{1.000,0.742,0.742}42.9 & \cellcolor[rgb]{1.000,0.417,0.417}71.4 \\
+ &  &  & A10 & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,1.000,1.000}- & \cellcolor[rgb]{1.000,0.976,0.976}9.7 & \cellcolor[rgb]{1.000,0.581,0.581}58.1 & \cellcolor[rgb]{1.000,0.915,0.915}21.4 & \cellcolor[rgb]{1.000,0.507,0.507}64.3 \\
+ &  &  & A100 & \cellcolor[rgb]{1.000,0.709,0.709}46.2 & \cellcolor[rgb]{1.000,0.509,0.509}64.1 & \cellcolor[rgb]{1.000,0.781,0.781}38.7 & \cellcolor[rgb]{1.000,0.422,0.422}71.0 & \cellcolor[rgb]{1.000,0.865,0.865}28.6 & \cellcolor[rgb]{1.000,0.219,0.219}85.7 \\
+ &  &  & H100 & \cellcolor[rgb]{1.000,0.860,0.860}29.3 & \cellcolor[rgb]{1.000,0.688,0.688}48.3 & \cellcolor[rgb]{1.000,0.687,0.687}48.4 & \cellcolor[rgb]{1.000,0.380,0.380}74.2 & \cellcolor[rgb]{1.000,0.865,0.865}28.6 & \cellcolor[rgb]{1.000,0.219,0.219}85.7 \\
+\bottomrule
+\end{tabular}
+\endgroup

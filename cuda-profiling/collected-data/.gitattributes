@@ -1,0 +1,13 @@
+all-NCU-GPU-Data.csv filter=lfs diff=lfs merge=lfs -text
+sass-data.zip filter=lfs diff=lfs merge=lfs -text
+NVIDIA_A100-SXM4-40GB_profiling-results-20260131-070304.zip filter=lfs diff=lfs merge=lfs -text
+NVIDIA_A10_profiling-results-20260131-060649.zip filter=lfs diff=lfs merge=lfs -text
+NVIDIA_H100_80GB_HBM3_profiling-results-20260202-031513.zip filter=lfs diff=lfs merge=lfs -text
+NVIDIA_GeForce_RTX_3080_profiling-results-20260130-232112.zip filter=lfs diff=lfs merge=lfs -text
+sass-data-new.zip filter=lfs diff=lfs merge=lfs -text
+all-NCU-GPU-Data-with-IMIX.csv filter=lfs diff=lfs merge=lfs -text
+all-NCU-SASS-Data.csv filter=lfs diff=lfs merge=lfs -text
+all-IMIX-Data.csv filter=lfs diff=lfs merge=lfs -text
+sass_files.zip filter=lfs diff=lfs merge=lfs -text
+scraped-sass/sass_files.zip filter=lfs diff=lfs merge=lfs -text
+imix_data.csv filter=lfs diff=lfs merge=lfs -text

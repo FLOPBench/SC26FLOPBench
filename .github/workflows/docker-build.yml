@@ -1,0 +1,119 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ "main" , "adae"]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-and-test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository with submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+    
+    - name: Free disk space
+      run: |
+        echo "Disk space before cleanup:"
+        df -h
+        
+        # Run the cleanup script
+        curl -fsSL https://raw.githubusercontent.com/kou/arrow/e49d8ae15583ceff03237571569099a6ad62be32/ci/scripts/util_free_space.sh | bash
+        
+        # Additional cleanup to maximize available space
+        echo "Removing unnecessary packages..."
+        sudo apt-get clean
+        sudo apt-get autoremove -y
+        
+        # Remove large pre-installed tools not needed for this build
+        echo "Removing pre-installed software..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        
+        # Remove Docker images that come pre-installed
+        echo "Removing unused Docker images..."
+        docker image prune -af || true
+        
+        echo "Disk space after cleanup:"
+        df -h
+    
+    - name: Build Docker image
+      run: docker build . --file Dockerfile --tag gpuflopbench-updated:latest
+    
+    - name: Run build script in container
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
+          gpuflopbench-updated:latest \
+          bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && ./runBuild.sh --clean"
+    
+    - name: List build artifacts
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
+          gpuflopbench-updated:latest \
+          bash -c "
+            echo '=== Build Directory Contents ===' && \
+            ls -lh build/bin/ 2>/dev/null || echo 'Build bin directory not found' && \
+            echo '' && \
+            echo '=== CUDA Executables ===' && \
+            ls build/bin/cuda 2>/dev/null | wc -l || echo '0' && \
+            ls build/bin/cuda 2>/dev/null | head -5 || echo 'None found' && \
+            echo '' && \
+            echo '=== OpenMP Executables ===' && \
+            ls build/bin/omp 2>/dev/null | wc -l || echo '0' && \
+            ls build/bin/omp 2>/dev/null | head -5 || echo 'None found'
+          "
+    
+    - name: Run unit tests (excluding GPU and slow tests)
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated\
+          -w /gpuFLOPBench-updated \
+          gpuflopbench-updated:latest \
+          bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && \
+                   ./runTests.sh --noGPU"
+
+    - name: Reproduce paper results (dataset + DB import + figures + artifact tests)
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/gpuFLOPBench-updated \
+          -w /gpuFLOPBench-updated \
+          gpuflopbench-updated:latest \
+          bash -c "source ~/anaconda3/bin/activate && conda activate gpuflopbench-updated && \
+                   ./reproduce_paper_results.sh"
+    
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          build/build.log
+          build/*.log
+        if-no-files-found: warn
+
+    - name: Upload paper figures
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: paper-figures
+        path: |
+          experiments/direct-prompting/paper-figure-output/
+          experiments/error-analysis/paper-figure-output/
+        if-no-files-found: warn
