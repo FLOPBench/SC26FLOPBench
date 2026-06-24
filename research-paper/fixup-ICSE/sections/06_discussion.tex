@@ -1,0 +1,65 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What this enables for AI-assisted software engineering.}
+The strongest positive result is that off-the-shelf LLMs can classify a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts alone, without ever touching the target accelerator.
+That is directly relevant to AI coding agents and developer-facing tools.
+Before spending target-GPU time, an agent can ask a narrower question than ``will this be faster?'':
+is this kernel limited by data movement or by computation on the target device, and is the available evidence enough to answer that yet?
+The answer is evidence-dependent.
+For single precision, source artifacts are already enough for a confident regime call.
+For half precision, source is blind and the agent must obtain cross-compiled SASS first---but that is still a hardware-free step.
+Numeric \rai serves as a secondary diagnostic: when it is also accurate, it explains and reinforces the regime call; when it is in the heavy-tailed failure region, it signals that the sample should be escalated to profiling.
+
+\paragraph{Where \sourceonly and \sourcesass fit in a real workflow.}
+The paper also clarifies that execution-free reasoning has two meaningful stages.
+\sourceonly fits pre-compilation tasks such as code review, design exploration, and agent planning.
+\sourcesass fits a later stage where the code can be compiled for a target architecture but the accelerator is still unavailable for execution or profiling.
+Treating both stages as the same ``hardware-free'' scenario obscures an important software-engineering distinction: compilation artifacts are themselves a development resource.
+
+\paragraph{Cost relative to profiling.}
+A recurring objection to LLM-based performance reasoning is that API calls may cost as much as simply measuring on a GPU.
+Our per-query costs let us examine this directly, and the answer differs sharply by tier.
+The source-only single-precision tier is effectively free: a \gptoss regime classification costs a median \$0.0006 per kernel-GPU pair, so triaging the entire 732-sample shared subset costs under \$0.50.
+No profiling run approaches that, and---more importantly for the motivating scenario---the LLM path consumes no scarce target-hardware time, whereas profiling requires getting a kernel onto the contended accelerator at all.
+The frontier+SASS tier is the honest edge case: at roughly \$0.11 per kernel-GPU pair for \opus, its dollar cost is comparable to the marginal cost of a short profiling run at public cloud GPU rates (a few dollars per GPU-hour), so it is not justified by dollar savings.
+Its justification is instead \emph{access and timing}: it produces a half-precision regime call when the target GPU is unavailable, rationed, or not yet provisioned, using only a cross-compile step.
+The exact crossover depends on profiling wall-clock, which is workload- and counter-set-dependent; the qualitative conclusion---cheap tier far below profiling, premium tier comparable in dollars but hardware-free---does not.
+
+\paragraph{Why deterministic and learned static features still matter.}
+The added reference baselines sharpen the methodological boundary.
+A simple lexical source rule is not enough to explain the useful FP32/FP64 source-only signal, and a runtime$\times$GPU median baseline collapses outside the zero-heavy FP16 split.
+But supervised source-only baselines can still recover corpus-level triage cues, and architecture-specific SASS counts already expose substantial post-compilation structure after lowering.
+In a few regimes, especially source-only FP16 queueing and \sourcesass FP64 triage, the static baselines are competitive with or stronger than one-shot prompting.
+That motivates a \emph{hypothesis} we do not yet validate end-to-end:
+a cascade that combines deterministic compiler or disassembly features, lightweight supervised models, and LLM reasoning could outperform any single strategy, routing each evidence tier to the method that wins it.
+Table~\ref{tab:deployment-matrix} records the per-regime first-stage choice the released evidence supports; we present it as a routing hypothesis, not a measured system, because we have not built or evaluated the combined cascade and because choosing a route presumes the precision and evidence tier are known in advance.
+
+\input{tables/deployment_matrix}
+
+\paragraph{What the released samples look like in practice.}
+The released samples make the aggregate story concrete.
+In \texttt{accuracy-cuda}, source-only \opus conservatively predicts zero FP16 work because compiler-generated \texttt{HFMA2} materialization is not justified from source alone; with SASS, the same model attributes the nonzero FP16 signal to an executed \texttt{HFMA2.MMA} instruction and matches the profiler almost exactly.
+In \texttt{boxfilter-cuda}, the source already exposes the 21-tap loop trip count, the 64 output threads per block, and the roughly 1\,MiB read footprint, so source-only FP32 reasoning is effectively exact.
+
+\paragraph{What tool builders should and should not take from the results.}
+Tool builders should use the method as a triage filter, not as a ground-truth oracle.
+The useful deployment is to prioritize profiling effort, annotate likely memory-side versus compute-side cases, or flag kernels whose source-level reasoning is too uncertain to trust.
+The unsafe deployment is to use the predictions as a runtime substitute, a speedup estimator, or a universal static analysis of GPU performance.
+The FP16 results make that limit especially clear: without post-compilation evidence, the models often miss work that only becomes visible after lowering.
+
+\paragraph{What the exploratory failure map still suggests.}
+The generated feature-vote artifacts remain exploratory because their labels come from an auxiliary LLM-voting pipeline rather than human annotation.
+Their descriptive pattern is consistent with the comparative results above:
+division, special math, reusable subexpressions, and loop-invariant floating-point work remain difficult largely because source-visible intent is a weak proxy for compiled arithmetic and DRAM-visible traffic in exactly those cases.
+
+\paragraph{Why the benchmark release matters.}
+Even with the method's limitations, the released corpus is a useful research contribution in its own right.
+It exposes a benchmarkable software-engineering task with source files, build context, runtime arguments, SASS, profiler-derived labels, and model outputs.
+The added deterministic and learned reference baselines show why that matters:
+the benchmark is not just for ranking off-the-shelf LLMs, but for comparing multiple execution-free reasoning strategies that win in different regimes.
+It still supports several follow-on directions that require new experiments: stronger compiler-grade analyzers, repeated-query robustness studies, and hybrid predictors that combine compiler features with LLM reasoning.
+
+\paragraph{Why the claims are intentionally narrow.}
+The measured evidence supports execution-free triage, not general GPU-performance prediction.
+That narrower claim is still valuable: it better matches the observed behavior, it better fits the needs of AI-assisted software engineering, and it gives future work a cleaner benchmark target.

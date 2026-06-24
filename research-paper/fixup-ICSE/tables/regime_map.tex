@@ -1,0 +1,18 @@
+\begin{table*}[t]
+  \centering
+  \caption{Empirical success envelope for off-the-shelf \rai prediction in this benchmark.}
+  \label{tab:regime-map}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{p{0.15\textwidth}p{0.23\textwidth}p{0.28\textwidth}p{0.24\textwidth}}
+    \toprule
+    Regime & Evidence pattern & What works & Main caution \\
+    \midrule
+    Works well & \sourcesass FP16/FP32 with lowered arithmetic visible & \opus reaches 47.0\%/53.0\% of nonzero samples within 25\% error and 0.984/0.967 BB/CB BalAcc. & Requires compilation to SASS for the target architecture. \\
+    Works well & \sourceonly FP32 with source-visible loop and memory structure & \opus is within 25\% error on 36.0\% of nonzero samples and reaches 0.940 BB/CB BalAcc. & DRAM-visible traffic can still break source-level reasoning. \\
+    Mixed & \sourceonly FP64 and \sourcesass FP64 & Many individual samples are accurate; static SASS baselines can match or beat LLM triage in aggregate. & Treat LLM output as one signal in a static-analysis cascade. \\
+    Poor & \sourceonly FP16 & Nearly all nonzero samples miss the 25\% threshold and BB/CB triage stays at the trivial baseline. & Use SASS or cheap static filters before trusting numeric FP16 predictions. \\
+    Poor & Context-overflow or very long prompts & \gptoss has lower completion coverage and weaker SASS use. & Coverage must be reported, and incomplete samples should not be hidden in aggregate metrics. \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

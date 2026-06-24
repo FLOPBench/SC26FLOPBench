@@ -1,0 +1,171 @@
+\section{Results}
+\label{sec:results}
+
+Unless stated otherwise, the main cross-model comparisons in this section use the 732 kernel-device rows completed by all three models in both prompt settings.
+That avoids coverage bias from the incomplete \gptoss runs while preserving paired source-versus-SASS comparisons.
+
+\subsection{RQ1: How Accurate Is Execution-Free \rai Triage Across the Corpus?}
+
+\textbf{Answer.}
+Off-the-shelf LLMs already provide useful execution-free triage for many nonzero FP32/FP64 cases, but source-only FP16 prediction is effectively at the trivial baseline.
+
+\input{tables/results_summary_shared}
+
+Table~\ref{tab:shared-results-summary} summarizes the main released comparison subset.
+Two points are immediate.
+First, all three source-only FP16 configurations collapse to the trivial regime: every model has 100\% median nonzero APE, and both \gptfivefour and \opus sit at 0.50 balanced accuracy for nonzero \bandwidthbound/\computebound triage.
+This is indistinguishable from always predicting the memory side.
+Second, source-only FP32/FP64 results are already materially better for the frontier models.
+On the shared rows, \opus reaches median nonzero APE of 43.9\% for FP32 and 52.0\% for FP64, with balanced triage accuracy of 0.94 and 0.76 respectively.
+\gptfivefour is weaker but still usable for triage at 59.2\%/74.5\% median nonzero APE and 0.89/0.67 balanced accuracy.
+Even the weakest source-only FP32/FP64 configurations substantially outperform the trivial global-median-\rai heuristic, whose median APE is effectively 100\% on the shared subset.
+
+The zero-aware tasks tell the same story.
+Source-only FP16 zero-versus-nonzero detection stays near the trivial 0.50 baseline for all three models (0.52 for \gptfivefour, 0.51 for \gptoss, and 0.52 for \opus).
+By contrast, source-only FP32/FP64 zero detection is already strong, reaching 0.86/0.89 balanced accuracy for \gptfivefour and 0.85/0.88 for \opus.
+The stricter three-way \{zero, \bandwidthbound, \computebound\} view is lower, as expected, but it preserves the same ranking:
+source-only FP16 remains near the 0.33 trivial baseline, while source-only FP32/FP64 rise to 0.82/0.68 for \gptfivefour and 0.85/0.73 for \opus.
+Appendix Table~\ref{tab:shared-class-balance} makes the shared-subset skew explicit:
+FP16/FP32/FP64 contain 513/496/623 zero rows out of 732, leaving only 34/50/53 compute-bound rows.
+That is why the balanced task splits matter most in FP16 and FP64, where raw accuracy would largely reflect the zero majority rather than the usefulness of the triage signal.
+
+Those gains are not explained by a simple lexical rule, but they are also not the only source-level baseline worth taking seriously.
+Appendix Table~\ref{tab:static-baselines} adds both deterministic and lightweight learned static references.
+The grouped runtime$\times$GPU median baseline already captures some of the zero-heavy FP16 structure (0.790 Task~A and 0.535 Task~D), but it collapses to the trivial 0.50/0.333 regime on FP32/FP64, so simple execution-context priors do not explain the frontier source-only results.
+The deterministic source heuristic stays near trivial:
+it reaches Task~D balanced accuracy of only 0.444 for FP32 and 0.531 for FP64, with median nonzero APE near 100\% on both precisions.
+The grouped source learned baselines show that source-only FP16 collapse is not inevitable for a supervised static method:
+the source random-forest and extra-trees rows reach 0.688--0.699 Task~C and 0.691--0.697 Task~D in FP16, far above the one-shot source-only LLM results.
+They are still poor numeric regressors, however, with 141.6--217.4\% FP16 median nonzero APE and 100\% median nonzero APE on FP32/FP64.
+That is better read as corpus-level triage learning than as accurate numeric \rai prediction.
+Appendix Table~\ref{tab:seed-sensitivity} shows that the learned-baseline ranking is stable across five seeds: Task~C standard deviations stay below 0.034.
+On FP32/FP64 binary triage, the frontier source-only LLMs remain at least competitive and often stronger.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/nonzero_ape_boxplots.png}
+  \caption{Absolute percent error on nonzero \rai cases.
+  Source-only FP16 collapses at the 100\% ceiling for all models, while \sourcesass sharply improves FP16 for the frontier models and also tightens many FP32/FP64 distributions.
+  Lower is better.}
+  \Description{Boxplots of nonzero arithmetic-intensity absolute percent error by model, precision, and evidence type, with all source-only FP16 distributions pressed against a 100 percent ceiling and frontier-model source-plus-SASS results notably lower.}
+  \label{fig:nonzero-ape}
+\end{figure}
+
+Figure~\ref{fig:nonzero-ape} shows the same pattern distributionally.
+The nonzero error distributions are extremely heavy-tailed, which is why we emphasize medians, balanced accuracy, and explicit task splits.
+The figure also makes it clear that \gptoss should be read as a low-cost operating point rather than a full substitute for the frontier models: its source-only FP32/FP64 behavior is not catastrophic, but its FP16 behavior remains pinned at the ceiling and its completion coverage is materially lower.
+
+The GPU and runtime effects are real, but they are uneven rather than universal.
+The appendix GPU-stratified and runtime-stratified plots show lower FP32/FP64 absolute errors on A100/H100 than on 3080/A10, consistent with the original observation that smaller-cache GPUs make DRAM-visible traffic harder to infer.
+The runtime split also remains precision-sensitive: CUDA tends to be easier for FP16/FP32 triage, while FP64 behavior is more mixed across CUDA and OpenMP.
+
+\textbf{Practical implication.}
+If only source-level evidence is available, off-the-shelf prompting is already a plausible early triage tool for many FP32/FP64 cases, but not for FP16.
+Any tool that uses source-only LLM triage should therefore surface its FP16 uncertainty explicitly rather than treating all precisions symmetrically.
+
+\subsection{RQ2: Does Post-Compilation Information Improve Triage?}
+
+\textbf{Answer.}
+Yes, decisively for FP16 and materially for the frontier models; the effect is smaller and less consistent for FP32/FP64, and much weaker for \gptoss.
+
+The source-versus-SASS differences are best read as paired deltas on nonzero rows.
+For \opus, \sourcesass lowers median nonzero FP16 APE by 78.9 points and raises nonzero balanced triage accuracy from 0.50 to 0.984.
+For \gptfivefour, the corresponding FP16 triage lift is from 0.50 to 0.870, with 68.9\% of paired nonzero FP16 rows improving.
+These gains are exactly what we would expect when source-visible semantics hide compiler-injected FP16 work.
+
+The FP32/FP64 story is more nuanced.
+For \opus, \sourcesass still improves median nonzero APE from 43.9\% to 18.3\% in FP32 and from 52.0\% to 15.3\% in FP64, but the balanced \bandwidthbound/\computebound lift is much smaller because source-only triage was already strong.
+\gptfivefour also improves numerically in FP32/FP64, but less dramatically.
+\gptoss shows almost no meaningful FP16 response to SASS and only mixed FP32/FP64 changes.
+
+The paired evidence is stronger than the aggregate medians alone suggest.
+On paired nonzero rows, exact sign tests favor \sourcesass over \sourceonly for every frontier-model precision setting:
+for \gptfivefour, $p=4.7\times 10^{-12}$, $2.5\times 10^{-3}$, and $1.1\times 10^{-3}$ across FP16/FP32/FP64;
+for \opus, $p=9.7\times 10^{-15}$, $2.5\times 10^{-4}$, and $1.8\times 10^{-4}$.
+For the largest FP16 effects, paired bootstrap 95\% confidence intervals on the median absolute-percent-error reduction are [0.8,\,26.9] for \gptfivefour and [54.7,\,87.5] for \opus.
+The FP64 intervals remain positive for \opus ([0.01,\,30.5]) and touch zero for \gptfivefour ([0.0,\,23.8]), while FP32 intervals are narrower and often pinned near zero despite significant sign tests.
+Exact McNemar tests on Task~C likewise confirm the FP16 classification lift for \gptfivefour and \opus ($p=3.8\times 10^{-3}$ and $7.1\times 10^{-6}$), while FP32/FP64 paired classification gains are smaller and not consistently significant because source-only triage is already strong there.
+
+Appendix Table~\ref{tab:static-baselines} also shows that post-compilation artifacts carry real signal even without an LLM.
+The SASS mnemonic baseline already lifts zero/nonzero and three-way triage, and the learned SASS tree baselines reach 0.737--0.739 Task~C balanced accuracy in FP32 and 0.744--0.824 in FP64.
+On SASS-backed FP64 binary triage the random-forest baseline exceeds the frontier LLMs, and the mnemonic baseline is even stronger in the budgeted retrieval setting, suggesting that compact post-compilation counts already capture much of that regime.
+But those same static baselines remain weak on FP16 (best Task~C 0.591) and poor numeric regressors in FP16/FP32, so they do not eliminate the need for richer reasoning where compiler-realized work and memory effects are harder to reduce to counts alone.
+The frontier LLMs remain decisively strongest on \sourcesass FP16 and still lead the main FP32 triage comparison.
+
+This is the central methodological lesson of the paper.
+Post-compilation evidence matters most when the source no longer exposes the computation that the profiler ultimately counts.
+SASS is not universally required, but it is often the difference between trivial and useful FP16 triage.
+
+\textbf{Practical implication.}
+There are really two workflows here.
+\sourceonly is the right deployment point for pre-compilation review and design-time triage.
+\sourcesass is the right deployment point when compilation for the target architecture is possible but execution or profiling is still unavailable.
+Tools should not collapse those workflows into a single ``hardware-free'' claim.
+
+\subsection{RQ3: Where Do Frontier LLMs Beat Cheap Static Alternatives, and Where Do They Not?}
+
+\textbf{Answer.}
+Frontier LLMs dominate the main FP32 triage regimes and \sourcesass FP16, but cheap static methods already match or exceed point estimates in \sourceonly FP16 and \sourcesass FP64.
+
+\input{tables/llm_vs_static_task_c}
+
+Table~\ref{tab:llm-vs-static-task-c} makes the regime boundaries explicit by comparing the best off-the-shelf LLM and the best static reference separately within each prompt/precision cell.
+The strongest paired LLM wins are \sourceonly FP32 (0.940 versus 0.815, 44 versus 3 discordant wins, $p<0.001$), \sourcesass FP16 (0.984 versus 0.591, 35 versus 5, $p<0.001$), and \sourcesass FP32 (0.967 versus 0.739, 46 versus 2, $p<0.001$).
+These are exactly the regimes where richer reasoning about lowered arithmetic and DRAM-visible traffic appears to matter most.
+
+The static side is still real.
+In \sourceonly FP16, the best grouped source baseline reaches 0.699 Task~C balanced accuracy while every source-only LLM remains at the 0.50 trivial baseline.
+In \sourcesass FP64, the best learned SASS baseline reaches 0.824 versus 0.765 for the best LLM.
+Those are point-estimate advantages rather than statistically decisive paired wins on the shared subset (exact $p=0.210$ and $p=0.238$), which is unsurprising given that FP16 and FP64 contain only 34 and 53 compute-bound rows respectively.
+Still, together with the budget-sweep table, they show that some regimes are already recoverable from cheap static features after lowering.
+
+Numeric \rai estimation remains the sharper separator.
+Even where static baselines are competitive for triage, their nonzero median APE remains much larger than the strongest frontier LLM results in the corresponding cells:
+217\% versus 100\% for \sourceonly FP16, 100\% versus 43.9\% for \sourceonly FP32, and 67.1\% versus 15.3\% for \sourcesass FP64.
+The static baselines therefore look better as queueing or routing components than as direct numeric \rai estimators.
+
+\textbf{Practical implication.}
+The right takeaway is not ``LLMs beat static methods everywhere'' or the reverse.
+A practical tool should route by regime:
+cheap static filters are credible for \sourceonly FP16 and some \sourcesass FP64 cases, while frontier LLM reasoning is most justified for \sourcesass FP16 and the main FP32 triage cells.
+
+\subsection{RQ4: What Does the Signal Buy Under a Profiling Budget?}
+
+\textbf{Answer.}
+Ranking rows by predicted \rai relative to the balance point can move many true compute-bound kernels to the front of a fixed profiling queue, especially for FP16 with \sourcesass and for FP32 even in \sourceonly mode.
+
+\input{tables/budget_recall_at_10}
+
+Table~\ref{tab:budget-recall-at-10} makes the scarce-resource scenario explicit.
+If a tool profiles only the top 10\% of kernel-device rows per precision, random ranking would recover 10\% of the true compute-bound rows by construction.
+On the shared subset, \sourcesass \gptfivefour and \opus recover all FP16 compute-bound rows at that budget, while their source-only variants recover none.
+FP32 is already strong source-only: the top 10\% of \gptfivefour rows recovers 82\% of true compute-bound cases, and \opus reaches 96\%.
+FP64 remains harder, plateauing around 0.55--0.59 recall at the same budget.
+
+The selected queues are also strongly enriched relative to random.
+At the same 10\% budget, \sourcesass FP16 queues for \gptfivefour and \opus are about 9.9$\times$ richer in true compute-bound rows than random, and source-only FP32 queues for \gptfivefour and \opus are about 8.1$\times$ and 9.5$\times$ richer.
+This is the main practical reading of the paper's signal:
+it is useful not because it replaces profiling, but because it can prioritize which kernels reach the profiler first.
+
+The 10\% point is not the whole story.
+Appendix Table~\ref{tab:budget-recall-sweep} shows that the ranking is broadly stable across 5/10/20/30\% budgets, and it sharpens the comparison to the static baselines.
+For source-only FP16 queueing, the best learned static baseline is already stronger than any source-only LLM, reaching 0.471/0.765/0.971/1.000 recall across the sweep.
+For \sourcesass FP16, the frontier LLM remains clearly better, with \opus already at 0.971 recall at 5\% budget and 1.000 by 10\%.
+For source-only FP32, \opus remains strongest at the front of the queue.
+For \sourcesass FP64, a cheap SASS mnemonic ranker outperforms the LLMs across the whole sweep, again showing that some post-compilation regimes are largely recoverable from deterministic counts alone.
+Appendix Table~\ref{tab:compute-bound-prf} shows that these rankings are not merely high-recall because the models predict compute-bound everywhere.
+On FP32, source-only \opus reaches compute-bound precision/recall/F1 of 1.000/0.880/0.936, and \sourcesass raises that to 0.979/0.940/0.959.
+The FP16 failure mode is much sharper:
+every source-only model has zero compute-bound recall, while \gptoss \sourcesass reaches only 0.176 recall despite 0.750 precision.
+This is why we treat source-only FP16 triage as unusable and the frontier \sourcesass FP16 lift as practically meaningful rather than cosmetic.
+
+That practical value still has a price.
+The strongest models are also much more expensive, but the latency ranking is not monotonic.
+
+Table~\ref{tab:shared-results-summary} reports median per-query cost and latency on the shared subset.
+\gptoss remains orders of magnitude cheaper than the frontier models: roughly \$0.0006 per source-only query and \$0.0008 with SASS, versus \$0.0197/\$0.0315 for \gptfivefour and \$0.0679/\$0.1066 for \opus.
+Latency is different: \gptfivefour is the fastest median response at roughly 11.3\,s source-only and 12.3\,s with SASS, while \gptoss is the slowest at about 33\,s in both settings.
+
+\textbf{Practical implication.}
+The strongest deployment is a cascade, not an LLM-only stack.
+Cheap static rankers already cover source-only FP16 and \sourcesass FP64 surprisingly well, while frontier LLMs justify their cost where source-visible semantics are insufficient, especially for \sourcesass FP16 and the main FP32 triage regimes.

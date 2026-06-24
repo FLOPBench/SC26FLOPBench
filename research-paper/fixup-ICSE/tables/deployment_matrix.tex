@@ -1,0 +1,17 @@
+\begin{table}[t]
+  \centering
+  \caption{Deployment routing summary from the shared subset. These are corpus-backed first-stage choices, not universal rules.}
+  \label{tab:deployment-matrix}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}p{0.18\columnwidth}p{0.22\columnwidth}p{0.46\columnwidth}@{}}
+    \toprule
+    Regime & First stage & Why \\
+    \midrule
+    \sourceonly FP16 & Static-first & One-shot LLMs stay at the trivial Task~C baseline; cheap source features recover more queueing signal. \\
+    \sourceonly FP32/FP64 & Frontier LLM & Best pre-compilation triage overall, especially for FP32 where paired LLM wins are decisive. \\
+    \sourcesass FP16/FP32 & Frontier LLM & Largest paired gains once lowered arithmetic and DRAM-visible behavior become explicit. \\
+    \sourcesass FP64 & Static-first, LLM optional & Cheap SASS counts and learned SASS features already match or beat one-shot LLM triage in this regime. \\
+    \bottomrule
+  \end{tabular}
+\end{table}

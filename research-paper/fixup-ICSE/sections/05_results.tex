@@ -1,0 +1,93 @@
+\section{Results}
+\label{sec:results}
+
+Unless stated otherwise, the main cross-model comparisons use the 732 samples completed by all three models in both prompt settings.
+That shared subset avoids coverage bias from the incomplete \gptoss runs while preserving paired source-versus-SASS comparisons.
+We report nonzero \bandwidthbound/\computebound regime classification as the primary outcome and use numeric \rai error as a diagnostic; the underlying zero/nonzero detection and three-way summaries appear in the appendix.
+
+\input{tables/results_summary_shared}
+
+\subsection{RQ1: Can Source Alone Classify the Roofline Regime?}
+
+\textbf{Answer.}
+For single precision, yes; for half precision, no.
+
+Table~\ref{tab:shared-results-summary} reports nonzero \bandwidthbound/\computebound balanced accuracy by model, precision, and evidence setting.
+From source alone, \opus classifies the FP32 regime at 0.940 balanced accuracy and FP64 at 0.755; \gptfivefour reaches 0.889/0.670, and even the budget \gptoss reaches 0.875/0.690.
+These are strong numbers for a pre-compilation signal: the models recover the compute-versus-memory branch for most single-precision kernels using only source, build context, runtime arguments, and GPU specifications.
+The compute-bound precision/recall breakdown (Appendix Table~\ref{tab:compute-bound-prf}) shows this is not an artifact of over-predicting one class: source-only FP32 \opus reaches 1.000 precision at 0.880 recall on the compute-bound side, and 0.966 precision at 0.528 recall for FP64.
+
+The failure is half precision.
+From source alone, every model---including the frontier ones---sits exactly at the 0.500 chance baseline for FP16 (Table~\ref{tab:shared-results-summary}), and compute-bound recall is zero (Appendix Table~\ref{tab:compute-bound-prf}).
+This is a clean split: the same models that classify single-precision regimes well are no better than a coin flip on half precision when given only source.
+
+\textbf{Practical implication.}
+A source-only triage tool can already be trusted for single-precision regime calls but must abstain---or escalate to more evidence---on half precision.
+
+\subsection{RQ2: What Does Cross-Compiled SASS Add, and Why?}
+
+\textbf{Answer.}
+It closes the half-precision gap, and the mechanism is compiler-synthesized arithmetic.
+
+Adding SASS lifts FP16 \bandwidthbound/\computebound balanced accuracy from the 0.500 source-only baseline to 0.984 for \opus and 0.870 for \gptfivefour (Table~\ref{tab:shared-results-summary}).
+The gain is specific to the evidence, not the model: the same frontier models were at chance for FP16 with source, while \gptoss---which makes weaker use of long SASS prompts---only reaches 0.583.
+A paired McNemar test on the shared FP16 samples confirms the source-to-SASS classification gain is decisive for the frontier models ($p<10^{-5}$ for \opus, $p<0.01$ for \gptfivefour).
+
+The reason is mechanistic and visible in the released samples.
+Half-precision throughput on these GPUs comes from packed \texttt{HFMA2} instructions that the compiler synthesizes; they are not syntactically present in source, so source-only reasoning conservatively misses them.
+In \texttt{accuracy-cuda} on the A100, source-only \opus predicts zero FP16 work and gets the regime wrong, while with SASS it attributes the nonzero FP16 signal to an executed \texttt{HFMA2.MMA} instruction and classifies correctly (Table~\ref{tab:illustrative-rows}).
+This is why the result generalizes beyond a single model: \emph{half-precision Roofline reasoning requires compilation, not execution}, and cross-compilation supplies it without the target GPU.
+
+SASS helps single precision much more modestly.
+FP32 balanced accuracy rises from 0.940 to 0.967 for \opus, and FP64 from 0.755 to 0.765---useful but far smaller than the FP16 jump, because single-precision arithmetic is already mostly source-visible.
+
+\paragraph{Numeric \rai as a diagnostic.}
+The numeric error tracks the same evidence boundary, which is why we read it as a diagnostic rather than a headline.
+Table~\ref{tab:rai-threshold-success} reports how often the predicted numeric \rai lands within a given relative error.
+Where classification is strong, the number is also close: with SASS, \opus is within 25\% of the profiled \rai on 47.0\% of nonzero FP16, 53.0\% of FP32, and 44.0\% of FP64 samples, with median errors of 20.4\%, 18.3\%, and 15.3\%.
+Where source is blind (FP16), numeric accuracy collapses to under 1\% of samples within 25\%.
+The numeric distributions are heavy-tailed (Figure~\ref{fig:nonzero-ape}): some kernels are predicted almost exactly while others are orders of magnitude off, so a deployed tool should treat numeric \rai as a coarse hint and rely on the more robust regime classification.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/nonzero_ape_boxplots.png}
+  \caption{Absolute percent error on nonzero \rai cases.
+  The distribution has both a useful low-error region and a long failure tail.
+  \sourcesass sharply expands the low-error FP16 region for the frontier models and tightens many FP32/FP64 distributions, mirroring the classification gains.}
+  \Description{Boxplots of nonzero arithmetic-intensity absolute percent error by model, precision, and evidence type, with source-only FP16 pressed against high error and frontier-model source-plus-SASS results notably lower.}
+  \label{fig:nonzero-ape}
+\end{figure}
+
+\input{tables/rai_threshold_success}
+
+\subsection{RQ3: How Do These Signals Compare in Accuracy and Cost?}
+
+\textbf{Answer.}
+The LLM signals beat lightweight static baselines in most regimes, they form a clear cost/accuracy tier, and they are far cheaper than profiling.
+
+\paragraph{Versus static baselines.}
+\input{tables/llm_vs_static_task_c}
+Table~\ref{tab:llm-vs-static-task-c} compares the best off-the-shelf LLM against the best static reference for nonzero \bandwidthbound/\computebound classification.
+The LLM wins decisively (exact paired tests, $p<0.001$) in source-only FP32, \sourcesass FP16, and \sourcesass FP32.
+The static side is real in two regimes.
+In source-only FP16, where every LLM is at chance, a grouped source-feature baseline reaches 0.723; and in \sourcesass FP64, a learned SASS baseline reaches 0.841 versus 0.765 for the best LLM (a point-estimate advantage, not a decisive paired win).
+Numeric \rai estimation, by contrast, stays a clean LLM separator: even where a static baseline is competitive for classification, its nonzero MedAPE remains far larger than the strongest LLM (for \sourcesass FP64, 62.4\% for the best static baseline versus 15.3\% for \opus).
+This is why we frame deployment as a cascade rather than an LLM-only tool: cheap static features should handle source-only FP16 and \sourcesass FP64, and LLMs should handle the regimes where they win.
+
+\input{tables/regime_map}
+
+\paragraph{Cost tiering.}
+Table~\ref{tab:shared-results-summary} also reports median per-query cost and latency, and the configurations form a tier.
+The budget \gptoss classifies the source-only FP32 regime at 0.875 balanced accuracy for a median \$0.0006 per query; \gptfivefour reaches 0.889 for \$0.0197; and \opus reaches 0.940 for \$0.0679.
+For FP16, only the SASS-backed frontier tier works, at \$0.0315 (\gptfivefour) to \$0.1066 (\opus) per query.
+Even the most expensive configuration is roughly \$0.11 per kernel-GPU pair.
+The recurring objection from performance-modeling venues---that LLM calls might cost as much as just measuring---does not hold for the source-only single-precision tier: at \$0.0006 per kernel it is well below the marginal cost of a full compile-and-profile pass and, unlike profiling, needs no target-hardware access at all.
+The frontier+SASS tier is more nuanced and we treat it honestly; Section~\ref{sec:discussion} works the comparison through.
+
+\paragraph{Profiling-priority corollary.}
+\input{tables/budget_recall_at_10}
+The same classification signal can also order a scarce profiling queue.
+Table~\ref{tab:budget-recall-at-10} ranks samples by predicted \rai relative to the balance point and profiles only the top 10\%.
+\sourcesass \gptfivefour and \opus surface every FP16 compute-bound kernel at that budget, and source-only FP32 rankings surface 82--96\% of true compute-bound kernels; FP64 plateaus near 0.55--0.59.
+Because compute-bound kernels are rare in this corpus (only 34 of 732 FP16 samples; Table~\ref{tab:shared-class-balance}), this 10\% budget exceeds the positive count, so it is a high-recall but low-precision operating point.
+We therefore report it as a corollary of the classification result rather than as a separate utility claim, and the appendix budget sweep shows the ranking story is broadly stable across 5/10/20/30\% budgets while also flagging where static rankers win.

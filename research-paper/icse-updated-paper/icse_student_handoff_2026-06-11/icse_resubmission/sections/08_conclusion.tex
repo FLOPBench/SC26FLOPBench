@@ -1,0 +1,13 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper reframes LLM-based GPU performance reasoning as an ICSE problem: execution-free early triage from software artifacts.
+Using source files, build context, runtime arguments, and optional SASS, off-the-shelf LLMs can often estimate a profiler-relevant \rai signal well enough to support early GPU-kernel triage.
+That statement is strongest for nonzero FP32/FP64 cases from source alone and for FP16 once post-compilation evidence is available.
+In a fixed 10\% profiling-budget simulation, the strongest configurations move a large fraction of true compute-bound rows to the front of the queue.
+The added static baselines show a more nuanced landscape:
+simple deterministic and lightweight learned methods recover part of the same signal, and they are competitive in some source-only FP16 and \sourcesass FP64 settings, but they do not eliminate the need for stronger reasoning on nonzero FP16/\sourcesass FP32 triage or for accurate numeric \rai prediction.
+
+The evidence does not support a stronger claim.
+These models do not replace profilers, they do not predict runtime in general, and they remain brittle when compiler-realized behavior diverges from surface syntax.
+What the paper does show is narrower and useful: execution-free \rai prediction is now a benchmarkable software-engineering task, and off-the-shelf prompting already provides a strong practical baseline within a broader space of static reasoning methods.

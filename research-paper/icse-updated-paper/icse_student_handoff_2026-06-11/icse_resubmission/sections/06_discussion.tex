@@ -1,0 +1,60 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What this enables for AI-assisted software engineering.}
+The paper's strongest positive result is not a raw error number; it is that off-the-shelf LLMs can often provide a \emph{useful early decision proxy} from software artifacts alone.
+That is directly relevant to AI coding agents and developer-facing tools.
+Before spending target-GPU time, an agent can ask a narrower question than ``will this be faster?'':
+is this kernel likely still on the memory side of the Roofline, or has the change plausibly shifted it toward the compute side?
+That is a simpler, earlier, and more defensible use of LLM-based performance reasoning.
+The budgeted retrieval result makes that point concrete:
+at a 10\% profiling budget, \sourcesass \gptfivefour and \opus recover all shared-subset FP16 compute-bound rows, and source-only FP32 rankings already recover 82--96\%.
+The revised baseline comparison also makes the positive result narrower and more useful:
+the LLM is not the only viable execution-free triage mechanism, but it is the strongest option in the regimes where source-visible intent and post-compilation behavior diverge most.
+
+\paragraph{Where \sourceonly and \sourcesass fit in a real workflow.}
+The paper also clarifies that execution-free reasoning has two meaningful stages.
+\sourceonly fits pre-compilation tasks such as code review, design exploration, and agent planning.
+\sourcesass fits a later stage where the code can be compiled for a target architecture but the accelerator is still unavailable for execution or profiling.
+Treating both stages as the same ``hardware-free'' scenario obscures an important software-engineering distinction: compilation artifacts are themselves a development resource.
+
+\paragraph{Why deterministic and learned static features still matter.}
+The added reference baselines sharpen the methodological boundary.
+A simple lexical source rule is not enough to explain the useful FP32/FP64 source-only signal, and a runtime$\times$GPU median baseline collapses outside the zero-heavy FP16 split.
+But supervised source-only baselines can still recover corpus-level triage cues, and architecture-specific SASS counts already expose substantial post-compilation structure after lowering.
+In a few regimes, especially source-only FP16 queueing and \sourcesass FP64 triage, the static baselines are competitive with or stronger than one-shot prompting.
+That suggests a practical direction for tool builders:
+combine deterministic compiler or disassembly features, lightweight supervised models, and LLM reasoning in a cascade, rather than treating them as competing substitutes.
+Table~\ref{tab:deployment-matrix} distills that cascade into the first-stage routing choice that the released evidence actually supports.
+
+\input{tables/deployment_matrix}
+
+\paragraph{What the released rows look like in practice.}
+Appendix Table~\ref{tab:illustrative-rows} makes the aggregate story concrete with two released rows.
+In \texttt{accuracy-cuda}, the source-only explanation explicitly notes that compiler-generated \texttt{HFMA2} instructions may exist but cannot be justified from source alone, so the model conservatively predicts zero FP16 work; once SASS is added, the same model attributes the nonzero FP16 signal to an executed \texttt{HFMA2.MMA} instruction and matches the profiler almost exactly.
+In \texttt{boxfilter-cuda}, by contrast, the source already exposes the 21-tap loop trip count, the 64 output threads per block, and the roughly 1\,MiB read footprint, so source-only FP32 reasoning is already effectively exact.
+That pair is the paper's core deployment lesson in miniature:
+\sourcesass matters most when lowering creates executed work that the source does not expose, not for every kernel.
+
+\paragraph{What tool builders should and should not take from the results.}
+Tool builders should use the method as a triage filter, not as a ground-truth oracle.
+The useful deployment is to prioritize profiling effort, annotate likely memory-side versus compute-side cases, or flag kernels whose source-level reasoning is too uncertain to trust.
+The unsafe deployment is to use the predictions as a runtime substitute, a speedup estimator, or a universal static analysis of GPU performance.
+The FP16 results make that limit especially clear: without post-compilation evidence, the models often miss work that only becomes visible after lowering.
+
+\paragraph{What the exploratory failure map still suggests.}
+We intentionally demote the feature/error heatmap to Appendix Figure~\ref{fig:feature-heatmap} because its labels come from an auxiliary LLM-voting pipeline rather than human annotation.
+The appendix now adds a post-hoc multiple-comparison sanity check and raw kernel-prevalence counts for that figure, so the repeated positive cells are no longer just visual impressions.
+Even so, its descriptive pattern is consistent with the comparative results above:
+division, special math, reusable subexpressions, and loop-invariant floating-point work remain difficult largely because source-visible intent is a weak proxy for compiled arithmetic and DRAM-visible traffic in exactly those cases.
+
+\paragraph{Why the benchmark release matters.}
+Even with the method's limitations, the released corpus is a useful research contribution in its own right.
+It exposes a benchmarkable software-engineering task with source files, build context, runtime arguments, SASS, profiler-derived labels, and model outputs.
+The added deterministic and learned reference baselines show why that matters:
+the benchmark is not just for ranking off-the-shelf LLMs, but for comparing multiple execution-free reasoning strategies that win in different regimes.
+It still supports several follow-on directions that the current paper cannot complete without new experiments: stronger compiler-grade analyzers, repeated-query robustness studies, and hybrid predictors that combine compiler features with LLM reasoning.
+
+\paragraph{Why the claims are intentionally narrow.}
+The measured evidence supports execution-free triage, not general GPU-performance prediction.
+That narrower claim is still valuable: it better matches the observed behavior, it better fits the needs of AI-assisted software engineering, and it gives future work a cleaner benchmark target.

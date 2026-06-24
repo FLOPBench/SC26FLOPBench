@@ -1,0 +1,17 @@
+\begin{table*}[t]
+  \centering
+  \caption{Seed sensitivity for the learned static baselines across five grouped-CV seeds. Each entry reports mean$\pm$std over seeds for Task~C balanced accuracy and nonzero MedAPE. The low spread shows that the static-baseline comparisons are not driven by an unusually favorable random seed.}
+  \label{tab:seed-sensitivity}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Baseline & FP16 C / MedAPE & FP32 C / MedAPE & FP64 C / MedAPE & FP16 std(C) & FP32 std(C) & FP64 std(C) \\
+    \midrule
+    Source learned RF & 0.710 / 115.2 & 0.801 / 100.0 & 0.661 / 100.0 & 0.028 & 0.010 & 0.009 \\
+    Source learned ET & 0.674 / 227.2 & 0.767 / 100.0 & 0.585 / 100.0 & 0.034 & 0.025 & 0.019 \\
+    SASS learned RF & 0.578 / 182.3 & 0.736 / 100.0 & 0.831 / 73.6 & 0.014 & 0.001 & 0.007 \\
+    SASS learned ET & 0.591 / 174.5 & 0.735 / 100.0 & 0.720 / 100.0 & 0.011 & 0.004 & 0.044 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

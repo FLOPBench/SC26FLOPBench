@@ -1,0 +1,21 @@
+% PLACEHOLDER TABLE -- to be filled from the deferred repeated-query experiment.
+% Plan: run GPT-OSS 5--10x (and a small Opus subset) on the stratified ~50-kernel
+% panel; report mean +/- 95% CI of nonzero BB/CB balanced accuracy across repeats.
+% See REFRAME_PLAN.md "Sampling protocol" for panel construction.
+\begin{table}[H]
+  \centering
+  \caption{\textbf{[PLACEHOLDER --- pending deferred experiment.]} Run-to-run stability of nonzero \bandwidthbound/\computebound balanced accuracy across repeated queries on the stratified robustness panel. Each cell will report mean $\pm$ 95\% CI over repeats. Values are to be filled from the planned variance study.}
+  \label{tab:repeated-query-variance}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llrrr}
+    \toprule
+    Model & Evidence & FP16 BalAcc & FP32 BalAcc & FP64 BalAcc \\
+    \midrule
+    \gptoss & \sourceonly & TBD & TBD & TBD \\
+    \gptoss & \sourcesass & TBD & TBD & TBD \\
+    \opus & \sourceonly & TBD & TBD & TBD \\
+    \opus & \sourcesass & TBD & TBD & TBD \\
+    \bottomrule
+  \end{tabular}
+\end{table}

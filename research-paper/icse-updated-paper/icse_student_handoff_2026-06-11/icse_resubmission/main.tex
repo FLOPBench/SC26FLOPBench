@@ -1,0 +1,104 @@
+\documentclass[sigconf,review,anonymous]{acmart}
+
+\settopmatter{printfolios=true}
+\citestyle{acmnumeric}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{xspace}
+\emergencystretch=1em
+
+\newcommand{\rai}{RAI\xspace}
+\newcommand{\sourceonly}{\textit{source-only}\xspace}
+\newcommand{\sourcesass}{\textit{source+SASS}\xspace}
+\newcommand{\gptfivefour}{\texttt{GPT-5.4}\xspace}
+\newcommand{\gptoss}{\texttt{GPT OSS}\xspace}
+\newcommand{\opus}{\texttt{Opus 4.6}\xspace}
+\newcommand{\bandwidthbound}{\textsc{BB}\xspace}
+\newcommand{\computebound}{\textsc{CB}\xspace}
+\newcommand{\pmten}{$\pm 10\%$\xspace}
+\newcommand{\medianape}{median absolute percent error\xspace}
+\newcommand{\ctr}[1]{\nolinkurl{#1}}
+
+\title{Execution-Free Roofline Triage for GPU Kernels with Off-the-Shelf LLMs}
+
+\author{Anonymous Author(s)}
+\affiliation{%
+  \institution{Anonymous Institution(s)}
+  \country{Anonymous}
+}
+
+\setcopyright{none}
+\acmConference[ICSE Submission]{International Conference on Software Engineering}{Under Review}{}
+\acmBooktitle{International Conference on Software Engineering (ICSE), Submission Version}
+\acmYear{2027}
+\copyrightyear{2027}
+\acmDOI{}
+\acmISBN{}
+
+\begin{document}
+
+\begin{abstract}
+AI coding agents increasingly propose GPU code changes, but evaluating those changes still depends on compile-run-profile loops on scarce target hardware.
+This paper studies a narrower software-engineering question: can off-the-shelf large language models provide an execution-free early triage signal for GPU kernels before runtime profiling is available?
+
+We formulate the task as predicting profiler-derived DRAM-level Roofline Arithmetic Intensity (\rai) from software artifacts.
+For each first kernel invocation, the models predict launch dimensions, FP16/FP32/FP64 floating-point work, and DRAM bytes read and written; \rai follows from these quantities.
+We evaluate 254 CUDA and OpenMP kernels (95 programs, 1{,}016 kernel-device rows) across four NVIDIA GPUs, comparing \sourceonly prompts against prompts that also include post-compilation SASS.
+
+Across the completed evaluation subset, source-only reasoning is often sufficient for nonzero FP32/FP64 triage, but not for FP16.
+Adding SASS produces the strongest gains for the frontier models, especially for FP16 and nonzero bandwidth-bound versus compute-bound decisions.
+When rows are ranked by predicted \rai relative to the GPU balance point, the top 10\% of frontier-model \sourcesass predictions recover all shared-subset FP16 compute-bound rows, while source-only FP32 rankings already recover 82--96\%.
+Simple deterministic and lightweight learned static baselines recover part of the same signal, underscoring the benchmark value beyond a single model family.
+The strongest frontier LLMs remain best on \sourcesass FP16/FP32 triage, but lightweight learned baselines are competitive in some source-only FP16 and \sourcesass FP64 regimes while remaining poor numeric \rai regressors.
+We also package the benchmark, prompts, responses, and plotting artifacts for follow-on work; public URLs are omitted in this anonymous version.
+Our claim is therefore limited and practical: off-the-shelf LLMs can provide an execution-free triage signal for GPU kernels, but they do not replace profiling.
+\end{abstract}
+
+\keywords{software performance, GPUs, Roofline, arithmetic intensity, large language models, static performance reasoning}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10011007.10011074.10011092.10011782</concept_id>
+<concept_desc>Software and its engineering~Software performance</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10011007.10011074.10011075.10011080</concept_id>
+<concept_desc>Software and its engineering~Software prototyping</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10002950.10003714.10003716.10011138</concept_id>
+<concept_desc>Mathematics of computing~Performance analysis</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Software and its engineering~Software performance}
+\ccsdesc[300]{Software and its engineering~Software prototyping}
+\ccsdesc[300]{Mathematics of computing~Performance analysis}
+
+\maketitle
+
+\input{sections/01_introduction}
+\input{sections/02_background_related_work}
+\input{sections/03_task_methodology}
+\input{sections/04_study_design}
+\input{sections/05_results}
+\input{sections/06_discussion}
+\input{sections/07_threats}
+\input{sections/08_conclusion}
+
+\appendix
+\input{sections/09_appendix}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{refs}
+
+\end{document}

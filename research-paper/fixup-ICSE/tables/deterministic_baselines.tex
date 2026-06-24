@@ -1,0 +1,20 @@
+\begin{table*}[t]
+  \centering
+  \caption{Static reference baselines on the 732-sample shared subset. Context median is a grouped cross-validated runtime$\times$GPU baseline; lexical and mnemonic are deterministic heuristics; the learned baselines are five-fold grouped tree baselines grouped by program. For each precision, the slash-separated triple reports Task~A zero/nonzero balanced accuracy, Task~C nonzero \bandwidthbound/\computebound balanced accuracy, and Task~D three-way balanced accuracy. ``MedAPE'' is the median nonzero absolute percent error.}
+  \label{tab:static-baselines}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Baseline & FP16 A/C/D & FP32 A/C/D & FP64 A/C/D & FP16 MedAPE & FP32 MedAPE & FP64 MedAPE \\
+    \midrule
+    Context median CV & 0.823 / 0.500 / 0.549 & 0.500 / 0.500 / 0.333 & 0.500 / 0.500 / 0.333 & 100.0 & 100.0 & 100.0 \\
+    Source lexical & 0.523 / 0.500 / 0.351 & 0.693 / 0.489 / 0.444 & 0.651 / 0.683 / 0.531 & 100.0 & 99.7 & 99.5 \\
+    SASS mnemonic & 0.983 / 0.500 / 0.656 & 0.897 / 0.577 / 0.649 & 0.995 / 0.756 / 0.834 & 95.9 & 64.9 & 68.8 \\
+    Source learned RF & 0.845 / 0.712 / 0.699 & 0.804 / 0.750 / 0.674 & 0.659 / 0.644 / 0.544 & 100.0 & 100.0 & 100.0 \\
+    Source learned ET & 0.842 / 0.723 / 0.703 & 0.772 / 0.695 / 0.622 & 0.624 / 0.498 / 0.430 & 217.7 & 100.0 & 100.0 \\
+    SASS learned RF & 0.973 / 0.586 / 0.705 & 0.913 / 0.723 / 0.743 & 0.879 / 0.841 / 0.815 & 190.9 & 100.0 & 62.4 \\
+    SASS learned ET & 0.917 / 0.608 / 0.686 & 0.860 / 0.730 / 0.712 & 0.835 / 0.725 / 0.692 & 163.1 & 100.0 & 100.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

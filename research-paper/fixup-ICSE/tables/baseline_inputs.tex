@@ -1,0 +1,17 @@
+\begin{table}[t]
+  \centering
+  \caption{Static reference baselines and their inputs.}
+  \label{tab:baseline-inputs}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{p{0.28\columnwidth}p{0.62\columnwidth}}
+    \toprule
+    Baseline & Inputs and training protocol \\
+    \midrule
+    Context median & Runtime and GPU only; grouped cross-validation predicts the training-fold median \rai with runtime/GPU fallbacks. \\
+    Source lexical & Deterministic source-token counts from \texttt{gpuFLOPBench.json}: arithmetic operators, memory references, types, and math calls; no training. \\
+    SASS mnemonic & Deterministic architecture-specific instruction-mix counts from \texttt{gpuFLOPBench.json}: floating-point and global-memory mnemonics; no dynamic counts. \\
+    Learned RF/ET & Random forest or extra-trees Stage~1 zero classifier plus Stage~2 $\log(1+\rai)$ regressor; GroupKFold by program; \sourceonly uses source lexical counts plus runtime/GPU, and \sourcesass adds static SASS instruction counts. \\
+    \bottomrule
+  \end{tabular}
+\end{table}

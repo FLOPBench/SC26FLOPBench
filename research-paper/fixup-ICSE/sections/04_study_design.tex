@@ -1,0 +1,119 @@
+\section{Study Design}
+\label{sec:study-design}
+
+\subsection{Benchmark Corpus}
+
+We draw workloads from the HeCBench suite \cite{jinBenchmarkSuiteImproving2023}, focusing on CUDA and OpenMP target-offload programs because they are both common GPU programming models and represent distinct source/build ecosystems \cite{kadoshQuantifyingOpenMPStatistical2023}.
+The final corpus contains 95 benchmark programs: 56 CUDA programs and 39 OpenMP programs.
+Those programs expose 254 first-invocation GPU kernels: 155 CUDA kernels and 99 OpenMP kernels.
+
+Profiling the corpus with NVIDIA Nsight Compute on four NVIDIA GPUs yields 1{,}016 samples.
+Each sample induces three precision-specific \rai labels (FP16/FP32/FP64), so the profiler-derived ground-truth space contains 3{,}048 precision-specific evaluation points before any model-query filtering.
+
+\input{tables/gpu_specs}
+
+We profile on four GPUs chosen to span different memory and compute regimes: RTX~3080, A10, A100, and H100.
+Table~\ref{tab:gpu-specs} lists the hardware characteristics and the resulting DRAM-level balance points used for \bandwidthbound/\computebound classification.
+We deliberately target DRAM-level \rai rather than a cache-aware Roofline variant, because DRAM traffic gives one profiler-derived signal that can be compared consistently across all samples.
+The paper's architectural question is therefore not whether models generalize to all accelerators; it is whether the same prompting strategy remains useful across noticeably different NVIDIA deployment targets.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/gt_distribution_by_gpu_precision.png}
+  \caption{Ground-truth \rai class distribution by GPU and precision.
+  Zero-valued \rai cases dominate every precision, FP16 nonzero cases are concentrated on A100/H100, and the nonzero class mix varies by device.
+  These imbalances motivate separate evaluation of zero detection, nonzero regression, and nonzero \bandwidthbound/\computebound triage.}
+  \Description{Stacked bars showing many zero-RAI cases in every precision, with nonzero FP16 concentrated on A100 and H100 and different bandwidth-bound versus compute-bound mixes by GPU.}
+  \label{fig:gt-distribution}
+\end{figure}
+
+Figure~\ref{fig:gt-distribution} highlights the resulting class imbalance.
+Across the full 1{,}016 samples, FP16 has 687 zero cases, FP32 has 676, and FP64 has 868.
+FP16 is especially architecture-sensitive because the A100/H100 binaries contain many more nonzero FP16 measurements than the 3080/A10.
+This is precisely why we separate the evaluation tasks instead of reporting a single aggregate error number.
+
+\input{tables/shared_class_balance}
+
+\subsection{Models, Prompts, and Sample Accounting}
+
+We study three off-the-shelf LLMs: \gptfivefour, \opus, and the cheaper \gptoss baseline.
+All reported comparisons use the two released prompt configurations that differ only by the presence or absence of SASS: \sourceonly and \sourcesass.
+We do not fine-tune the models, train task-specific heads, or expose runtime feedback inside the prediction loop.
+The committed run script invokes one trial per sample for the model identifiers \texttt{openai/gpt-5.4}, \texttt{anthropic/claude-opus-4.6}, and \texttt{openai/gpt-oss-120b}; the released OpenRouter client configuration defaults to temperature 0.2 and top-$p$ 0.1.
+
+The expensive frontier models were queried once per sample in the released evaluation subset.
+That is a methodological limitation of the artifact, so we report coverage explicitly rather than hiding it inside aggregate metrics.
+The completed evaluation subset contains:
+\begin{itemize}[leftmargin=1.2em]
+  \item 3{,}048 \sourcesass and 3{,}048 \sourceonly predictions for \opus,
+  \item 3{,}048 \sourcesass and 3{,}045 \sourceonly predictions for \gptfivefour, and
+  \item 2{,}535 \sourcesass and 2{,}574 \sourceonly predictions for \gptoss.
+\end{itemize}
+\gptoss incompletions primarily reflect context-overflow or completion failures on long prompts, so we report coverage explicitly instead of folding missing samples into aggregate quality metrics.
+For fair cross-model comparisons, we use the 732 samples completed by all three models in both prompt settings.
+Within-model source-versus-SASS comparisons are paired on the subset completed by both settings for that model.
+
+The fixup tables are generated read-only from the same artifact products used by the repository reproduction script.
+The direct-prompting \texttt{make\_plots\_for\_paper.py} script reconstructs model predictions from the restored PostgreSQL dump and writes the paper-facing shared-sample outputs; the website mirror \texttt{site-data.json} is the derived prediction table used by the fixup generators.
+The static baselines additionally read the released \texttt{dataset-creation/gpuFLOPBench.json}, which contains source links and static instruction-mix data.
+
+\subsection{Evaluation Tasks and Metrics}
+
+The evaluation intentionally separates four related but distinct tasks:
+
+\input{tables/metric_guide}
+
+\paragraph{Task A: zero vs.\ nonzero detection.}
+We first ask whether a model can distinguish kernels whose per-precision \rai is zero from kernels with nonzero \rai.
+Because the obvious trivial baseline is to predict zero everywhere, we report balanced accuracy rather than raw accuracy.
+Only an exact zero numeric prediction counts as ``zero''; any positive or non-finite prediction is conservatively treated as ``nonzero.''
+
+\paragraph{Task B: nonzero \rai regression.}
+For samples whose ground-truth \rai is nonzero, we report \medianape.
+The distributions are heavy-tailed, so we emphasize medians and the supporting boxplots rather than means.
+As a numeric lower bound, we also compare against a trivial global-median-\rai heuristic, which produces approximately 98.5\%, 99.9\%, and 99.6\% median APE for FP16, FP32, and FP64 respectively on the shared subset.
+
+\paragraph{Task C: nonzero \bandwidthbound/\computebound triage.}
+For nonzero cases, we compare the expected and predicted side of the GPU-specific Roofline balance point.
+We report balanced accuracy because the class ratios are uneven.
+The released artifact also exports compute-bound precision/recall/F1 so reviewers can see whether a method reaches high recall by over-predicting the compute side.
+If a model predicts zero for a truly nonzero kernel, we count that as a memory-side failure and collapse it onto the bandwidth-bound side for this binary triage metric.
+This is conservative, but appropriate: a zero prediction still fails to identify compute-side behavior.
+
+\paragraph{Task D: three-way triage.}
+Finally, we retain the full \{zero, \bandwidthbound, \computebound\} label space to show whether a model preserves the higher-level triage outcome that a developer or agent would see.
+We report multiclass balanced accuracy (macro recall).
+As in Task~C, non-finite predictions are conservatively counted as memory-side failures rather than as a separate abstain class.
+
+We include two trivial class baselines for context.
+Always predicting zero yields 0.50 balanced accuracy on Task~A and 0.33 balanced accuracy on Task~D.
+Always predicting the majority nonzero class (bandwidth-bound in all three precisions here) yields 0.50 balanced accuracy on Task~C.
+
+We also add three simple non-LLM reference baselines.
+The \emph{context median} baseline uses grouped cross-validation and predicts the training-fold median \rai for each runtime$\times$GPU pair, with runtime-only, GPU-only, and global fallbacks when a pair is unseen.
+This is a deliberately naive context-only baseline that uses no code or disassembly evidence.
+We also add two deterministic non-LLM reference heuristics derived from the released artifact.
+The \emph{source lexical} heuristic uses only kernel-linked source files:
+if no precision-relevant floating-point type or math-library token appears, it predicts zero; otherwise it estimates \rai as approximate arithmetic-token count divided by four times approximate memory-reference count.
+The \emph{SASS mnemonic} heuristic maps each GPU to the released architecture-specific static instruction mix, counts precision-relevant floating-point arithmetic mnemonics, counts global-memory mnemonics, and converts those counts into an approximate static \rai using 2/4/8-byte denominators for FP16/FP32/FP64.
+These baselines are intentionally coarse.
+They ignore loop trip counts, control-flow frequencies, vector widths, and dynamic access sizes, so we use them only as deterministic reference points rather than as optimized competitors.
+
+We additionally add lightweight learned static baselines from two tree families: random forests and extra trees.
+For each prompt setting and family, we run a five-fold GroupKFold evaluation grouped by program.
+Stage~1 predicts zero versus nonzero \rai; Stage~2 regresses $\log(1+\rai)$ on the nonzero training samples and emits zero whenever Stage~1 predicts zero.
+The \sourceonly setting uses only source-derived lexical counts plus runtime and GPU identifiers; the \sourcesass setting adds architecture-specific static instruction-mix counts derived from the released post-compilation artifact.
+The generated artifact tables report the seed-0 runs and five-seed sensitivity for the learned baselines.
+Because these baselines are trained and evaluated only within the released corpus, we use them as lightweight static references rather than as production-quality predictors.
+
+\input{tables/baseline_inputs}
+
+Secondary checks appear only where they answer a specific comparison question.
+Recall@10\% measures fixed-budget profiling utility, exact paired binomial tests summarize discordant Task~C wins on the same samples, and Cliff's $\delta$ is reserved for exploratory feature-vote error analysis.
+
+\subsection{Exploratory Failure Analysis}
+
+The released artifact also contains an auxiliary feature-voting pipeline.
+It uses inexpensive LLMs to label source patterns such as division, special math, reusable subexpressions, and loop-invariant floating-point work.
+We retain that analysis because it helps characterize where prediction errors cluster, but we explicitly treat it as exploratory.
+The feature labels are not human-validated in the released data, so we use them to describe repeated failure patterns rather than to make causal claims.

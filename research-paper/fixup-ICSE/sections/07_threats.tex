@@ -1,0 +1,52 @@
+\section{Threats to Validity and Limitations}
+\label{sec:threats}
+
+\paragraph{Benchmark representativeness.}
+The corpus comes from HeCBench and covers only the 95 benchmark programs that yielded the released 254-kernel evaluation subset.
+That is a meaningful but still selective sample of CUDA and OpenMP GPU software.
+The results should therefore be read as evidence about this benchmarked task, not as a claim about all GPU kernels or all accelerator software.
+
+\paragraph{Hardware scope.}
+We study only NVIDIA GPUs, and only four of them: RTX~3080, A10, A100, and H100.
+The architectural generalization claims are therefore limited to those device families and their balance-point regimes.
+The benchmark does not cover AMD or Intel GPUs, CPU-only kernels, or other accelerator programming models such as HIP and SYCL.
+
+\paragraph{Task scope.}
+The prediction target is deliberately narrow.
+We predict only the first kernel invocation, only DRAM-level \rai, and only the per-precision FP16/FP32/FP64 decomposition used in this study.
+We do not predict runtime, throughput, speedup, cache-aware arithmetic intensity, or end-to-end application performance.
+Readers should therefore resist extrapolating the results beyond early first-invocation triage.
+
+\paragraph{Ground-truth measurement.}
+Ground truth comes from profiler counters, not from source-level reasoning.
+That is the right choice for our task, but it means the denominator is DRAM-visible traffic rather than all source-visible loads and stores.
+Cache write-back behavior, replay effects, and profiler noise can therefore influence the target quantity.
+We reduce noise by averaging three first-invocation profiles, but this does not eliminate all measurement uncertainty.
+
+\paragraph{Prompting and model stability.}
+The released evaluation subset queries the expensive models once per completed sample.
+We therefore cannot estimate run-to-run stochastic variability from the existing artifact, and closed-model behavior may drift across snapshots.
+We address this by narrowing claims and by reporting completed-sample counts explicitly, but we cannot retroactively add repeated-query evidence.
+
+\paragraph{Coverage imbalance.}
+\gptoss does not complete the full evaluation subset: it has 858 source-only and 845 \sourcesass completed samples instead of 1{,}016.
+The missing samples are primarily context-overflow or completion failures on long prompts, which is part of the deployment cost of cheaper long-context configurations.
+Cross-model comparisons are therefore restricted to the 732 samples completed by all three models in both prompt settings.
+This is a fairer comparison, but it also means that the cheapest model's reported quality is conditioned on the samples where it completed.
+
+\paragraph{Baseline limitations.}
+We now add context-only, deterministic, and lightweight learned tree baselines, and the learned baselines remain stable across five seeds.
+But those baselines are still deliberately modest.
+The deterministic baselines use approximate lexical and instruction-mix counts rather than compiler-grade analyzers.
+The learned baselines are evaluated with grouped cross-validation on the released corpus rather than on a separately curated external training/test split.
+Stronger compiler-driven or larger-scale learned baselines could therefore do better than the references reported here.
+
+\paragraph{Failure-analysis validity.}
+The feature/error analysis is exploratory because its source-feature labels come from an auxiliary LLM-voting pipeline, not human annotation.
+We therefore treat the appendix heatmap and its prevalence/BH-corrected sanity check only as descriptive evidence about recurring error patterns.
+It should not be interpreted as statistically validated causal evidence.
+
+\paragraph{Possible benchmark leakage.}
+Because the models are off-the-shelf and trained on large web corpora, some kernels or their close variants may have appeared in pretraining data.
+We cannot rule out such contamination completely.
+That is another reason to frame the result as an empirical benchmark study rather than a claim about intrinsic reasoning ability in isolation.

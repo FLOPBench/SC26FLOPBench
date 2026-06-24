@@ -1,0 +1,43 @@
+\section{Background and Related Work}
+\label{sec:related-work}
+
+This paper sits at the intersection of Roofline-guided GPU performance engineering, execution-free performance prediction, and LLM-based software engineering.
+The relevant prior work is broad, but the distinctions that matter for this paper are fairly crisp.
+
+\paragraph{Roofline-guided GPU triage.}
+The Roofline model gives a compact way to reason about whether a kernel is limited primarily by computation or by data movement \cite{samuelwilliamsRooflineInsightfulVisual2009}.
+Its horizontal axis, arithmetic intensity, is not a full performance model; it is an interpretable ratio that helps developers decide which optimization direction is worth pursuing first.
+That interpretability is why we use \rai as a triage target rather than a more opaque prediction objective.
+The paper's contribution is therefore not another Roofline model, but an empirical study of whether LLMs can estimate a Roofline-relevant signal from software artifacts before target execution.
+
+\paragraph{Execution-free GPU performance prediction.}
+Long before LLMs, GPU researchers studied analytical and learned predictors that estimate performance without executing the target kernel.
+Their inputs include static program structure, microarchitectural assumptions, PTX/SASS features, and compiler-derived summaries \cite{hongAnalyticalModelGPU2009,baghsorkhiAdaptivePerformanceModeling2010,alavaniPredictingExecutionTime2018,guerreiroGPUStaticModeling2019a,braunSimpleModelPortable2021,emondsCUDAsapStaticallyDeterminedExecution2023,tranAccurateLatencyPredictor2025}.
+These works establish that execution-free prediction is valuable, but they generally target runtime, throughput, power, or energy rather than an interpretable profiler-relevant triage signal.
+They also usually rely on task-specific modeling pipelines rather than off-the-shelf prompting.
+Our question is narrower and more software-engineering-oriented: what can a developer tool obtain from existing code/build artifacts using an unmodified LLM?
+
+\paragraph{LLMs for GPU optimization and code reasoning.}
+Recent work has shown that LLMs can generate or optimize accelerator code, especially when compilation, execution, testing, or profiling is available inside the loop \cite{gongLanguageModelsCode2025,ouyangKernelBenchCanLLMs2025,chenCUDALLMLLMsCan2025,pengPerfCodeGenImprovingPerformance2025,zhangCudaForgeAgentFramework2025,kaplanParaCodexProfilingGuidedAutonomous2026}.
+That literature is directly relevant to ICSE because it frames GPU tuning as an AI-assisted software-development activity.
+Our paper complements those systems rather than competing with them.
+We do not optimize kernels directly; we study whether an LLM can provide an earlier triage signal when the profiler loop itself is unavailable or too costly.
+
+\paragraph{LLMs for performance prediction.}
+The closest neighboring work asks LLMs to predict GPU metrics directly.
+LLMPerf fine-tunes models for GPU performance estimation \cite{nguyen-nhatLLMPerfGPUPerformance2024}; Omniwise studies fine-tuned prediction of several GPU metrics, including arithmetic intensity \cite{wangOmniwisePredictingGPU2025}; and prior work by Bolet \textit{et al.} studies coarse \bandwidthbound/\computebound classification rather than quantitative \rai prediction \cite{boletCanLargeLanguage2025}.
+Our contribution differs in three ways.
+First, we study the zero-training regime with off-the-shelf models rather than fine-tuned predictors.
+Second, we target a quantitative, decomposed signal by asking models to predict launch dimensions, per-precision FLOP counts, and DRAM bytes, from which \rai follows.
+Third, we explicitly compare \sourceonly reasoning with \sourcesass reasoning to isolate the gap between source-visible semantics and compiler-realized behavior.
+
+\paragraph{Static reasoning with code LLMs.}
+Our task also relates to a broader line of work showing that code LLMs can reason about latent program behavior, but only imperfectly \cite{liuCodeExecutionPretrained2023,lyuLargeLanguageModels2024,jainLiveCodeBenchHolisticContamination2024,xieCOREBenchmarkingLLMs2025,pydaShortcomingsCodeLLMs2025}.
+Estimating \rai requires more than recognizing syntax: the model must propagate launch parameters, recover thread-level work, account for mixed precision, and reason about DRAM-visible traffic instead of source-level loads and stores.
+That makes \rai prediction a useful probe of execution-relevant code reasoning in a form that is directly actionable for software engineering.
+
+\paragraph{Gap addressed by this paper.}
+Taken together, prior work leaves an open gap.
+We know that static models can predict GPU behavior without execution, that LLM optimizers benefit from profiler feedback, and that fine-tuned LLM predictors can estimate GPU metrics.
+What remains underexplored is whether \emph{off-the-shelf} LLMs can provide a useful execution-free triage signal from ordinary software artifacts alone.
+This paper addresses that gap by studying quantitative \rai prediction, by separating source-visible from post-compilation evidence, and by positioning the released benchmark as infrastructure for future static performance-reasoning work in software engineering.

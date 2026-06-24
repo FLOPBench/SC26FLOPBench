@@ -1,0 +1,19 @@
+\begin{table}[t]
+  \centering
+  \caption{Compute-bound recall when profiling only the top 10\% of rows ranked by predicted \rai relative to the GPU balance point on the 732-row shared subset. Each precision budgets 74 of 732 rows. Random ranking would recover 10\% by construction.}
+  \label{tab:budget-recall-at-10}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llrrr}
+    \toprule
+    Model & Evidence & FP16 R@10\% & FP32 R@10\% & FP64 R@10\% \\
+    \midrule
+    \gptfivefour & \sourceonly & 0.000 & 0.820 & 0.566 \\
+    \gptfivefour & \sourcesass & 1.000 & 0.820 & 0.585 \\
+    \gptoss & \sourceonly & 0.000 & 0.820 & 0.547 \\
+    \gptoss & \sourcesass & 0.176 & 0.820 & 0.566 \\
+    \opus & \sourceonly & 0.000 & 0.960 & 0.585 \\
+    \opus & \sourcesass & 1.000 & 0.940 & 0.566 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

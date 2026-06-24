@@ -1,0 +1,21 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We framed LLM-based GPU performance reasoning as an ICSE problem: deciding a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts, before any profiling run, for developers and coding agents that cannot reach the target accelerator.
+We can now answer the three research questions directly.
+
+\textbf{RQ1 (source-only classification).}
+Off-the-shelf LLMs classify the single-precision Roofline regime well from source alone---\opus reaches 0.940 balanced accuracy for FP32 and 0.755 for FP64, and even the budget \gptoss reaches 0.875 for FP32---but they are no better than chance for half precision (0.500 for all three models).
+
+\textbf{RQ2 (what SASS adds, and why).}
+Cross-compiled SASS closes the half-precision gap, lifting FP16 balanced accuracy from 0.500 to 0.984 (\opus) and 0.870 (\gptfivefour).
+The cause is mechanistic: the decisive FP16 arithmetic is compiler-synthesized \texttt{HFMA2} work that is invisible in source.
+The actionable form of this finding is that half-precision Roofline reasoning requires \emph{compilation}, not execution, and compilation needs no target hardware.
+
+\textbf{RQ3 (accuracy and cost).}
+The LLM signals beat lightweight static baselines in most regimes and form a clear cost tier: source-only single-precision classification is near-free (\$0.0006 per kernel) and hardware-free, while the frontier+SASS tier costs about \$0.11 per kernel and is justified by access and timing rather than dollar savings.
+Static baselines win in source-only FP16 and \sourcesass FP64, which is why we frame deployment as a cost-tiered cascade rather than an LLM-only oracle.
+
+The evidence does not support a stronger claim.
+These models do not replace profilers, they do not predict runtime in general, numeric \rai is reliable only in identifiable regimes, and the cascade remains a routing hypothesis we have not yet validated end-to-end.
+What we show is narrower and useful: execution-free Roofline-regime classification is a benchmarkable software-engineering task, off-the-shelf prompting already solves it well in identifiable, cheaply-detectable evidence tiers, and the source-versus-compilation boundary---not model choice---is what governs the hardest case.

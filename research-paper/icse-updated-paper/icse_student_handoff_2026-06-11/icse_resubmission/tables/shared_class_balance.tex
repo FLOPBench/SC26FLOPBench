@@ -1,0 +1,16 @@
+\begin{table}[t]
+  \centering
+  \caption{Ground-truth class balance on the 732-row shared subset used for all paired cross-model comparisons. The imbalance is precision-dependent: FP16/FP32 have more nonzero rows than FP64, but all three precisions remain zero-heavy, which is why Tasks~A/C/D are reported separately.}
+  \label{tab:shared-class-balance}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrr}
+    \toprule
+    Precision & Zero & Nonzero BB & Nonzero CB & Zero share \\
+    \midrule
+    FP16 & 513 & 185 & 34 & 0.701 \\
+    FP32 & 496 & 186 & 50 & 0.678 \\
+    FP64 & 623 & 56 & 53 & 0.851 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

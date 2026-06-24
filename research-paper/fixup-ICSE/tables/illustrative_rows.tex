@@ -1,0 +1,29 @@
+\begin{table*}[t]
+  \centering
+  \caption{Illustrative released samples used only for intuition, not as additional evaluation evidence. These examples show accurate numeric \rai predictions in regimes where the relevant computation and memory behavior are visible to the model.}
+  \label{tab:illustrative-rows}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{p{0.17\textwidth} p{0.20\textwidth} p{0.23\textwidth} p{0.32\textwidth}}
+    \toprule
+    Case & Released sample & Expected $\rightarrow$ predicted \rai & Why it matters \\
+    \midrule
+    Hidden lowered FP16 work &
+    \texttt{accuracy-cuda}, A100, \opus &
+    FP16 \sourceonly: 0.0254 $\rightarrow$ 0.0; FP16 \sourcesass: 0.0254 $\rightarrow$ 0.0256 &
+    The source-only explanation notes that compiler-generated \texttt{HFMA2} materialization may exist but cannot be justified from source alone, so it conservatively predicts zero FP16 work. The SASS-backed explanation instead points to an executed \texttt{HFMA2.MMA} instruction on the taken path and counts it as real FP16 arithmetic. \\
+    Source-visible FP32 work &
+    \texttt{boxfilter-cuda}, A100, \opus &
+    FP32 \sourceonly: 21.975 $\rightarrow$ 22.0 &
+    The source already exposes the 21-tap loop trip count, the 64 output threads per block, and the roughly 1\,MiB unique read footprint. In this regime, source-only reasoning is already enough and post-compilation evidence adds little. \\
+    Regular stencil-like FP32 work &
+    \texttt{asmooth-cuda}, 3080, \opus &
+    FP32 \sourceonly: 0.8329 $\rightarrow$ 0.8331 &
+    The kernel has a regular source-visible arithmetic and memory pattern, so the model can infer a close DRAM-level ratio without SASS. \\
+    Source/SASS-visible FP64 work &
+    \texttt{burger-cuda}, 3080, \opus &
+    FP64 \sourcesass: 2.9669 $\rightarrow$ 2.9684 &
+    The double-precision arithmetic and global-memory structure are visible enough after lowering for the SASS-backed estimate to nearly match the profiler-derived \rai. \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

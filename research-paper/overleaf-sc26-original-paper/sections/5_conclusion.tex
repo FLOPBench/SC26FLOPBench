@@ -1,0 +1,79 @@
+
+\section{Conclusion \& Discussion}
+\label{sec:conclusion}
+In this paper, we show that off-the-shelf LLMs can act as useful static-analysis predictors of Roofline Arithmetic Intensity (\rai) for CUDA and OpenMP GPU kernels, providing a practical form of early Roofline triage before direct hardware profiling is available.
+The paper's main result is not that LLMs replace profiling or broadly predict GPU performance, but that they can often estimate arithmetic intensity well enough to guide early optimization decisions in the zero-training regime.
+We further show that post-compilation artifacts such as SASS materially improve the strongest models, especially for FP16-\rai and for deciding whether a kernel is compute-bound or bandwidth-bound. We also release a benchmark for this task so that future work can evaluate hardware-free, quantitative Roofline reasoning on a common set of kernels and artifacts.
+
+\textbf{Practical guidelines.}
+Given our experimentation, the practical picture that emerges is fairly clear.
+If only source code is available and query budget is tight, a cheap model is still a reasonable choice because the source-only results remain surprisingly competitive to the premium models.
+If post-compilation artifacts are available and better accuracy is needed, stronger models benefit much more from the added compiler-realized information.
+The method is also more reliable in some settings than others: predictions are generally better on larger-cache GPUs such as the A100 and H100 than on smaller-cache GPUs such as the RTX 3080 and A10, better for CUDA kernels that are FP16/FP32-heavy, and better for OpenMP kernels that are more FP64-heavy.
+The largest errors tend to occur when kernels contain division, special math functions, reusable floating-point subexpressions, or loop-invariant floating-point work, whereas easily inferred launch dimensions help the model reason more accurately about total work and traffic.
+
+\textbf{Shortcomings of this work.}
+This study is deliberately scoped.
+We predict only the first invocation of each kernel, effectively under a cold-cache assumption; we focus on DRAM-level arithmetic intensity rather than a cache-aware Roofline; and we study arithmetic intensity itself rather than runtime or FLOP/s.
+These choices keep the task well defined, but they also mark the boundary of what is being claimed.
+This work should therefore be read as evidence that LLMs can already provide a useful hardware-free triage signal, not as evidence that they can yet substitute for direct measurement or \textit{fully} model GPU performance.
+
+\textbf{Where can current LLMs improve?}
+Our evaluation results point to a few gaps where current LLMs can improve.
+Their dependence on post-compilation artifacts for stronger FP16 predictions suggests that they still lack a robust internal model of compiler lowering and instruction selection.
+Their larger errors on smaller-cache GPUs show that hardware-aware reasoning about L2 write-back effects and DRAM traffic is still limited.
+More broadly, they remain brittle when source code features change the effective floating-point work after compilation, either by introducing hidden work or by removing repeated work.
+
+Even with these limitations, our results suggest that off-the-shelf LLMs are already useful enough to help prioritize where scarce profiling and tuning effort should be spent first.
+As their ability to reason about compiler-realized behavior and GPU memory systems improves, they should become increasingly effective assistants for static performance reasoning in GPU software development.
+
+% In this paper, we show that off-the-shelf LLMs can act as useful static-analysis Roofline Arithmetic Intensity (\rai) predictors for CUDA and OpenMP GPU kernels, where a reasonably accurate \rai estimate or bound-class prediction can guide optimization effort before direct hardware profiling is available.
+% We further show that the inclusion of \sourceSASS artifacts materially improves the strongest models, especially for FP16-\rai and bound-class prediction.
+% At the same time, prediction quality is not uniform across settings, as it depends on the target GPU, the runtime, and the source-level features that shape compiler-realized FLOP and DRAM traffic.
+% These results position LLM-based \rai prediction as a practical complement to profiling.
+% 
+% \textbf{Practical Guidelines.}
+% Given our experimental results, we summarize some high-level guidelines for the task of using out-of-the-box LLMs as static-analysis \rai predictors:
+% \begin{itemize}
+%     \item If only source code is available, and query budget is a primary constraint, a cheap model like \gptoss is a reasonable choice because its \sourceonly prediction errors are similar to those of \gptfivefour.
+%     If better accuracy is needed and \sourceSASS artifacts are available, it is more effective to use stronger models like \opus and \gptfivefour, which make substantially better use of the added post-compilation information.
+%     \item The inclusion of \sourceSASS artifacts is most worthwhile when predicting FP16-\rai or when a correct \bandbound versus \compbound classification matters more than the exact \rai value.
+%     In those cases, the added post-compilation information makes compiler-realized floating-point work much more visible to the stronger LLMs.
+%     \item Runtime choice should inform expectations about prediction quality.
+%     In general, the LLMs give better predictions on CUDA codes that are FP16/FP32-heavy, and better predictions on OpenMP codes that are more FP64-heavy.
+%     \item Confidence in the predictions should be adjusted based on the target GPU.
+%     Predictions are generally more reliable on larger-cache GPUs like the A100 and H100, while smaller-cache GPUs like the 3080 and A10 are more error-prone because DRAM traffic depends more strongly on L2 cache behavior.
+%     \item Users should expect the largest \rai mispredictions when kernels contain FLOP division, FLOP subexpressions, special FLOP math functions, and loop-invariant FLOPs.
+%     Conversely, making inputs like grid and block sizes easy to infer can improve the odds of a correct prediction.
+% \end{itemize}
+% 
+% \textbf{Shortcomings of this work.}
+% Although this work demonstrates the utility of LLMs for static GPU performance prediction, it is through a particular lens that comes with limitations.
+% We describe some of the shortcomings of this work below:
+% \begin{itemize}
+%     \item Our queries only focus on first-invocation estimation of each target kernel, always assuming a cold cache.
+%     Many codes call the GPU kernels in a loop, where caching effects must be adequately tracked between invocations to properly predict arithmetic intensity.
+%     \item A study still needs to be done on the reasoning emitted by the LLMs to parse where the errors are occuring in their explanations.
+%     Passing the returned LLM predictions/explanations alongside the ground-truth values to another LLM for fault-checking could help identify the common errors the LLMs run into with their estimates.
+%     \item We perform all of our LLM queries in a single-shot manner (i.e.: a single query) for each kernel we ask about.
+%     Given that inexpensive LLMs like \gptoss can get \rai prediction results close to those of \gptfivefour, it could be fiscally reasonable to perform multiple queries in a agentic manner to improve prediction errors.
+%     \item Our task of \textit{program cost estimation} is through the lens of the Roofline models' horizontal axis of Arithmetic Intensity, not it's vertical axis of Performance (FLOPs-per-second).
+%     Other static analysis works have been able to include microbenchmarks and clock speed information \cite{hongAnalyticalModelGPU2009, alavaniPredictingExecutionTime2018, wangGPGPUPerformanceEstimation2020} to predict kernel execution time, it leads us to reason whether LLMs may be decent estimators of execution time if given the proper information about the hardware they execute on.
+% \end{itemize}
+% 
+% \textbf{Where can LLMs improve?}
+% As future generations of LLMs are released, we mention a few of their current weaknesses noticed by our work:
+% \begin{itemize}
+%     \item Dependence on post-compilation artifacts (i.e: SASS) to improve FP16-\rai prediction accuracy.
+%     This suggests that current LLMs still lack a strong internal model of how compiler lowering and instruction selection introduce FP16 work that is not obvious from source alone.
+%     \item Increased \rai prediction error on GPUs with smaller L2 cache sizes (3080 \& A10) implies that the LLMs are still struggling to simulate L2 write-back cache effects, thus miscalculating the DRAM read/write counts needed for \rai estimation.
+%     Better hardware-aware reasoning about what traffic remains in cache versus what reaches DRAM would directly improve the denominator of the \rai calculation.
+%     \item The LLMs also need to reason more robustly about source code features that change the effective amount of floating-point work after compilation.
+%     In our study, FLOP division, special math functions, common subexpression elimination, and loop-invariant FLOP hoisting are repeated sources of error because they can either introduce hidden work or remove repeated work.
+% \end{itemize}
+% 
+% Overall, our results suggest that off-the-shelf LLMs are already useful enough to provide early, hardware-free Roofline guidance for many GPU kernels.
+% Their predictions are not yet reliable enough to replace direct profiling, but they can still help prioritize where optimization and profiling effort should be spent first.
+% As LLMs improve at modeling compiler-realized work and GPU memory behavior, we expect them to become increasingly valuable assistants for static performance reasoning in GPU software development.
+
+

@@ -1,0 +1,54 @@
+\section{Background and Related Work}
+\label{sec:related-work}
+
+We sit at the intersection of Roofline-guided GPU performance engineering, execution-free performance prediction, and LLM-based software engineering.
+The relevant prior work is broad, but the distinctions that matter for this study are fairly crisp.
+
+\paragraph{Roofline-guided GPU triage.}
+The Roofline model gives a compact way to reason about whether a kernel is limited primarily by computation or by data movement \cite{samuelwilliamsRooflineInsightfulVisual2009}.
+Its horizontal axis, arithmetic intensity, is not a full performance model; it is an interpretable ratio that helps developers decide which optimization direction is worth pursuing first.
+That interpretability is why we use \rai as a triage target rather than a more opaque prediction objective.
+Our contribution is therefore not another Roofline model, but an empirical study of when LLMs can estimate a Roofline-relevant signal from software artifacts before target execution.
+
+\paragraph{Execution-free GPU performance prediction.}
+Long before LLMs, GPU researchers studied analytical and learned predictors that estimate performance without executing the target kernel.
+Their inputs include static program structure, microarchitectural assumptions, PTX/SASS features, and compiler-derived summaries \cite{hongAnalyticalModelGPU2009,baghsorkhiAdaptivePerformanceModeling2010,alavaniPredictingExecutionTime2018,guerreiroGPUStaticModeling2019a,braunSimpleModelPortable2021,emondsCUDAsapStaticallyDeterminedExecution2023,tranAccurateLatencyPredictor2025}.
+Related analytical and learned predictors also study transfer across workloads or devices and learned representations such as GNNs or hybrid LLM/GNN predictors.
+These works establish that execution-free prediction is valuable, but they generally target runtime, throughput, power, energy, or static execution statistics rather than the profiler-derived \bandwidthbound/\computebound regime we study.
+They also usually rely on task-specific modeling pipelines, compiler analyses, or learned predictors rather than zero-training prompting.
+Our question is narrower and more software-engineering-oriented: what can a developer tool obtain from existing code/build artifacts using an unmodified LLM, and where should that tool fall back to cheaper static features or runtime profiling?
+
+This difference in objective also explains why we do not benchmark directly against these predictors, and instead compare against purpose-built static baselines (Section~\ref{sec:study-design}).
+The analytical and learned models above predict a different quantity---execution time \cite{hongAnalyticalModelGPU2009,baghsorkhiAdaptivePerformanceModeling2010,alavaniPredictingExecutionTime2018}, latency \cite{tranAccurateLatencyPredictor2025}, power and energy under frequency scaling \cite{guerreiroGPUStaticModeling2019a,braunSimpleModelPortable2021}, or static basic-block frequencies \cite{emondsCUDAsapStaticallyDeterminedExecution2023}---so repurposing them to per-precision DRAM-level Roofline classification would require re-implementing them against a target they were never designed or validated for, yielding a comparison that reflects our re-implementation rather than the published method.
+Several also assume inputs outside our setting (PTX feature pipelines, fitted hardware-independent features) or target older architectures with no artifact retargetable to Ampere/Hopper, and most are CUDA- or OpenCL-only and so cannot address the OpenMP-offload half of our corpus.
+Where the prior work is a \emph{learned} predictor over compiler-IR features \cite{guerreiroGPUStaticModeling2019a,braunSimpleModelPortable2021,tranAccurateLatencyPredictor2025}, we instead instantiate that class faithfully for our target with the grouped-cross-validated random-forest and extra-trees baselines of Section~\ref{sec:study-design}, rather than mis-running an artifact built for a different objective.
+
+\paragraph{LLMs for GPU optimization and code reasoning.}
+Recent work has shown that LLMs can generate or optimize accelerator code, especially when compilation, execution, testing, or profiling is available inside the loop \cite{gongLanguageModelsCode2025,ouyangKernelBenchCanLLMs2025,chenCUDALLMLLMsCan2025,pengPerfCodeGenImprovingPerformance2025}.
+Other work studies compiler-oriented representations and accelerator-code benchmark suites.
+That literature is directly relevant to ICSE because it frames GPU tuning as an AI-assisted software-development activity.
+Our study complements those systems rather than competing with them.
+We do not optimize kernels directly; we study whether an LLM can provide an earlier triage signal when the profiler loop itself is unavailable or too costly.
+
+\paragraph{LLMs for performance prediction.}
+The closest neighboring work asks LLMs to predict GPU metrics directly, and the nearest two are both \emph{fine-tuned}.
+LLMPerf fine-tunes models for OpenCL kernel performance estimation \cite{nguyen-nhatLLMPerfGPUPerformance2024}, and Omniwise fine-tunes a model to predict several GPU metrics, including arithmetic intensity, execution-free, reporting over 90\% of predictions within 10\% \cite{wangOmniwisePredictingGPU2025}.
+Omniwise is the closest result to ours, and we confront it directly rather than competing with it: it answers a different question (what a \emph{trained} model can predict), it targets AMD MI250/MI300X with no released model retargetable to the NVIDIA GPUs and counters we study, and so it cannot be run on our corpus.
+Our study is the complementary zero-training counterpart---if anything, Omniwise's strong fine-tuned numbers make the off-the-shelf gap we characterize the interesting question.
+Prior work by Bolet \textit{et al.} studies coarse \bandwidthbound/\computebound classification of parallel code \cite{boletCanLargeLanguage2025}; the present work generalizes that precursor from a single coarse label to a per-precision, decomposed Roofline signal and to the source-versus-compilation evidence question.
+Our contribution therefore differs in three ways.
+First, we study the zero-training regime with off-the-shelf models rather than fine-tuned predictors.
+Second, we target a decomposed signal by asking models to predict launch dimensions, per-precision FLOP counts, and DRAM bytes, from which both the regime label and \rai follow.
+Third, we explicitly compare \sourceonly reasoning with prompts that paste target-kernel SASS instructions into the context, isolating the gap between source-visible semantics and compiler-realized behavior.
+That distinction matters because compiler lowering, instruction selection, and floating-point implementations can introduce work that is not syntactically obvious in source code \cite{alfredCompilersPrinciplesTechniques2007,IEEEStandardFloatingPoint2019}.
+
+\paragraph{Static reasoning with code LLMs.}
+Our task also relates to a broader line of work showing that code LLMs can reason about latent program behavior, but only imperfectly \cite{liuCodeExecutionPretrained2023,lyuLargeLanguageModels2024,jainLiveCodeBenchHolisticContamination2024,xieCOREBenchmarkingLLMs2025,pydaShortcomingsCodeLLMs2025}.
+Estimating \rai requires more than recognizing syntax: the model must propagate launch parameters, recover thread-level work, account for mixed precision, and reason about DRAM-visible traffic instead of source-level loads and stores.
+That makes \rai prediction a useful probe of execution-relevant code reasoning in a form that is directly actionable for software engineering.
+
+\paragraph{Gap addressed by this study.}
+Taken together, prior work leaves an open gap.
+We know that static models can predict GPU behavior without execution, that LLM optimizers benefit from profiler feedback, and that fine-tuned LLM predictors can estimate GPU metrics.
+What remains underexplored is whether \emph{off-the-shelf} LLMs can provide a useful execution-free triage signal from ordinary software artifacts alone.
+We address that gap by studying quantitative \rai prediction, separating source-visible from post-compilation evidence, and characterizing the regimes where off-the-shelf prompting is accurate, merely useful for triage, or unreliable.

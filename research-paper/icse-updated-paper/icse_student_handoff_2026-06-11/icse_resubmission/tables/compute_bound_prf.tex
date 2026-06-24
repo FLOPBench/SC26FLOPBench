@@ -1,0 +1,19 @@
+\begin{table*}[t]
+  \centering
+  \caption{Nonzero compute-bound precision/recall/F1 on the 732-row shared subset. These metrics complement Task~C balanced accuracy by exposing whether a method reaches high recall by over-predicting the compute-bound side.}
+  \label{tab:compute-bound-prf}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llrrr}
+    \toprule
+    Model & Evidence & FP16 P/R/F1 & FP32 P/R/F1 & FP64 P/R/F1 \\
+    \midrule
+    \gptfivefour & \sourceonly & -- / 0.000 / -- & 0.909 / 0.800 / 0.851 & 0.950 / 0.358 / 0.521 \\
+    \gptfivefour & \sourcesass & 0.730 / 0.794 / 0.761 & 0.952 / 0.800 / 0.870 & 0.903 / 0.528 / 0.667 \\
+    \gptoss & \sourceonly & -- / 0.000 / -- & 0.950 / 0.760 / 0.844 & 0.917 / 0.415 / 0.571 \\
+    \gptoss & \sourcesass & 0.750 / 0.176 / 0.286 & 0.949 / 0.740 / 0.831 & 0.900 / 0.340 / 0.493 \\
+    \opus & \sourceonly & -- / 0.000 / -- & 1.000 / 0.880 / 0.936 & 0.966 / 0.528 / 0.683 \\
+    \opus & \sourcesass & 0.850 / 1.000 / 0.919 & 0.979 / 0.940 / 0.959 & 0.938 / 0.566 / 0.706 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

@@ -1,0 +1,27 @@
+\begin{table*}[t]
+  \centering
+  \caption{Budget-sweep compute-bound recall for the strongest source-only and source+SASS methods in each family, selected by mean recall across the 5/10/20/30\% sweep on the shared subset. This shows whether the ranking behind Table~\ref{tab:budget-recall-at-10} is stable beyond the single 10\% operating point.}
+  \label{tab:budget-recall-sweep}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{llrrrr}
+    \toprule
+    Precision & Method & R@5\% & R@10\% & R@20\% & R@30\% \\
+    \midrule
+    FP16 & \sourceonly best LLM (Opus 4.6) & 0.000 & 0.000 & 0.412 & 0.471 \\
+    FP16 & \sourceonly best static (Source learned RF) & 0.382 & 0.824 & 0.853 & 0.941 \\
+    FP16 & \sourcesass best LLM (Opus 4.6) & 0.971 & 1.000 & 1.000 & 1.000 \\
+    FP16 & \sourcesass best static (SASS mnemonic) & 0.294 & 0.706 & 0.971 & 1.000 \\
+    \midrule
+    FP32 & \sourceonly best LLM (Opus 4.6) & 0.740 & 0.960 & 0.960 & 0.960 \\
+    FP32 & \sourceonly best static (Source learned RF) & 0.480 & 0.720 & 0.960 & 0.980 \\
+    FP32 & \sourcesass best LLM (Opus 4.6) & 0.660 & 0.940 & 0.940 & 0.940 \\
+    FP32 & \sourcesass best static (SASS mnemonic) & 0.440 & 0.760 & 1.000 & 1.000 \\
+    \midrule
+    FP64 & \sourceonly best LLM (Opus 4.6) & 0.208 & 0.585 & 0.604 & 0.604 \\
+    FP64 & \sourceonly best static (Source learned RF) & 0.340 & 0.377 & 0.415 & 0.472 \\
+    FP64 & \sourcesass best LLM (Opus 4.6) & 0.208 & 0.566 & 0.566 & 0.566 \\
+    FP64 & \sourcesass best static (SASS mnemonic) & 0.604 & 0.811 & 1.000 & 1.000 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

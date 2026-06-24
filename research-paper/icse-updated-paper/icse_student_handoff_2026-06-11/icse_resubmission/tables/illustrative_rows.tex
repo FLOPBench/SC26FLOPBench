@@ -1,0 +1,21 @@
+\begin{table*}[t]
+  \centering
+  \caption{Illustrative released rows used only for intuition, not as additional evaluation evidence. These examples show the two clearest deployment regimes in the released artifact: hidden lowered FP16 work that requires post-compilation evidence, and source-visible FP32 work that source-only reasoning already captures well.}
+  \label{tab:illustrative-rows}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{p{0.17\textwidth} p{0.20\textwidth} p{0.23\textwidth} p{0.32\textwidth}}
+    \toprule
+    Case & Released row & Expected $\rightarrow$ predicted \rai & Why it matters \\
+    \midrule
+    Hidden lowered FP16 work &
+    \texttt{accuracy-cuda}, A100, \opus &
+    FP16 \sourceonly: 0.0254 $\rightarrow$ 0.0; FP16 \sourcesass: 0.0254 $\rightarrow$ 0.0256 &
+    The source-only explanation notes that compiler-generated \texttt{HFMA2} materialization may exist but cannot be justified from source alone, so it conservatively predicts zero FP16 work. The SASS-backed explanation instead points to an executed \texttt{HFMA2.MMA} instruction on the taken path and counts it as real FP16 arithmetic. \\
+    Source-visible FP32 work &
+    \texttt{boxfilter-cuda}, A100, \opus &
+    FP32 \sourceonly: 21.975 $\rightarrow$ 22.0 &
+    The source already exposes the 21-tap loop trip count, the 64 output threads per block, and the roughly 1\,MiB unique read footprint. In this regime, source-only reasoning is already enough and post-compilation evidence adds little. \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

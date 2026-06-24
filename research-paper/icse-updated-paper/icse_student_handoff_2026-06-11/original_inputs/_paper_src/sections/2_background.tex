@@ -1,0 +1,143 @@
+
+% try to also keep this to 1-1.5 pages 
+
+%\section{Related Works} 
+%\label{sec:RelatedWorks}
+%
+%This work falls into the realm of GPU kernel performance metric prediction using LLMs. 
+%The closest neighboring realms are those of (a) using LLMs for parallel code generation/optimization, and (b) using LLMs for program analysis and execution simulation.
+%We discuss existing works from our realm and its neighbors below.
+%
+%
+%\textbf{LLMs for Parallel Code Generation.}
+%
+%Over the past few years, the utilization of LLMs for parallel code generation has exploded.
+%The code optimization works can be largely broken up into two camps: (1) fine-tuning/training-based, and (2) out-of-the-box LLM-based.
+%
+%The fine-tuning works usually focus on creating a dataset of parallel codes 
+%The dataset is often synthetic in nature, so extra efforts are made to 
+%Given the natural language understanding of LLMs, and the complexity of \cite{talkadoshScopeAllYou2023}
+%
+%Talk about fine-tuned code LLMs (CodeBERT, Codex, Meta LLM Compiler, CodeGen, etc.
+%
+%\cite{ouyangKernelBenchCanLLMs2025}
+%%In the past two years there have been multiple efforts to use LLMs for CUDA, OpenMP, OpenCL, and Triton code generation for GPUs.
+%
+%%\citet{ouyangKernelBenchCanLLMs2025} were one of the first that tasked LLMs to generate optimized CUDA kernels from PyTorch model architectures.
+%%They demonstrated that profiler feedback significantly improves the generated codes' performance during refinement steps.
+%%
+%%\citet{nicholsCanLargeLanguage2024} is another work where
+%%
+%%\citet{wenMultiKernelBenchMultiPlatformBenchmark2025} 
+%%\citet{liTritonBenchBenchmarkingLarge2025}
+%%\citet{kaplanParaCodexProfilingGuidedAutonomous2026} is a more recent work, where 
+%
+%
+%
+%\textbf{RL for LLM-based GPU Code Generation.}
+%
+%Since the seminal DeepSeek-R1 paper \cite{} demonstrated the benefits of using reinforcement learning (RL) to fine-tune and distill LLM knowledge, a series of works sprung up using similar RL techniques to fine-tune LLMs for code-generation with an focus on execution speedup.
+%
+%\cite{dongKernelBlasterContinualCrossTask2026}
+%\cite{nicholsIntegratingPerformanceTools2025}
+%\cite{baronioKevinMultiTurnRL2025}
+%%Another vein of work has been fine-tuning and creating custom LLM-based models for GPU code generation and optimization.
+%
+%%CUDA-L1
+%%Kevin
+%%Harshitha + Nichols work
+%
+%
+%\textbf{Agentic Iterative/Feedback-Driven Code Optimization.}
+%
+%\cite{chenCUDALLMLLMsCan2025}
+%\cite{}
+%
+%% High inference costs with agents
+%% HPCToolKit + Hatchet paper (not sure what it was called)
+%
+%\textbf{LLMs for GPU Performance Prediction.}
+%% Bolet
+%% Omniwise
+%
+%
+%\textbf{LLMs for Execution Simulation / Program Analysis / Trace Prediction.}
+%
+%\cite{lyuLargeLanguageModels2024} simulated code execution of Python, Java, C, C++ programs and 
+%% Given that this work explores LLMs for performance prediction, our task is adjacent to the task of \textit{execution simulation}, where LLMs are used to predict and keep track of the internal state of a program.
+%% These works are mostly Python-based, 
+%% CoSm
+%% REval
+%% LiveCodeBench
+%% PredEx
+%
+%
+%
+%
+%\textbf{Shortcomings of Existing Work}
+%
+%\begin{enumerate}
+%    \item \textbf{Limited Test Sets}
+%    \item \textbf{Roofline Modeling Not Explicitly Considered}
+%\end{enumerate}
+%
+%
+%\textbf{The Roofline Performance Model.}
+
+
+\section{Related Work}
+\label{sec:RelatedWorks}
+
+Our work lies at the intersection of Roofline-guided GPU performance modeling, execution-free prediction, and LLM-based code reasoning.
+The closest prior work studies performance prediction without full profiler access, while adjacent areas use LLMs for HPC code generation, iterative optimization, and program-behavior reasoning.
+
+%\textbf{Roofline modeling and static GPU performance prediction.}
+%The Roofline model is a standard framework for reasoning about whether a kernel is limited by computation or data movement, and arithmetic intensity is one of its central quantities \cite{samuelwilliamsRooflineInsightfulVisual2009}. 
+%Before LLMs, prior work explored predicting GPU performance without executing the target kernel, including static PTX-based execution-time estimation and learned models over PTX for performance, power, and energy prediction \cite{gargialavaniPredictingExecutionTime2018,guerreiroGPUStaticModeling2019}.
+%More recent learned predictors extend this idea to unseen workloads and devices through few-shot transfer, hybrid GNN/LLM models, and deep-learning performance forecasters \cite{deyRelativePerformancePrediction2024,leeForecastingGPUPerformance2025,selvamCanLLMsEnhance2024,pannerselvamPerformancePredictionModels2025}.
+%These works establish the value of execution-free prediction, but they do not ask whether off-the-shelf (not-finetuned) LLMs can estimate a quantitative Roofline quantity directly from GPU kernel source.
+\textbf{Roofline modeling and static GPU performance prediction.}
+The Roofline model is a standard framework for reasoning about whether a kernel is limited by computation or data movement, and arithmetic intensity is one of its central quantities \cite{samuelwilliamsRooflineInsightfulVisual2009}.
+Long before LLMs, prior work studied GPU performance prediction using analytical and learned models built from program structure, microarchitectural assumptions, or low-level code features.
+Early analytical models estimated execution time from memory- and thread-level parallelism or compiler-derived workflow graphs that capture effects such as divergence, coalescing, and bank conflicts \cite{hongAnalyticalModelGPU2009,baghsorkhiAdaptivePerformanceModeling2010}, while later static approaches predicted execution time directly from PTX or other compile-time features \cite{limAutotuningGPUKernels2017,alavaniPredictingExecutionTime2018,guerreiroGPUStaticModeling2019a}.
+Roofline-style upper-bound analysis has also been extended to GPUs through cache-aware performance, power, and energy models \cite{lopesExploringGPUPerformance2017}, and newer predictors combine PTX features with learned models such as random forests or XGBoost, or replace execution-based profiling with static estimation of execution statistics \cite{braunSimpleModelPortable2021,emondsCUDAsapStaticallyDeterminedExecution2023,tranAccurateLatencyPredictor2025}.
+Related work also explores profiling-informed analytical or machine-learning predictors, including bulk-synchronous-based models, DVFS-aware predictors, and more detailed analytical models of modern GPU cores \cite{amarisComparisonGPUExecution2016,wangGPGPUPerformanceEstimation2020,leeGCoMDetailedGPU2022}.
+More recent learned predictors extend this direction to unseen workloads and devices through few-shot transfer, hybrid GNN/LLM models, and deep-learning performance forecasters \cite{deyRelativePerformancePrediction2024,leeForecastingGPUPerformance2025,selvamCanLLMsEnhance2024,pannerselvamPerformancePredictionModels2025}.
+These works establish the value of execution-free prediction, but they mostly build specialized predictors for runtime, power, or energy from handcrafted models or trained feature pipelines.
+Our work instead asks whether off-the-shelf LLMs can, through prompting alone, recover a quantitative Roofline signal of Arithmetic Intensity that is useful for early performance triage before profiler feedback is available.
+
+\textbf{LLMs for HPC and parallel code understanding/generation.}
+A broad line of work studies whether LLMs can better represent and generate HPC and parallel code through domain specialization, tailored tokenization, and benchmark-driven evaluation.
+Early domain-specific efforts include \textit{Scope Is All You Need} and \textit{MonoCoder}, while HPC-Coder and related work show that HPC-focused corpora and fine-tuning can improve performance on parallel-code tasks \cite{talkadoshScopeAllYou2023,talkadoshMonoCoderDomainSpecificCode2023,danielnicholsModelingParallelPrograms2023,nicholsHPCCoderModelingParallel2024a}.
+Other work studies compiler-oriented representations or benchmark suites for parallel and accelerator code, including Meta LLM Compiler, ParEval, KernelBench, and MultiKernelBench \cite{cumminsMetaLargeLanguage2024a,nicholsCanLargeLanguage2024,ouyangKernelBenchCanLLMs2025,wenMultiKernelBenchMultiPlatformBenchmark2025}.
+Surveys and perspective papers likewise argue that HPC is a distinct setting for LLMs because correctness, hardware sensitivity, and performance portability all matter simultaneously \cite{chenLandscapeChallengesHPC2024,gongLanguageModelsCode2025}.
+Relative to this literature, our goal is not to generate kernels, but to infer an interpretable performance signal from existing kernels before optimization begins.
+
+\textbf{LLMs for iterative GPU code optimization.}
+A large neighboring literature uses LLMs to improve code performance through iterative search with compilation, execution, and profiler feedback in the loop.
+This includes evaluation-oriented studies such as KernelBench \cite{ouyangKernelBenchCanLLMs2025}, \texttt{robust-kbench} \cite{langeRobustAgenticCUDA2025}, and broader assessments of LLMs on HPC optimization tasks \cite{bowencuiLargeLanguageModels2025,cuiComprehensiveEvaluationLLMs2025}, as well as feedback-driven systems such as CUDA-LLM \cite{chenCUDALLMLLMsCan2025}, PerfCodeGen \cite{pengPerfCodeGenImprovingPerformance2025}, SpeedGen \cite{purschkeSpeedGenEnhancingCode2025}, WarpDrive \cite{damaniWarpDriveAgenticWorkflow}, IntelliPerf \cite{awadIntelliPerfLLMPoweredAutonomous2025}, Autocomp \cite{hongAutocompPowerfulPortable2025}, SwizzlePerf \cite{tschandSwizzlePerfHardwareAwareLLMs2025}, CudaForge \cite{zhangCudaForgeAgentFramework2025}, ParaCodex \cite{kaplanParaCodexProfilingGuidedAutonomous2026}, SysLLMatic \cite{pengSysLLMaticLargeLanguage2025}, the minimal-executable-program approach of Chu \textit{et al.} \cite{chuGPUKernelOptimization2025}, and agent-system approach in \cite{weiImprovingParallelProgram2024}.
+A related training-based line uses RL or fine-tuning to optimize GPU code more effectively, including Kevin, CUDA-L1, KernelBlaster, and recent work on integrating performance tools into model reasoning \cite{baronioKevinMultiTurnRL2025,liCUDAL1ImprovingCUDA2026,dongKernelBlasterContinualCrossTask2026,nicholsIntegratingPerformanceTools2025}.
+More broadly, evolutionary and autonomous search formulations such as LLM-GP and AlphaEvolve reinforce the value of iterative feedback for improving code quality and performance \cite{hembergEvolvingCodeLarge2024,novikovAlphaEvolveCodingAgent2025}.
+Collectively, these works show that LLMs can optimize code when hardware feedback is available, whereas our work asks what useful guidance can be obtained before such feedback exists.
+The downstream objective would be to later use LLM predictors in place of actual hardware profiling feedback to help drive these optimization tools.
+
+\textbf{LLMs for GPU performance prediction.}
+A smaller but much closer body of work uses LLMs as performance predictors rather than optimizers.
+LLMPerf \cite{nguyen-nhatLLMPerfGPUPerformance2024} is an early demonstration that fine-tuned LLMs can act as GPU performance estimators for source programs.
+Bolet et al. \cite{boletCanLargeLanguage2025} framed LLM-based prediction as a coarse Roofline-classification task that predicts whether kernels are compute-bound or bandwidth-bound.
+More recently, Omniwise \cite{wangOmniwisePredictingGPU2025} introduced a fine-tuning pipeline for predicting several GPU kernel metrics, including bandwidth, cache behavior, GFLOPs, and arithmetic intensity, directly from code.
+Our work differs by focusing on quantitative arithmetic-intensity prediction as an interpretable Roofline signal, by studying the zero-training regime with off-the-shelf models, and by explicitly analyzing the gap between source-level reasoning and compiler-realized behavior.
+This distinction matters because floating-point semantics and lowered implementations of operations such as division can change effective FLOP counts in ways that are not explicit in source text \cite{IEEEStandardFloatingPoint2019,louvetNewtonRaphsonAlgorithmsFloatingpoint2010}.
+
+\textbf{Program reasoning and code-property modeling.}
+Arithmetic Intensity prediction also relates to whether LLMs can infer latent execution behavior and nontrivial code properties from source.
+Prior work on code execution, predictive execution, and runtime-behavior reasoning shows that models can sometimes simulate program behavior, but often struggle as reasoning depth and trace complexity increase \cite{liuCodeExecutionPretrained2023,lyuLargeLanguageModels2024,liBlendedAnalysisPredictive2025,chenReasoningRuntimeBehavior2025}.
+Benchmarks for static-analysis-style reasoning and broader code evaluation similarly show that current code LLMs remain brittle on deeper semantic tasks \cite{xieCOREBenchmarkingLLMs2025,jainLiveCodeBenchHolisticContamination2024}.
+Related work further argues that text-only code LLMs often struggle to model latent code properties such as performance, motivating structured or lower-level representations when reasoning about behavior that is not directly visible in source \cite{pydaShortcomingsCodeLLMs2025}.
+Our task fits naturally into this landscape because arithmetic-intensity prediction requires recovering execution-relevant behavior from source in a form that is directly useful for performance engineering.
+
+\textbf{Gap addressed by this work.}
+Taken together, prior work shows that static and learned models can predict aspects of GPU performance without execution, that LLM-based optimization systems benefit strongly from profiler feedback, and that LLMs remain imperfect at reasoning about latent program behavior.
+What remains underexplored is whether off-the-shelf LLMs can serve as \emph{hardware-free Roofline triage tools} by estimating a quantitative profiler-relevant metric directly from code well enough to guide where scarce profiling and tuning effort should be spent.
+Our work addresses this gap by studying Roofline Arithmetic Intensity prediction across GPU architectures, highlighting code features that make prediction harder, and identifying when post-compilation artifacts are needed to close the source-to-performance gap.
+

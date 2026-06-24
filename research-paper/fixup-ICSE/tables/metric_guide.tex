@@ -1,0 +1,16 @@
+\begin{table}[t]
+  \centering
+  \caption{How to read the evaluation metrics.}
+  \label{tab:metric-guide}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{p{0.25\columnwidth}p{0.65\columnwidth}}
+    \toprule
+    Metric & Reader interpretation \\
+    \midrule
+    $\le$25\% APE & Fraction of nonzero samples where numeric \rai is close enough to treat as an accurate static estimate. \\
+    MedAPE & Typical nonzero numeric error; useful for seeing heavy-tailed failures, not the whole story. \\
+    BalAcc & Macro recall for imbalanced triage tasks, so zero or bandwidth-heavy classes cannot dominate the score. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
