@@ -94,13 +94,18 @@ Inspect the console summary, `repeat_trials_manifest.csv`, and `repeat_trials_ro
 
 ```bash
 export OPENROUTER_API_KEY=...
-python experiments/repeat-trials/run_repeat_trials.py --trials 10 --queryBatchSize 4 \
-    --maxSpend 250 --dumpDBOnFinish
+python experiments/repeat-trials/run_repeat_trials.py --trials 4 --queryBatchSize 4 \
+    --maxSpend 100 --dumpDBOnFinish
 # smoke test only (no API calls): --setupOnly
 ```
 Runs the 3 paper models × {source-only, source+SASS} × `--trials` repeats. Decode settings are inherited from
 the main pipeline (temp 0.2, top-p 0.1). Results land in `gpuflops_repeat_db` (dumped to
 `gpuflops_repeat_db.dump`).
+
+**Chosen plan:** 24 kernels × 4 GPUs × 2 evidence × 3 models × **4 trials** = 2,304 LLM calls, ≈ **$153**
+(grounded estimate; Opus ≈ $116, GPT-5.4 ≈ $35, GPT-OSS ≈ $1.50). `--maxSpend` is a per-(model,evidence)
+cap; the largest single arm (Opus+SASS) is ≈ $78, so 100 leaves headroom. The selector prints the live COST
+ESTIMATE so you can re-check before spending.
 
 ## Step 3 — analysis (to be implemented)
 

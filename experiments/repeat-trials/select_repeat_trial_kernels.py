@@ -547,8 +547,8 @@ def main():
                          "few high-cell mixed kernels cannot dominate (0/None disables)")
     ap.add_argument("--noFeatures", action="store_true",
                     help="degraded mode: select without the hard/easy split (for testing only)")
-    ap.add_argument("--trials", type=int, default=10,
-                    help="planned repeat trials per query; used only for the cost estimate")
+    ap.add_argument("--trials", type=int, default=4,
+                    help="planned repeat trials per query; used only for the cost estimate (default 4 ~= $153)")
     ap.add_argument("--costCsv", default=str(DEFAULT_COST_CSV),
                     help="observed per-(kernel,GPU,model,evidence) query costs for the cost estimate")
     ap.add_argument("--models", default=",".join(DEFAULT_RUN_MODELS),

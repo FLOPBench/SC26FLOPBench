@@ -13,10 +13,10 @@ is side-effect free beyond loading the graph/model helpers). Decode settings are
 For each (model, evidence) pair it runs `--trials` repeats against the subset. Thread IDs already encode
 (program, kernel, GPU, model, evidence, trial), so resume/skip works within the dedicated DB.
 
-Example (full run):
+Example (full run; 24-kernel panel x 4 trials x 3 models x 2 evidence ~= $153 total):
     export OPENROUTER_API_KEY=...
-    python experiments/repeat-trials/run_repeat_trials.py --trials 10 --queryBatchSize 4 \
-        --maxSpend 250 --dumpDBOnFinish
+    python experiments/repeat-trials/run_repeat_trials.py --trials 4 --queryBatchSize 4 \
+        --maxSpend 100 --dumpDBOnFinish
 
 Smoke test (no API key needed; just creates the dedicated DB and verifies wiring):
     python experiments/repeat-trials/run_repeat_trials.py --setupOnly
@@ -54,7 +54,9 @@ def main():
     ap.add_argument("--models", default=",".join(DEFAULT_MODELS),
                     help="Comma-separated OpenRouter model identifiers")
     ap.add_argument("--evidence", default="both", choices=["both", "source-only", "source+sass"])
-    ap.add_argument("--trials", type=int, default=10, help="Repeat trials per (kernel,GPU,model,evidence)")
+    ap.add_argument("--trials", type=int, default=4,
+                    help="Repeat trials per (kernel,GPU,model,evidence). Default 4 => ~$153 for the 24-kernel "
+                         "panel across all 3 models x 2 evidence (see the selector's COST ESTIMATE).")
     ap.add_argument("--dbName", default=DEFAULT_DB_NAME, help="Dedicated PostgreSQL database name")
     ap.add_argument("--dumpFile", default=str(DEFAULT_DUMP))
     ap.add_argument("--maxSpend", type=float, default=None, help="USD cap PER (model,evidence) invocation")
