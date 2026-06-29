@@ -21,11 +21,22 @@ Example (full run; 24-kernel panel x 4 trials x 3 models x 2 evidence ~= $153 to
 (Use --yes for non-interactive runs to auto-confirm run_queries' "Press Enter" prompt; omit it in an
 interactive terminal if you want to review the plan and confirm manually.)
 
+Azure (free GPT-5.4): pass a model as "azure/<deployment>" (e.g. azure/gpt-5.4). Such models route to
+AzureChatOpenAI (Chat Completions, so the seed behaves exactly like the OpenRouter path) instead of
+OpenRouter, and need AZURE_API_KEY in the environment. Azure inference returns no cost, so cost is
+ESTIMATED from token usage at OpenRouter's flat list price for the equivalent model (--maxSpend caps on
+that estimate). Use --noFetchCosts: the OpenRouter request-metadata cost backfill cannot resolve Azure
+generations and would leave them cost_updated=False.
+    export AZURE_API_KEY=...
+    python experiments/repeat-trials/run_repeat_trials.py --models azure/gpt-5.4 --trials 4 \
+        --noFetchCosts --dumpDBOnFinish --yes
+
 Smoke test (no API key needed; just creates the dedicated DB and verifies wiring):
     python experiments/repeat-trials/run_repeat_trials.py --setupOnly
 """
 
 import argparse
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -44,6 +55,39 @@ EVIDENCE_SETTINGS = {  # name -> (use_sass, use_imix); main-paper comparison use
 # graph.py reads this env var; when set, it records parse-failed generation ids (still billed) so we can
 # backfill their true cost. Must match graph.REPEAT_TRIALS_FAILED_GEN_DB_ENV.
 FAILED_GEN_DB_ENV = "REPEAT_TRIALS_FAILED_GEN_DB_URI"
+
+
+# Provider tokens that may prefix a model id ("openai/gpt-5.4", "azure/gpt-5.4", ...). The "/" becomes
+# "_" when the model is sanitized into the thread_id (see _sanitize_thread_part in run_queries.py), so the
+# provider shows up as a "_<provider>_" token inside the thread_id.
+_PROVIDER_SEED_TOKENS = ("azure", "openai", "openrouter", "anthropic")
+
+
+def _provider_agnostic_seed_key(thread_id: str) -> str:
+    """Strip the provider token from the model segment of a thread_id so the seed depends only on the bare
+    model id. The same model served by different providers embeds as "..._openai_gpt-5.4_..." (OpenRouter)
+    vs "..._azure_gpt-5.4_..." (Azure); removing the provider token makes both collapse to "..._gpt-5.4_..."
+    so they hash to the SAME seed and cross-provider trials are directly comparable. Only the seed key is
+    normalized -- the real thread_id keeps its provider, so the providers' rows never collide in the DB."""
+    for token in _PROVIDER_SEED_TOKENS:
+        thread_id = thread_id.replace(f"_{token}_", "_")
+    return thread_id
+
+
+def _compute_repeat_trial_seed(thread_id: str, failed_attempts: int) -> int:
+    """Deterministic seed for a repeat-trial query.
+
+    Provider-agnostic: the same (program, kernel, GPU, model, evidence, trial) gets the same seed whether
+    the model is run via OpenRouter or Azure, so a model's behavior can be compared across providers under
+    an identical seed.
+
+    Stable across trial counts: trial 0 always gets the same seed regardless of whether the run is 4 or 10
+    trials total. A retry (failed_attempts > 0) gets a distinct seed so a broken seed is never re-used on
+    retry.
+    """
+    seed_key = _provider_agnostic_seed_key(thread_id)
+    key = seed_key if failed_attempts == 0 else f"{seed_key}_retry{failed_attempts}"
+    return int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) % (2**31)
 
 
 def _model_display_from_thread(thread_id):
@@ -255,17 +299,30 @@ def main():
     no_cache = os.environ.get("OPENROUTER_NO_CACHE", "1") != "0"
     cache_status = "disabled (X-OpenRouter-Cache: false)" if no_cache else "enabled (set OPENROUTER_NO_CACHE=0)"
     print(f"  response cache: {cache_status}")
+    print(f"  seed mode    : deterministic (sha256 of thread_id + retry count)")
 
     if args.setupOnly:
         print("\n--setupOnly: dedicated DB is ready and wiring verified. No queries executed.")
         return
 
-    if not (os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")):
-        print("\nERROR: no API key in the environment (need OPENROUTER_API_KEY).\n"
+    # Require the API key for whichever providers are actually in use. "azure/<deployment>" models hit
+    # the (free) Azure Responses API and need AZURE_API_KEY; everything else needs an OpenRouter key.
+    needs_azure = any(m.startswith("azure/") for m in models)
+    needs_openrouter = any(not m.startswith("azure/") for m in models)
+    if needs_openrouter and not (os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")):
+        print("\nERROR: no OpenRouter API key in the environment (need OPENROUTER_API_KEY for non-Azure models).\n"
               "  Env vars do NOT persist across separate shell invocations, so set it in the SAME command:\n"
               "    export OPENROUTER_API_KEY=sk-or-...\n"
               "    python experiments/repeat-trials/run_repeat_trials.py --models openai/gpt-oss-120b "
               "--trials 1 --maxQueries 4 --yes --verbose", file=sys.stderr)
+        sys.exit(2)
+    if needs_azure and not (os.environ.get("AZURE_API_KEY") or os.environ.get("AZURE_OPENAI_API_KEY")
+                            or os.environ.get("OPENAI_API_KEY")):
+        print("\nERROR: no Azure API key in the environment (need AZURE_API_KEY for azure/ models).\n"
+              "  Set it in the SAME command, and use --noFetchCosts (Azure is free; no OpenRouter cost backfill):\n"
+              "    export AZURE_API_KEY=...\n"
+              "    python experiments/repeat-trials/run_repeat_trials.py --models azure/gpt-5.4 "
+              "--trials 1 --maxQueries 4 --noFetchCosts --yes --verbose", file=sys.stderr)
         sys.exit(2)
 
     if args.yes:
@@ -294,6 +351,7 @@ def main():
                         args.maxTimeout, args.maxQueries, cli_config,
                         args.maxFailedAttempts, False,  # skip_completed_check
                         args.maxSpend, args.queryBatchSize,
+                        seed_fn=_compute_repeat_trial_seed,
                     )
                     config_status.append((model, ev, "ok"))
                 except Exception as exc:  # noqa: BLE001 -- keep batching across configs

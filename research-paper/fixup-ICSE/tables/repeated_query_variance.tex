@@ -1,21 +1,17 @@
-% PLACEHOLDER TABLE -- to be filled from the deferred repeated-query experiment.
-% Plan: run GPT-OSS 5--10x (and a small Opus subset) on the stratified ~50-kernel
-% panel; report mean +/- 95% CI of nonzero BB/CB balanced accuracy across repeats.
-% See REFRAME_PLAN.md "Sampling protocol" for panel construction.
-\begin{table}[H]
+\begin{table*}[t]
   \centering
-  \caption{\textbf{[PLACEHOLDER --- pending deferred experiment.]} Run-to-run stability of nonzero \bandwidthbound/\computebound balanced accuracy across repeated queries on the stratified robustness panel. Each cell will report mean $\pm$ 95\% CI over repeats. Values are to be filled from the planned variance study.}
+  \caption{Repeated-query response variability on the repeat-trials panel. ``CV'' is the median coefficient of variation of predicted \rai across repeats (lower is more consistent); ``Agr'' is the fraction of cells whose \bandwidthbound/\computebound call is unanimous across repeats. Computed at the main-paper decode settings.}
   \label{tab:repeated-query-variance}
   \scriptsize
   \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{llrrr}
+  \begin{tabular}{llrrrrrr}
     \toprule
-    Model & Evidence & FP16 BalAcc & FP32 BalAcc & FP64 BalAcc \\
+    & & \multicolumn{2}{c}{FP16} & \multicolumn{2}{c}{FP32} & \multicolumn{2}{c}{FP64} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
+    Model & Evidence & CV & Agr & CV & Agr & CV & Agr \\
     \midrule
-    \gptoss & \sourceonly & TBD & TBD & TBD \\
-    \gptoss & \sourcesass & TBD & TBD & TBD \\
-    \opus & \sourceonly & TBD & TBD & TBD \\
-    \opus & \sourcesass & TBD & TBD & TBD \\
+    \texttt{GPT OSS} & source-only & 0.00 & 100\% & 0.27 & 81\% & 0.20 & 76\% \\
+    \texttt{GPT OSS} & source+SASS & 0.00 & 95\% & 0.44 & 69\% & 0.49 & 62\% \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}

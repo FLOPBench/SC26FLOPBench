@@ -118,13 +118,26 @@ def _openrouter_model_pricing() -> Dict[str, Dict[str, Decimal]]:
     return pricing_by_model
 
 
+# Azure inference responses never include cost, and the Azure Cost Management API needs
+# subscription-scoped Azure AD credentials we don't have (only the resource endpoint + key). So Azure
+# cost is ESTIMATED from token usage at OpenRouter's flat list price for the equivalent model -- the
+# same price table used for the OpenRouter-run models, keeping the cost comparison apples-to-apples.
+# Azure reports the deployment ("gpt-5.4") or dated ("gpt-5.4-2026-03-05") model name, neither of which
+# is an OpenRouter pricing key, so map them to "openai/gpt-5.4" here.
+_COST_MODEL_PRICING_ALIASES = {
+    "gpt-5.4": "openai/gpt-5.4",
+    "gpt-5.4-2026-03-05": "openai/gpt-5.4",
+}
+
+
 def _calculate_cost_usd(response_metadata: Dict[str, Any], usage: Dict[str, Any]) -> Optional[float]:
     model_name = response_metadata.get("model_name") or response_metadata.get("model")
     if not model_name:
         return None
 
+    pricing_key = _COST_MODEL_PRICING_ALIASES.get(model_name, model_name)
     try:
-        pricing = _openrouter_model_pricing().get(model_name)
+        pricing = _openrouter_model_pricing().get(pricing_key)
     except (URLError, TimeoutError, ValueError, json.JSONDecodeError):
         return None
 

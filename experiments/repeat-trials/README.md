@@ -104,6 +104,20 @@ Runs the 3 paper models × {source-only, source+SASS} × `--trials` repeats. Dec
 the main pipeline (temp 0.2, top-p 0.1). Results land in `gpuflops_repeat_db` (dumped to
 `gpuflops_repeat_db.dump`).
 
+> **Warning — check for active DB connections before any destructive call.** The destructive flags
+> (`--deleteDBFreshStart`, and `--importDBDumpFile`, which also wipes first) call `wipe_database()`, which
+> **terminates every other connection** to `gpuflops_repeat_db` (`pg_terminate_backend`) and then
+> `DROP DATABASE`. If another run is reading/writing the DB it will die with a "connection lost" error and
+> its data is **gone** — there is no WAL archiving (`archive_mode=off`) and no automatic dump, so a drop is
+> unrecoverable unless you took a dump first. Before running any destructive call, confirm nothing else is
+> attached:
+> ```bash
+> psql -h localhost -p 5432 -U postgres -tA -c \
+>   "SELECT pid, state, query FROM pg_stat_activity WHERE datname='gpuflops_repeat_db' AND pid<>pg_backend_pid();"
+> ```
+> If that returns any rows, stop those runs first. Take a dump (`--dumpDBOnFinish`, or a manual `pg_dump`)
+> before wiping so the DB can be restored with `--importDBDumpFile`.
+
 **Chosen plan:** 24 kernels × 4 GPUs × 2 evidence × 3 models × **4 trials** = 2,304 LLM calls, ≈ **$153**
 (grounded estimate; Opus ≈ $116, GPT-5.4 ≈ $35, GPT-OSS ≈ $1.50). `--maxSpend` is a per-(model,evidence)
 cap; the largest single arm (Opus+SASS) is ≈ $78, so 100 leaves headroom. The selector prints the live COST

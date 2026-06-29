@@ -27,6 +27,8 @@ if llm_models_spec and llm_models_spec.loader:
 
 build_openrouter_llm = llm_models.build_openrouter_llm
 OpenRouterLLMSettings = llm_models.OpenRouterLLMSettings
+build_azure_llm = llm_models.build_azure_llm
+AzureLLMSettings = llm_models.AzureLLMSettings
 
 # Import graph
 graph_path = os.path.join(WORKSPACE_ROOT, "experiments", "direct-prompting", "graph.py")
@@ -420,8 +422,18 @@ def _execute_query_worker(
     pool = None
 
     try:
-        settings = OpenRouterLLMSettings(model_name=model_name)
-        configurable_llm = build_openrouter_llm(settings)
+        # Route "azure/<deployment>" models to Azure (Chat Completions); everything else stays on
+        # OpenRouter. The full model string (incl. the "azure/" prefix) flows through thread ids/DB
+        # unchanged. Both providers receive the same per-query seed, so a retry after a failure gets a
+        # fresh seed (see seed_fn) regardless of provider.
+        seed = query.get("seed")
+        if model_name.startswith("azure/"):
+            deployment = model_name[len("azure/"):]
+            settings = AzureLLMSettings(model_name=deployment, azure_deployment=deployment, seed=seed)
+            configurable_llm = build_azure_llm(settings)
+        else:
+            settings = OpenRouterLLMSettings(model_name=model_name, seed=seed)
+            configurable_llm = build_openrouter_llm(settings)
 
         pool = ConnectionPool(conninfo=db_uri, kwargs={"autocommit": True})
         checkpointer = PostgresSaver(pool)
@@ -474,7 +486,7 @@ def _execute_query_worker(
         attempt_tracker.close()
         parser.close()
 
-def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, print_prompts: bool = False, use_sass: bool = False, use_imix: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1):
+def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, single_dry_run: bool = False, verbose: bool = False, print_prompts: bool = False, use_sass: bool = False, use_imix: bool = False, max_timeout: int = 240, max_queries: int | None = None, cli_config: dict | None = None, max_failed_attempts: int = 3, skip_completed_check: bool = False, max_spend: float | None = None, query_batch_size: int = 1, seed_fn=None):
     print("Loading dataset...")
     data = load_dataset(dataset_path)
     
@@ -600,6 +612,12 @@ def run_queries(db_uri: str, dataset_path: str, model_name: str, trials: int, si
                     completed_threads.add(cp["thread_id"])
 
         attempt_data = attempt_tracker.fetch_attempts(list(query_thread_ids))
+
+        if seed_fn is not None:
+            for q in queries:
+                failed = attempt_data.get(q["thread_id"], {}).get("failed_attempts", 0)
+                q["seed"] = seed_fn(q["thread_id"], failed)
+
         completed_for_run = completed_threads.intersection(query_thread_ids)
         failed_for_run = (checkpoint_threads.intersection(query_thread_ids) - completed_for_run)
         total_failed_runs_db = sum(

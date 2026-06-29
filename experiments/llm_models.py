@@ -34,6 +34,9 @@ class OpenRouterLLMSettings:
     # regardless of temperature, which would corrupt repeat-trial independence. Set
     # OPENROUTER_NO_CACHE=0 in the environment to re-enable caching if ever desired.
     no_cache: bool = field(default_factory=lambda: os.environ.get("OPENROUTER_NO_CACHE", "1") != "0")
+    # Optional seed for reproducibility. When set, OpenRouter pins sampling so the same seed
+    # returns the same response. None means no seed is sent (non-deterministic sampling).
+    seed: Optional[int] = None
 
     @property
     def init_kwargs(self) -> dict[str, object]:
@@ -48,19 +51,37 @@ class OpenRouterLLMSettings:
         }
         if self.no_cache:
             kwargs["default_headers"] = {"X-OpenRouter-Cache": "false"}
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
         return kwargs
 
 
 @dataclass
 class AzureLLMSettings:
-    """Hyperparameters and credentials for an AzureChatOpenAI."""
+    """Hyperparameters and credentials for an AzureChatOpenAI.
 
-    model_name: str = "gpt-5-mini"
+    Uses the Chat Completions API (NOT the Responses API): the Azure Responses endpoint rejects the
+    `seed` parameter (`400 Unknown parameter: 'seed'`), whereas Chat Completions accepts it. Using
+    Chat Completions therefore keeps Azure's decode/seed behavior identical to the OpenRouter path
+    (which is also Chat Completions). `azure_endpoint` is the BASE host; langchain + the openai SDK
+    build `/openai/deployments/<deployment>/chat/completions?api-version=...` from `azure_deployment`.
+
+    GPT-5 reasoning models only accept `temperature=1` (langchain silently drops other values), so
+    `top_p`/`reasoning_effort`/`seed` are omitted entirely when left as None to avoid spurious 400s.
+    """
+
+    model_name: str = "gpt-5.4"
+    azure_deployment: Optional[str] = None  # defaults to model_name when unset
     temperature: float = 1.0
-    top_p: float = 1.0
+    top_p: Optional[float] = None
+    reasoning_effort: Optional[str] = None  # None => Azure default (medium)
+    # Optional seed for reproducibility, matching OpenRouterLLMSettings.seed. When set, the same seed
+    # is sent to Azure Chat Completions (best-effort sampling pin). None means no seed is sent.
+    seed: Optional[int] = None
+    use_responses_api: bool = False
     timeout: int = 120
     openai_api_key: Optional[str] = field(
-        default_factory=lambda: _env_first("AZURE_OPENAI_API_KEY", "OPENAI_API_KEY")
+        default_factory=lambda: _env_first("AZURE_API_KEY", "AZURE_OPENAI_API_KEY", "OPENAI_API_KEY")
     )
     azure_endpoint: str = field(
         default_factory=lambda: _env_first(
@@ -75,15 +96,23 @@ class AzureLLMSettings:
     @property
     def init_kwargs(self) -> dict[str, object]:
         """Return kwargs that can be passed directly to `AzureChatOpenAI`."""
-        return {
+        kwargs: dict[str, object] = {
             "model_name": self.model_name,
+            "azure_deployment": self.azure_deployment or self.model_name,
             "temperature": self.temperature,
-            "top_p": self.top_p,
             "timeout": self.timeout,
             "openai_api_key": self.openai_api_key,
             "azure_endpoint": self.azure_endpoint,
             "openai_api_version": self.openai_api_version,
+            "use_responses_api": self.use_responses_api,
         }
+        if self.top_p is not None:
+            kwargs["top_p"] = self.top_p
+        if self.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = self.reasoning_effort
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
+        return kwargs
 
 
 def _openrouter_configurable_fields() -> dict[str, ConfigurableField]:
