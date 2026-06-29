@@ -95,9 +95,11 @@ Inspect the console summary, `repeat_trials_manifest.csv`, and `repeat_trials_ro
 ```bash
 export OPENROUTER_API_KEY=...
 python experiments/repeat-trials/run_repeat_trials.py --trials 4 --queryBatchSize 4 \
-    --maxSpend 100 --dumpDBOnFinish
+    --maxSpend 100 --dumpDBOnFinish --yes
 # smoke test only (no API calls): --setupOnly
 ```
+Add `--yes` for non-interactive runs (piped stdin, or Claude Code's `!` prefix) to auto-confirm the
+underlying "Press Enter to continue" prompt; omit it in an interactive terminal to review and confirm manually.
 Runs the 3 paper models × {source-only, source+SASS} × `--trials` repeats. Decode settings are inherited from
 the main pipeline (temp 0.2, top-p 0.1). Results land in `gpuflops_repeat_db` (dumped to
 `gpuflops_repeat_db.dump`).

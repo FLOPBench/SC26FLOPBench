@@ -147,6 +147,41 @@ def _calculate_cost_usd(response_metadata: Dict[str, Any], usage: Dict[str, Any]
     )
     return float(cost)
 
+
+# Env var (set only by the repeat-trials runner) pointing at a DB with a pre-created failed_generation_ids
+# table. When unset (the normal direct-prompting path) the helper below is a no-op, so the main pipeline is
+# unaffected.
+REPEAT_TRIALS_FAILED_GEN_DB_ENV = "REPEAT_TRIALS_FAILED_GEN_DB_URI"
+
+
+def _record_failed_generation(config: "RunnableConfig", response: Dict[str, Any]) -> None:
+    """A structured-output parse failure still consumed (and was billed for) an OpenRouter generation, but the
+    node raises before the gen id is persisted. If a repeat-trials DB URI is exported, record that gen id so
+    its true cost can be backfilled later. Env-gated and best-effort: never raises, never blocks the run."""
+    db_uri = os.environ.get(REPEAT_TRIALS_FAILED_GEN_DB_ENV)
+    if not db_uri:
+        return
+    try:
+        raw = response.get("raw")
+        rawdump = raw.model_dump() if hasattr(raw, "model_dump") else (raw or {})
+        response_metadata = rawdump.get("response_metadata", {}) or {}
+        generation_id = response_metadata.get("id") or rawdump.get("id")
+        if not generation_id or not str(generation_id).startswith("gen-"):
+            return
+        thread_id = (config or {}).get("configurable", {}).get("thread_id")
+        model = response_metadata.get("model_name") or response_metadata.get("model")
+        provider = response_metadata.get("model_provider")
+        with psycopg.connect(db_uri, autocommit=True) as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO failed_generation_ids (thread_id, generation_id, model, provider, response_metadata) "
+                "VALUES (%s, %s, %s, %s, %s::jsonb) "
+                "ON CONFLICT (thread_id, generation_id) DO UPDATE SET recorded_at = NOW()",
+                (thread_id, str(generation_id), model, provider, json.dumps(response_metadata)),
+            )
+    except Exception:
+        pass  # cost-capture logging must never break or alter the run
+
+
 def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     
     # Initialize PromptGenerator
@@ -197,11 +232,11 @@ def query_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     end_time = time.time()
 
     parsing_error = response.get("parsing_error")
-    if parsing_error is not None:
-        raise parsing_error
-
     parsed = response.get("parsed")
-    if parsed is None:
+    if parsing_error is not None or parsed is None:
+        _record_failed_generation(config, response)  # env-gated; no-op for the main pipeline
+        if parsing_error is not None:
+            raise parsing_error
         raise ValueError("Structured output did not contain a parsed response.")
     
     return {
