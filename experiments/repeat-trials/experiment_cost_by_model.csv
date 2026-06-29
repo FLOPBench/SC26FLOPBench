@@ -1,3 +1,3 @@
-model_name,threads,updated,total_cost_usd
-openai/gpt-oss-120b,765,765,1.255522877
-GPT OSS,3,0,0.0
+model_name,threads,total_cost_usd,updated
+GPT 5.4,768,31.122342,0
+GPT OSS,48,0.02944293,0

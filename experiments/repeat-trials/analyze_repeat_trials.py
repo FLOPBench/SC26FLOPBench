@@ -17,6 +17,7 @@ per-group CSVs. Works on whatever data is present (partial runs included). All p
 
 import argparse
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -32,6 +33,57 @@ PAPER_FIG_DIR = REPO_ROOT / "research-paper" / "fixup-ICSE" / "figures"
 PRECISIONS = ["fp16", "fp32", "fp64"]
 MODEL_ORDER = ["Opus 4.6", "GPT 5.4", "GPT OSS"]
 EVIDENCE_ORDER = ["source-only", "source+SASS"]
+
+# The repeat DB stores llm_model_name inconsistently: some models land as friendly labels ("GPT OSS")
+# while others keep a raw, date-versioned id ("gpt-5.4-2026-03-05"). Normalize to the display labels in
+# MODEL_ORDER so grouping, sorting, and the paper table line up. Date suffixes (-YYYY-MM-DD or -YYYYMMDD)
+# are stripped before lookup.
+_MODEL_DATE_SUFFIX = re.compile(r"-\d{4}-\d{2}-\d{2}$|-\d{8}$")
+_MODEL_LABEL_MAP = {
+    "anthropic/claude-opus-4.6": "Opus 4.6",
+    "claude-opus-4.6": "Opus 4.6",
+    "opus 4.6": "Opus 4.6",
+    "openai/gpt-5.4": "GPT 5.4",
+    "gpt-5.4": "GPT 5.4",
+    "gpt 5.4": "GPT 5.4",
+    "openai/gpt-oss-120b": "GPT OSS",
+    "gpt-oss-120b": "GPT OSS",
+    "gpt oss": "GPT OSS",
+}
+
+
+def _normalize_model_name(value):
+    if not isinstance(value, str):
+        return value
+    base = _MODEL_DATE_SUFFIX.sub("", value).strip()
+    return _MODEL_LABEL_MAP.get(base.casefold(), base)
+
+
+def _mark_invalid_predictions(completed, long_df):
+    """Flag and null out predicted AIs built from negative sentinels.
+
+    A model emits ``-1`` ("cannot determine") for a FLOP or DRAM-byte field it declines to estimate. Those
+    are abstentions, not numeric predictions, yet they flow through AI = FLOP / bytes and produce impossible
+    intensities -- negative when one side is negative (e.g. 4608 / -2 = -2304) AND, more sneakily, *positive*
+    when both sides are negative (e.g. -1 / -2 = 0.5). So invalidity is decided at the field level (precision
+    FLOP < 0 or predicted_total_bytes < 0), not by the sign of the AI. Invalid trials get predicted_ai /
+    abs_ai_pct_error nulled (so they don't pollute the variability stats) and an ``invalid_pred`` flag (so we
+    can report an abstention rate). Zero-byte cases are already NaN via db_reader's _safe_divide."""
+    total_bytes = pd.to_numeric(completed["predicted_total_bytes"], errors="coerce")
+    records = []
+    for precision in PRECISIONS:
+        flop = pd.to_numeric(completed[f"predicted_{precision}"], errors="coerce")
+        invalid = ((flop < 0) | (total_bytes < 0)).fillna(False)
+        records.append(pd.DataFrame({
+            "thread_id": completed["thread_id"].values,
+            "precision": precision,
+            "invalid_pred": invalid.values,
+        }))
+    inv = pd.concat(records, ignore_index=True)
+    out = long_df.merge(inv, on=["thread_id", "precision"], how="left")
+    out["invalid_pred"] = out["invalid_pred"].fillna(False)
+    out.loc[out["invalid_pred"], ["predicted_ai", "abs_ai_pct_error"]] = np.nan
+    return out
 
 
 def _load_db_reader():
@@ -49,6 +101,9 @@ def load_frames(db_uri):
     samples = dbr.load_gpuflops_samples_dataframe(db_uri=db_uri)
     completed = dbr.enrich_gpuflops_with_ai_metrics(samples)
     long_df = dbr.build_sample_ai_error_long_dataframe(completed)
+    completed["model_name"] = completed["model_name"].map(_normalize_model_name)
+    long_df["model_name"] = long_df["model_name"].map(_normalize_model_name)
+    long_df = _mark_invalid_predictions(completed, long_df)
     return completed, long_df
 
 
@@ -121,13 +176,21 @@ def build_cell_table(long_df, manifest_path, min_trials):
     # Inner join: restrict to the curated, stratified panel cells (nonzero-GT, eligible).
     d = long_df.merge(man, on=["program_name", "kernel_mangled_name", "gpu", "precision"], how="inner")
     d["hard_easy"] = d["hard"].map({True: "hard", False: "easy"})
+    # Class / zero verdicts only make sense for valid numeric predictions; invalid (sentinel) trials carry a
+    # NaN predicted_ai and must stay NaN here rather than defaulting to "BB"/"zero".
     d["pred_class"] = np.where(d["predicted_ai"] > d["balance_point"], "CB", "BB")
-    d["pred_nonzero"] = d["predicted_ai"] > 0
+    d.loc[d["predicted_ai"].isna(), "pred_class"] = np.nan
+    d["pred_nonzero"] = np.where(d["predicted_ai"].isna(), np.nan, d["predicted_ai"] > 0)
 
     cell_keys = ["program_name", "kernel_mangled_name", "gpu", "model_name", "evidence", "precision"]
     rows = []
     for key, sub in d.groupby(cell_keys, dropna=False):
         n = int(sub["trial"].nunique())
+        n_invalid = int(sub["invalid_pred"].sum())
+        pred_valid = pd.to_numeric(sub["predicted_ai"], errors="coerce").dropna()
+        n_valid = int(len(pred_valid))
+        pred_class = sub["pred_class"].dropna()
+        pred_nonzero = sub["pred_nonzero"].dropna()
         ape = sub["abs_ai_pct_error"].replace([np.inf, -np.inf], np.nan).dropna()
         rows.append({
             **dict(zip(cell_keys, key)),
@@ -135,11 +198,13 @@ def build_cell_table(long_df, manifest_path, min_trials):
             "bound_class": sub["bound_class"].iloc[0],
             "proximity_band": sub["proximity_band"].iloc[0],
             "n_trials": n,
-            "pred_rai_cv": _cv(sub["predicted_ai"]),
-            "pred_rai_logstd": float(np.log1p(pd.to_numeric(sub["predicted_ai"], errors="coerce").dropna())
-                                     .std(ddof=1)) if n >= 2 else np.nan,
-            "bbcb_consistent": (int(sub["pred_class"].nunique() == 1) if n >= min_trials else np.nan),
-            "nz_consistent": (int(sub["pred_nonzero"].nunique() == 1) if n >= min_trials else np.nan),
+            "n_valid": n_valid,
+            "n_invalid": n_invalid,
+            "invalid_rate": float(sub["invalid_pred"].mean()) if len(sub) else np.nan,
+            "pred_rai_cv": _cv(pred_valid),
+            "pred_rai_logstd": float(np.log1p(pred_valid).std(ddof=1)) if n_valid >= 2 else np.nan,
+            "bbcb_consistent": (int(pred_class.nunique() == 1) if len(pred_class) >= min_trials else np.nan),
+            "nz_consistent": (int(pred_nonzero.nunique() == 1) if len(pred_nonzero) >= min_trials else np.nan),
             "mean_ape": float(ape.mean()) if len(ape) else np.nan,
             "std_ape": float(ape.std(ddof=1)) if len(ape) >= 2 else np.nan,
         })
@@ -149,15 +214,19 @@ def build_cell_table(long_df, manifest_path, min_trials):
 def build_group_table(cells):
     """Aggregate cells by (model, evidence, precision); also by hard/easy in a separate frame."""
     def agg(g):
+        total_trials = float(g["n_trials"].sum())
         return pd.Series({
             "n_cells": int(len(g)),
             "median_cv": float(np.nanmedian(g["pred_rai_cv"])) if g["pred_rai_cv"].notna().any() else np.nan,
             "bbcb_agreement": float(np.nanmean(g["bbcb_consistent"])) if g["bbcb_consistent"].notna().any() else np.nan,
             "nz_agreement": float(np.nanmean(g["nz_consistent"])) if g["nz_consistent"].notna().any() else np.nan,
             "median_mean_ape": float(np.nanmedian(g["mean_ape"])) if g["mean_ape"].notna().any() else np.nan,
+            "invalid_rate": float(g["n_invalid"].sum() / total_trials) if total_trials else np.nan,
         })
-    by_group = cells.groupby(["model_name", "evidence", "precision"], dropna=False).apply(agg).reset_index()
-    by_group_he = cells.groupby(["model_name", "evidence", "precision", "hard_easy"], dropna=False).apply(agg).reset_index()
+    by_group = cells.groupby(["model_name", "evidence", "precision"], dropna=False).apply(
+        agg, include_groups=False).reset_index()
+    by_group_he = cells.groupby(["model_name", "evidence", "precision", "hard_easy"], dropna=False).apply(
+        agg, include_groups=False).reset_index()
     return by_group, by_group_he
 
 
@@ -296,9 +365,14 @@ def main():
     print("models present:", sorted(cells["model_name"].unique()))
     print("trials per cell: min/median/max =",
           int(cells["n_trials"].min()), int(cells["n_trials"].median()), int(cells["n_trials"].max()))
+    total_trials = int(cells["n_trials"].sum())
+    total_invalid = int(cells["n_invalid"].sum())
+    print(f"invalid (sentinel) trials: {total_invalid}/{total_trials} "
+          f"({(100.0 * total_invalid / total_trials if total_trials else 0):.1f}%) "
+          "-- nulled out of CV/APE/BB-CB, reported as invalid_rate")
     print("\nper (model, evidence, precision):")
     show = by_group.copy()
-    for c in ["median_cv", "bbcb_agreement", "nz_agreement", "median_mean_ape"]:
+    for c in ["median_cv", "bbcb_agreement", "nz_agreement", "median_mean_ape", "invalid_rate"]:
         show[c] = show[c].round(3)
     print(show.to_string(index=False))
 
