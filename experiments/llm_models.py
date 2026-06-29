@@ -30,11 +30,15 @@ class OpenRouterLLMSettings:
             "OPENROUTER_API_BASE", "OPENAI_API_BASE", default="https://openrouter.ai/api/v1"
         )
     )
+    # Disable OpenRouter response caching by default. Cached responses are returned verbatim
+    # regardless of temperature, which would corrupt repeat-trial independence. Set
+    # OPENROUTER_NO_CACHE=0 in the environment to re-enable caching if ever desired.
+    no_cache: bool = field(default_factory=lambda: os.environ.get("OPENROUTER_NO_CACHE", "1") != "0")
 
     @property
     def init_kwargs(self) -> dict[str, object]:
         """Return kwargs that can be passed directly to `ChatOpenAI`."""
-        return {
+        kwargs: dict[str, object] = {
             "model_name": self.model_name,
             "temperature": self.temperature,
             "top_p": self.top_p,
@@ -42,6 +46,9 @@ class OpenRouterLLMSettings:
             "openai_api_key": self.openai_api_key,
             "openai_api_base": self.openai_api_base,
         }
+        if self.no_cache:
+            kwargs["default_headers"] = {"X-OpenRouter-Cache": "false"}
+        return kwargs
 
 
 @dataclass

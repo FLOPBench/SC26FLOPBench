@@ -252,6 +252,9 @@ def main():
     print(f"  evidence     : {evidence_names}")
     print(f"  trials       : {args.trials}")
     print(f"  configs      : {len(models) * len(evidence_names)} (model x evidence)")
+    no_cache = os.environ.get("OPENROUTER_NO_CACHE", "1") != "0"
+    cache_status = "disabled (X-OpenRouter-Cache: false)" if no_cache else "enabled (set OPENROUTER_NO_CACHE=0)"
+    print(f"  response cache: {cache_status}")
 
     if args.setupOnly:
         print("\n--setupOnly: dedicated DB is ready and wiring verified. No queries executed.")
