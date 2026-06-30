@@ -3,69 +3,66 @@
 
 \subsection{Prediction Task}
 
-Our target is the DRAM-level Roofline Arithmetic Intensity (\rai) of a GPU kernel's \emph{first invocation}.
-At prediction time, the LLM does not execute the program, collect profiler counters, or observe runtime traces.
-Instead, it receives software artifacts and must infer the quantities from which \rai is derived.
+Our primary target is a kernel's \bandwidthbound/\computebound Roofline regime on a given GPU: whether, on its \emph{first invocation}, the kernel sits on the memory-bandwidth-limited or the compute-limited side of that device's Roofline balance point.
+The underlying quantity is the DRAM-level Roofline Arithmetic Intensity (\rai), the ratio of floating-point work to DRAM traffic; comparing \rai against the GPU-specific balance point yields the regime label, and we treat the numeric \rai as a diagnostic that explains \emph{why} a classification is right or wrong.
+At prediction time the LLM does not execute the program, collect profiler counters, or observe runtime traces; it receives software artifacts and must infer the quantities from which \rai, and hence the regime, are derived.
 
-We do not ask the model to emit \rai directly.
-For each profiled sample, meaning one first-invocation kernel execution on one GPU, the model predicts seven values:
-\begin{enumerate}[leftmargin=1.2em]
-  \item grid size,
-  \item block size,
-  \item FP16 operation count,
-  \item FP32 operation count,
-  \item FP64 operation count,
-  \item DRAM bytes read, and
-  \item DRAM bytes written.
-\end{enumerate}
-We then derive \rai separately for each precision:
+We do not ask the model to emit the regime label or \rai directly.
+For each profiled sample, meaning one first-invocation kernel execution on one GPU, the model predicts seven values: grid size, block size, FP16/FP32/FP64 operation counts, and DRAM bytes read and written.
+We then derive \rai separately for each precision,
 \[
 \texttt{\rai}_{p}
 =
 \frac{\texttt{FLOP}_{p}}
      {\texttt{BytesRead} + \texttt{BytesWritten}},
 \qquad
-p \in \{\texttt{FP16}, \texttt{FP32}, \texttt{FP64}\}.
+p \in \{\texttt{FP16}, \texttt{FP32}, \texttt{FP64}\},
 \]
-This decomposition makes failures easier to interpret.
-An incorrect launch configuration propagates into total work; an incorrect FLOP count indicates semantic or compiler-lowering errors; and an incorrect byte estimate indicates difficulty reasoning about DRAM-visible traffic.
+and classify each precision relative to that GPU's balance point.
+This decomposition makes failures interpretable: an incorrect launch configuration propagates into total work, an incorrect FLOP count indicates a semantic or compiler-lowering error, and an incorrect byte estimate indicates difficulty reasoning about DRAM-visible traffic.
+Each predicted quantity exercises a distinct reasoning step: the launch configuration requires propagating command-line inputs through the host code to recover the first executed launch; the FLOP count requires reasoning about thread-level work, loop trip counts, divergence, and compiler effects; and the DRAM-traffic estimate requires reasoning about what memory activity reaches on-board DRAM rather than what appears as source-level loads and stores, including the effect of the L2 write-back cache.
 
-We intentionally keep separate FP16/FP32/FP64 \rai values rather than collapsing mixed-precision kernels into a single scalar.
-This matches the per-precision balance points used later for triage and makes compiler-injected FP16 work visible.
-It also means that a kernel may have zero FP64 \rai but nonzero FP32 \rai, which we treat as a feature of the task rather than a modeling mistake.
+We keep separate FP16/FP32/FP64 \rai values rather than collapsing mixed-precision kernels into a single scalar.
+This matches the per-precision balance points used for triage and makes compiler-injected FP16 work visible, so a kernel may have zero FP64 \rai but nonzero FP32 \rai, which we treat as a feature of the task rather than a modeling mistake.
 
-\subsection{Input Evidence}
+\subsection{Input Evidence and Prompting}
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/prompting_pipeline.png}
   \caption{Per-kernel prompting workflow.
-  Each query includes the target kernel name, source files, compile commands, runtime arguments, and GPU specifications.
-  The \sourcesass setting adds target-kernel SASS sections and relevant helper routines so we can measure the value of post-compilation evidence.}
+  Each query includes the target kernel name (mangled and demangled), source files, compile commands, runtime arguments, and GPU specifications.
+  The \sourcesass setting adds the target kernel's SASS sections and reachable helper routines so we can measure the value of post-compilation evidence.}
   \Description{A per-kernel prompt pipeline showing source files, build commands, runtime arguments, and GPU specifications as shared inputs, with SASS blocks added only in the source-plus-SASS setting before the model predicts launch sizes, FLOPs, and bytes.}
   \label{fig:prompting-pipeline}
 \end{figure}
 
-Figure~\ref{fig:prompting-pipeline} summarizes the evidence we provide to the model.
-Every prompt contains the kernel identifier (mangled and demangled), relevant source files, compile commands, runtime arguments, and target-GPU specifications.
-The \sourcesass configuration augments the same prompt with SASS sections for the target kernel and helper routines that may execute on its path.
+\autoref{fig:prompting-pipeline} summarizes the evidence supplied to the model for one target kernel on one GPU.
+Every prompt contains the kernel identifier in both mangled and demangled form, the compile commands, the relevant source files and headers, the executable's runtime arguments, and the target-GPU specifications.
+The identifier is given in both forms because low-level artifacts such as SASS refer to mangled symbols while source reasoning is easier in demangled form, and for OpenMP kernels we additionally preserve the source location needed to disambiguate the target-offload region, since one executable may contain several kernels but the model reasons about only one.
+Compile commands are included because macros, include paths, and optimization flags affect both the visible source and the compiled behavior, and source files are embedded directly and wrapped in XML-style tags so the model reasons over the exact code used to build the executable.
+The prompt is split into a system message that defines the task and output constraints and a task message that carries the kernel, source, build, runtime, and hardware context, and we enforce structured output through tool calling so each response returns the seven predicted quantities with a short explanation for each; the explanations support sanity checking and the later exploratory failure analysis but are not used to compute any reported metric.
+A full prompt and response example appears in the appendix.
 
-The distinction between \sourceonly and \sourcesass is important.
-\sourceonly corresponds to early development, code review, or agent planning when only pre-compilation artifacts are available.
-\sourcesass still avoids target execution and profiling at prediction time, but it assumes target-specific compilation is possible, which is a materially different stage of the workflow.
-We therefore treat \sourcesass as \emph{execution-free} rather than broadly ``hardware-free.'' 
-
-The model returns a structured tool-call response containing the seven predicted quantities plus short explanations.
-Those explanations are useful for sanity checking and for the later exploratory failure analysis, but they are not used to compute the reported metrics.
+The distinction between the two settings is important.
+The \sourcesass configuration augments the same prompt with SASS sections for the target kernel and the helper routines reachable on its path (for example, the slow paths that implement division or transcendental functions).
+\sourceonly corresponds to early development, code review, or agent planning, when only pre-compilation artifacts are available, whereas \sourcesass assumes target-specific compilation is possible but still avoids execution and profiling.
+Crucially, that SASS is obtained by cross-compilation (\texttt{nvcc -arch} followed by \texttt{cuobjdump -sass}) and so requires no target hardware; we therefore treat \sourcesass as \emph{execution-free} rather than broadly ``hardware-free,'' and comparing the two settings isolates what compiler lowering adds over source-visible semantics.
 
 \subsection{Profiler-Derived Ground Truth}
 
-Ground truth comes from an offline benchmark-building process, not from the prediction loop itself.
-We profile each benchmark with NVIDIA Nsight Compute and retain the first invocation of the target kernel in each run.
-We repeat the executable three times and average the retained first-invocation counters to reduce profiling noise.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/datasetCreation.png}
+  \caption{Dataset-construction pipeline.
+  For each target kernel we build the executable, recover the source files, compile commands, and runtime arguments, cross-compile to obtain SASS, and profile the first invocation to collect the floating-point and DRAM-traffic ground truth used to label the Roofline regime.}
+  \Description{A pipeline diagram showing executable build, recovery of source, compile commands, runtime arguments and SASS, and first-invocation profiling that yields FLOP and DRAM-traffic ground truth.}
+  \label{fig:dataset-creation}
+\end{figure}
 
-The exact DRAM-traffic counters are \ctr{dram__bytes_read.sum} and \ctr{dram__bytes_write.sum}.
-Floating-point counts are reconstructed from executed-operation counters:
+Ground truth comes from an offline benchmark-building process (\autoref{fig:dataset-creation}), not from the prediction loop.
+We profile each benchmark with NVIDIA Nsight Compute, retain the first invocation of the target kernel in each run, and average over three repeated executions to reduce profiling noise.
+DRAM traffic uses the \ctr{dram__bytes_read.sum} and \ctr{dram__bytes_write.sum} counters, and floating-point counts are reconstructed from executed-operation counters for each precision:
 \begin{itemize}[leftmargin=1.2em]
   \item FP32:
   \begin{quote}\raggedright\footnotesize
@@ -91,18 +88,13 @@ We convert those per-cycle rates to total operation counts using
 and
 \ctr{gpu__time_duration.sum}.
 
-These choices matter for scope.
-Because bytes are counted at the DRAM interface, the task asks the model to predict \emph{DRAM-visible} traffic rather than raw source-level memory operations.
-Writes that remain in the cache hierarchy until later are not immediately visible in the denominator.
-Likewise, compiler-injected helper routines for division or transcendental functions contribute to the measured FLOP counts even when they are not obvious in source.
-Those are precisely the cases where \sourcesass may add value.
+These choices fix the scope of the task.
+Because bytes are counted at the DRAM interface, the model must predict \emph{DRAM-visible} traffic rather than raw source-level memory operations, and writes that remain in the cache hierarchy are not immediately visible in the denominator.
+Likewise, compiler-injected helper routines for division or transcendental functions contribute to the measured FLOP counts even when they are not obvious in source; these are precisely the cases where \sourcesass can add value.
 
 \subsection{Why First Invocation and DRAM-Level \rai}
 
 We make two deliberate simplifications.
 First, we evaluate only the first invocation of each kernel, because repeated invocations introduce temporal cache reuse and cross-kernel interference that would substantially widen the reasoning space.
-Second, we focus on DRAM-level \rai rather than a cache-aware Roofline.
-This keeps the prediction target tied to one interpretable denominator while still exposing realistic sources of error such as L2 write-back behavior.
-
-These simplifications narrow the claim.
-The paper studies execution-free early triage for a first kernel invocation at the DRAM level; it does not claim to predict steady-state runtime behavior, cache-resident arithmetic intensity, or end-to-end application performance.
+Second, we focus on DRAM-level \rai rather than a cache-aware Roofline, which keeps the prediction target tied to one interpretable denominator while still exposing realistic error sources such as L2 write-back behavior.
+These simplifications narrow the claim: the paper studies execution-free early triage for a first kernel invocation at the DRAM level, and does not claim to predict steady-state runtime, cache-resident arithmetic intensity, or end-to-end application performance.

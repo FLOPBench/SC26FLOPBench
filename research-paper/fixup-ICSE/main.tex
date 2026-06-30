@@ -13,7 +13,8 @@
 \usepackage{float}
 \usepackage{url}
 \urlstyle{tt}
-\usepackage[hidelinks]{hyperref}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=teal,urlcolor=blue}
 \emergencystretch=1em
 
 \newcommand{\rai}{RAI\xspace}
@@ -45,7 +46,7 @@ We ask whether off-the-shelf large language models can make this call from stati
 
 We prompt the models to estimate a kernel's floating-point work and memory traffic, from which its Roofline arithmetic intensity and its bandwidth- versus compute-bound (\bandwidthbound/\computebound) class follow, and we evaluate 254 CUDA and OpenMP kernels across four NVIDIA GPUs.
 Our central finding is about evidence rather than raw accuracy: from source code, the strongest model classifies the FP32 regime correctly for roughly nine in ten kernels, but is no better than a coin flip on FP16; supplying the compiled assembly closes that gap, taking FP16 from chance to near-perfect.
-The signal is also cheap: a budget model triages FP32 for a fraction of a cent per query, far below the cost of a profiling run. We further characterize how stable these calls are under repeated queries.
+The signal is also cheap: a budget model triages FP32 for a fraction of a cent per query and needs no target GPU. We further characterize how stable these calls are under repeated queries.
 We release a dataset of kernels, build context, assembly, and profiler ground truth, and we bound the claim carefully: these models triage the Roofline regime within identifiable evidence tiers; they do not replace profiling.
 \end{abstract}
 

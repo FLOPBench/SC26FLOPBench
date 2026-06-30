@@ -17,14 +17,14 @@ The paper also clarifies that execution-free reasoning has two meaningful stages
 \sourcesass fits a later stage where the code can be compiled for a target architecture but the accelerator is still unavailable for execution or profiling.
 Treating both stages as the same ``hardware-free'' scenario obscures an important software-engineering distinction: compilation artifacts are themselves a development resource.
 
-\paragraph{Cost relative to profiling.}
+\paragraph{Cost, and why we do not claim a speedup over profiling.}
 A recurring objection to LLM-based performance reasoning is that API calls may cost as much as simply measuring on a GPU.
-Our per-query costs let us examine this directly, and the answer differs sharply by tier.
-The source-only single-precision tier is effectively free: a \gptoss regime classification costs a median \$0.0006 per kernel-GPU pair, so triaging the entire 732-sample shared subset costs under \$0.50.
-No profiling run approaches that, and---more importantly for the motivating scenario---the LLM path consumes no scarce target-hardware time, whereas profiling requires getting a kernel onto the contended accelerator at all.
-The frontier+SASS tier is the honest edge case: at roughly \$0.11 per kernel-GPU pair for \opus, its dollar cost is comparable to the marginal cost of a short profiling run at public cloud GPU rates (a few dollars per GPU-hour), so it is not justified by dollar savings.
-Its justification is instead \emph{access and timing}: it produces a half-precision regime call when the target GPU is unavailable, rationed, or not yet provisioned, using only a cross-compile step.
-The exact crossover depends on profiling wall-clock, which is workload- and counter-set-dependent; the qualitative conclusion---cheap tier far below profiling, premium tier comparable in dollars but hardware-free---does not.
+Our per-query costs let us bound one side of that comparison.
+The source-only single-precision tier is inexpensive in absolute terms: a \gptoss regime classification costs a median \$0.0006 per kernel-GPU pair, so triaging the entire 732-sample shared subset costs under \$0.50.
+The frontier+SASS tier that additionally recovers half precision is roughly \$0.11 per kernel-GPU pair for \opus.
+We deliberately do not convert these figures into a speedup or dollar saving over building and profiling each kernel, because we do not collect end-to-end build-and-profile timings, and profiling wall-clock is workload- and counter-set-dependent.
+The advantage we do establish is categorical rather than monetary: every configuration here is execution-free and needs no target-hardware access, whereas profiling requires getting each kernel onto a contended accelerator.
+That access argument---not a measured cost saving---is why the method fits early development, code review, continuous integration, and agent planning, where the target GPU may be unavailable, rationed, or not yet provisioned.
 
 \paragraph{Why deterministic and learned static features still matter.}
 The added reference baselines sharpen the methodological boundary.
@@ -33,7 +33,7 @@ But supervised source-only baselines can still recover corpus-level triage cues,
 In a few regimes, especially source-only FP16 queueing and \sourcesass FP64 triage, the static baselines are competitive with or stronger than one-shot prompting.
 That motivates a \emph{hypothesis} we do not yet validate end-to-end:
 a cascade that combines deterministic compiler or disassembly features, lightweight supervised models, and LLM reasoning could outperform any single strategy, routing each evidence tier to the method that wins it.
-Table~\ref{tab:deployment-matrix} records the per-regime first-stage choice the released evidence supports; we present it as a routing hypothesis, not a measured system, because we have not built or evaluated the combined cascade and because choosing a route presumes the precision and evidence tier are known in advance.
+\autoref{tab:deployment-matrix} records the per-regime first-stage choice the released evidence supports; we present it as a routing hypothesis, not a measured system, because we have not built or evaluated the combined cascade and because choosing a route presumes the precision and evidence tier are known in advance.
 
 \input{tables/deployment_matrix}
 

@@ -132,6 +132,14 @@ S.~S. Baghsorkhi, M.~Delahaye, S.~J. Patel, W.~D. Gropp, and W.-m.~W. Hwu, ``An
   \url{https://dl.acm.org/doi/10.1145/1693453.1693470}
 \BIBentrySTDinterwordspacing
 
+\bibitem{limAutotuningGPUKernels2017}
+\BIBentryALTinterwordspacing
+R.~Lim, B.~Norris, and A.~Malony, ``Autotuning {GPU} {Kernels} via {Static} and
+  {Predictive} {Analysis},'' in \emph{2017 46th {International} {Conference} on
+  {Parallel} {Processing} ({ICPP})}, Aug. 2017, pp. 523--532, iSSN: 2332-5690.
+  [Online]. Available: \url{https://ieeexplore.ieee.org/document/8025326/}
+\BIBentrySTDinterwordspacing
+
 \bibitem{alavaniPredictingExecutionTime2018}
 \BIBentryALTinterwordspacing
 G.~Alavani, K.~Varma, and S.~Sarkar, ``Predicting {Execution} {Time} of {CUDA}
@@ -151,6 +159,16 @@ J.~Guerreiro, A.~Ilic, N.~Roma, and P.~Tomás, ``{GPU} {Static} {Modeling}
   {Using} {PTX} and {Deep} {Structured} {Learning},'' \emph{IEEE Access},
   vol.~7, pp. 159\,150--159\,161, 2019. [Online]. Available:
   \url{https://ieeexplore.ieee.org/document/8890640/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{lopesExploringGPUPerformance2017}
+\BIBentryALTinterwordspacing
+A.~Lopes, F.~Pratas, L.~Sousa, and A.~Ilic, ``Exploring {GPU} performance,
+  power and energy-efficiency bounds with {Cache}-aware {Roofline}
+  {Modeling},'' in \emph{2017 {IEEE} {International} {Symposium} on
+  {Performance} {Analysis} of {Systems} and {Software} ({ISPASS})}, Apr. 2017,
+  pp. 259--268. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/7975297/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{braunSimpleModelPortable2021}
@@ -183,6 +201,172 @@ H.-Q. Tran, V.-S. Pham, T.-S. Pham, T.-D. Chu, A.-T. Mai, X.~T. Nguyen, and
   \url{https://ieeexplore.ieee.org/document/11365185/}
 \BIBentrySTDinterwordspacing
 
+\bibitem{amarisComparisonGPUExecution2016}
+\BIBentryALTinterwordspacing
+M.~Amarís, R.~Y. de~Camargo, M.~Dyab, A.~Goldman, and D.~Trystram, ``A
+  comparison of {GPU} execution time prediction using machine learning and
+  analytical modeling,'' in \emph{2016 {IEEE} 15th {International} {Symposium}
+  on {Network} {Computing} and {Applications} ({NCA})}, Oct. 2016, pp.
+  326--333. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/7778637/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{wangGPGPUPerformanceEstimation2020}
+\BIBentryALTinterwordspacing
+Q.~Wang and X.~Chu, ``{GPGPU} {Performance} {Estimation} {With} {Core} and
+  {Memory} {Frequency} {Scaling},'' \emph{IEEE Transactions on Parallel and
+  Distributed Systems}, vol.~31, no.~12, pp. 2865--2881, Dec. 2020. [Online].
+  Available: \url{https://ieeexplore.ieee.org/document/9124659/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{leeGCoMDetailedGPU2022}
+\BIBentryALTinterwordspacing
+J.~Lee, Y.~Ha, S.~Lee, J.~Woo, J.~Lee, H.~Jang, and Y.~Kim, ``{GCoM}: a
+  detailed {GPU} core model for accurate analytical modeling of modern
+  {GPUs},'' in \emph{Proceedings of the 49th {Annual} {International}
+  {Symposium} on {Computer} {Architecture}}, ser. {ISCA} '22.\hskip 1em plus
+  0.5em minus 0.4em\relax New York, NY, USA: Association for Computing
+  Machinery, Jun. 2022, pp. 424--436. [Online]. Available:
+  \url{https://dl.acm.org/doi/10.1145/3470496.3527384}
+\BIBentrySTDinterwordspacing
+
+\bibitem{deyRelativePerformancePrediction2024}
+\BIBentryALTinterwordspacing
+A.~Dey, A.~Dhakal, T.~Z. Islam, J.-S. Yeom, T.~Patki, D.~Nichols, A.~Movsesyan,
+  and A.~Bhatele, ``\BIBforeignlanguage{en}{Relative {Performance} {Prediction}
+  {Using} {Few}-{Shot} {Learning}},'' in \emph{\BIBforeignlanguage{en}{2024
+  {IEEE} 48th {Annual} {Computers}, {Software}, and {Applications} {Conference}
+  ({COMPSAC})}}.\hskip 1em plus 0.5em minus 0.4em\relax Osaka, Japan: IEEE,
+  Jul. 2024, pp. 1764--1769. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/10633344/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{selvamCanLLMsEnhance2024}
+\BIBentryALTinterwordspacing
+K.~P. Selvam, P.~M. Phothilimthana, S.~Abu-El-Haija, B.~Perozzi, and
+  M.~Brorsson, ``\BIBforeignlanguage{en}{Can {LLMs} {Enhance} {Performance}
+  {Prediction} for {Deep} {Learning} {Models}?}'' Oct. 2024. [Online].
+  Available: \url{https://openreview.net/forum?id=Txxz9fBPcJ}
+\BIBentrySTDinterwordspacing
+
+\bibitem{pannerselvamPerformancePredictionModels2025}
+\BIBentryALTinterwordspacing
+K.~Panner~Selvam, ``\BIBforeignlanguage{English}{Performance {Prediction}
+  {Models} for {Deep} {Learning}: {A} {Graph} {Neural} {Network} and {Large}
+  {Language} {Model} {Approach}},'' 2025. [Online]. Available:
+  \url{https://orbilu.uni.lu/handle/10993/64557}
+\BIBentrySTDinterwordspacing
+
+\bibitem{shahPolyUFCPolyhedralCompilation2026}
+\BIBentryALTinterwordspacing
+N.~R. Shah, M.~V. V. S.~M. Kumar, D.~Baxi, and R.~Upadrasta, ``{PolyUFC}:
+  {Polyhedral} {Compilation} {Meets} {Roofline} {Analysis} for {Uncore}
+  {Frequency} {Capping},'' in \emph{Proceedings of the 2026 {IEEE}/{ACM}
+  {International} {Symposium} on {Code} {Generation} and {Optimization}
+  ({CGO})}, 2026. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/11395211/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{rajputFlipFlopStaticAnalysis2026}
+S.~Rajput, A.~Brandt, V.~Elisseev, and T.~Sharma, ``{FlipFlop}: {A} {Static}
+  {Analysis}-based {Energy} {Optimization} {Framework} for {GPU} {Kernels},''
+  in \emph{Proceedings of the 48th {International} {Conference} on {Software}
+  {Engineering} ({ICSE})}, 2026.
+
+\bibitem{talkadoshScopeAllYou2023}
+{Tal Kadosh}, {Niranjan Hasabnis}, {Vy Vo}, {Nadav Schneider}, {Neva Krien},
+  {Abdul Wasay}, {Nesreen K. Ahmed}, {Ted Willke}, {Gil Tamir}, {Yuval Pinter},
+  {Timothy G. Mattson}, and {Gal Oren}, ``Scope is all you need: {Transforming}
+  {LLMs} for {HPC} {Code},'' \emph{arXiv.org}, Aug. 2023, aRXIV\_ID: 2308.09440
+  MAG ID: 4386043885 S2ID: d5bf55f810cf66d3e70155bca12420d38d0601ad.
+
+\bibitem{talkadoshMonoCoderDomainSpecificCode2023}
+{Tal Kadosh}, {N. Hasabnis}, {Vy A. Vo}, {Nadav Schneider}, {Neva Krien},
+  {Mihai Capota}, {Abdul Wasay}, {Nesreen K. Ahmed}, {Ted Willke}, {G. Tamir},
+  {Yuval Pinter}, {Timothy Mattson}, and {Gal Oren}, ``{MonoCoder}:
+  {Domain}-{Specific} {Code} {Language} {Model} for {HPC} {Codes} and
+  {Tasks},'' \emph{IEEE Conference on High Performance Extreme Computing},
+  2023, aRXIV\_ID: 2312.13322 S2ID: f8c50d9bc22dea85bddf1859df7b11133a4f1c79.
+
+\bibitem{nicholsHPCCoderModelingParallel2024a}
+\BIBentryALTinterwordspacing
+D.~Nichols, A.~Marathe, H.~Menon, T.~Gamblin, and A.~Bhatele, ``{HPC}-{Coder}:
+  {Modeling} {Parallel} {Programs} using {Large} {Language} {Models},'' in
+  \emph{{ISC} {High} {Performance} 2024 {Research} {Paper} {Proceedings} (39th
+  {International} {Conference})}, May 2024, pp. 1--12. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/10528929}
+\BIBentrySTDinterwordspacing
+
+\bibitem{danielnicholsModelingParallelPrograms2023}
+{Daniel Nichols}, {Aniruddha Marathe}, {Harshitha Menon}, {T. Gamblin}, and {A.
+  Bhatele}, ``Modeling {Parallel} {Programs} using {Large} {Language}
+  {Models},'' \emph{Information Security Conference}, 2023, aRXIV\_ID:
+  2306.17281 S2ID: 6ed21424a6ab0a5b0693adf36c607dbe78b5cf5d.
+
+\bibitem{cumminsMetaLargeLanguage2024a}
+\BIBentryALTinterwordspacing
+C.~Cummins, V.~Seeker, D.~Grubisic, B.~Roziere, J.~Gehring, G.~Synnaeve, and
+  H.~Leather, ``\BIBforeignlanguage{en}{Meta {Large} {Language} {Model}
+  {Compiler}: {Foundation} {Models} of {Compiler} {Optimization}},'' Jun. 2024,
+  arXiv:2407.02524 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2407.02524}
+\BIBentrySTDinterwordspacing
+
+\bibitem{nicholsCanLargeLanguage2024}
+\BIBentryALTinterwordspacing
+D.~Nichols, J.~H. Davis, Z.~Xie, A.~Rajaram, and A.~Bhatele, ``Can {Large}
+  {Language} {Models} {Write} {Parallel} {Code}?'' in \emph{Proceedings of the
+  33rd {International} {Symposium} on {High}-{Performance} {Parallel} and
+  {Distributed} {Computing}}, ser. {HPDC} '24.\hskip 1em plus 0.5em minus
+  0.4em\relax New York, NY, USA: Association for Computing Machinery, Aug.
+  2024, pp. 281--294. [Online]. Available:
+  \url{https://dl.acm.org/doi/10.1145/3625549.3658689}
+\BIBentrySTDinterwordspacing
+
+\bibitem{wenMultiKernelBenchMultiPlatformBenchmark2025}
+\BIBentryALTinterwordspacing
+Z.~Wen, Y.~Zhang, Z.~Li, Z.~Liu, L.~Xie, and T.~Zhang, ``{MultiKernelBench}:
+  {A} {Multi}-{Platform} {Benchmark} for {Kernel} {Generation},'' Jul. 2025,
+  arXiv:2507.17773 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2507.17773}
+\BIBentrySTDinterwordspacing
+
+\bibitem{chenLandscapeChallengesHPC2024}
+\BIBentryALTinterwordspacing
+L.~Chen, N.~K. Ahmed, A.~Dutta, A.~Bhattacharjee, S.~Yu, Q.~I. Mahmud,
+  W.~Abebe, H.~Phan, A.~Sarkar, B.~Butler, N.~Hasabnis, G.~Oren, V.~A. Vo,
+  J.~P. Munoz, T.~L. Willke, T.~Mattson, and A.~Jannesari, ``The {Landscape}
+  and {Challenges} of {HPC} {Research} and {LLMs},'' Feb. 2024,
+  arXiv:2402.02018 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2402.02018}
+\BIBentrySTDinterwordspacing
+
+\bibitem{langeRobustAgenticCUDA2025}
+\BIBentryALTinterwordspacing
+R.~T. Lange, Q.~Sun, A.~Prasad, M.~Faldor, Y.~Tang, and D.~Ha, ``Towards
+  {Robust} {Agentic} {CUDA} {Kernel} {Benchmarking}, {Verification}, and
+  {Optimization},'' Sep. 2025, arXiv:2509.14279 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2509.14279}
+\BIBentrySTDinterwordspacing
+
+\bibitem{bowencuiLargeLanguageModels2025}
+\BIBentryALTinterwordspacing
+{Bowen Cui}, {Tejas Ramesh}, {Oscar Hernandez}, and {Keren Zhou}, ``Do {Large}
+  {Language} {Models} {Understand} {Performance} {Optimization}?'' 2025.
+  [Online]. Available: \url{https://arxiv.org/abs/2503.13772}
+\BIBentrySTDinterwordspacing
+
+\bibitem{cuiComprehensiveEvaluationLLMs2025}
+\BIBentryALTinterwordspacing
+B.~Cui, T.~Ramesh, O.~Hernandez, and K.~Zhou, ``Comprehensive {Evaluation} of
+  {LLMs} in {HPC} {Code} {Performance} {Optimization},'' in \emph{Workshop
+  {Proceedings} of the 54th {International} {Conference} on {Parallel}
+  {Processing}}, ser. {ICPP} {Workshops} '25.\hskip 1em plus 0.5em minus
+  0.4em\relax New York, NY, USA: Association for Computing Machinery, Dec.
+  2025, pp. 1--8. [Online]. Available:
+  \url{https://dl.acm.org/doi/10.1145/3750720.3757280}
+\BIBentrySTDinterwordspacing
+
 \bibitem{pengPerfCodeGenImprovingPerformance2025}
 \BIBentryALTinterwordspacing
 Y.~Peng, A.~D. Gotmare, M.~R. Lyu, C.~Xiong, S.~Savarese, and D.~Sahoo,
@@ -194,12 +378,155 @@ Y.~Peng, A.~D. Gotmare, M.~R. Lyu, C.~Xiong, S.~Savarese, and D.~Sahoo,
   \url{https://ieeexplore.ieee.org/document/11052794/}
 \BIBentrySTDinterwordspacing
 
+\bibitem{purschkeSpeedGenEnhancingCode2025}
+\BIBentryALTinterwordspacing
+N.~Purschke, S.~Kirchner, and A.~Knoll, ``{SpeedGen}: {Enhancing} {Code}
+  {Efficiency} through {Large} {Language} {Model}-{Based} {Performance}
+  {Optimization},'' in \emph{2025 {IEEE} {International} {Conference} on
+  {Software} {Analysis}, {Evolution} and {Reengineering} ({SANER})}, Mar. 2025,
+  pp. 1--12. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/10992503/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{damaniWarpDriveAgenticWorkflow}
+\BIBentryALTinterwordspacing
+S.~Damani, S.~K.~S. Hari, M.~Stephenson, and C.~Kozyrakis,
+  ``\BIBforeignlanguage{en}{{WarpDrive}: {An} {Agentic} {Workflow} for {Ninja}
+  {GPU} {Transformations}},'' \emph{\BIBforeignlanguage{en}{NeurIPS: Machine
+  Learning For Systems Workshop}}, 2024. [Online]. Available:
+  \url{https://mlforsystems.org/assets/papers/neurips2024/paper32.pdf}
+\BIBentrySTDinterwordspacing
+
+\bibitem{awadIntelliPerfLLMPoweredAutonomous2025}
+\BIBentryALTinterwordspacing
+M.~Awad, C.~Ramos, and K.~Lowery, ``{IntelliPerf}: {LLM}-{Powered} {Autonomous}
+  {GPU} {Performance} {Engineer},'' Jul. 2025. [Online]. Available:
+  \url{https://github.com/AMDResearch/intelliperf}
+\BIBentrySTDinterwordspacing
+
+\bibitem{hongAutocompPowerfulPortable2025}
+\BIBentryALTinterwordspacing
+C.~Hong, S.~Bhatia, A.~Cheung, and Y.~S. Shao, ``Autocomp: {A} {Powerful} and
+  {Portable} {Code} {Optimizer} for {Tensor} {Accelerators},'' Nov. 2025,
+  arXiv:2505.18574 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2505.18574}
+\BIBentrySTDinterwordspacing
+
+\bibitem{tschandSwizzlePerfHardwareAwareLLMs2025}
+\BIBentryALTinterwordspacing
+A.~Tschand, M.~Awad, R.~Swann, K.~Ramakrishnan, J.~Ma, K.~Lowery, G.~Dasika,
+  and V.~J. Reddi, ``{SwizzlePerf}: {Hardware}-{Aware} {LLMs} for {GPU}
+  {Kernel} {Performance} {Optimization},'' Aug. 2025, arXiv:2508.20258 [cs].
+  [Online]. Available: \url{http://arxiv.org/abs/2508.20258}
+\BIBentrySTDinterwordspacing
+
+\bibitem{zhangCudaForgeAgentFramework2025}
+\BIBentryALTinterwordspacing
+Z.~Zhang, R.~Wang, S.~Li, Y.~Luo, M.~Hong, and C.~Ding, ``{CudaForge}: {An}
+  {Agent} {Framework} with {Hardware} {Feedback} for {CUDA} {Kernel}
+  {Optimization},'' Nov. 2025, arXiv:2511.01884 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2511.01884}
+\BIBentrySTDinterwordspacing
+
+\bibitem{kaplanParaCodexProfilingGuidedAutonomous2026}
+\BIBentryALTinterwordspacing
+E.~Kaplan, T.~Bitan, L.~Ghrayeb, L.~Chen, T.~Yotam, N.~Hasabnis, and G.~Oren,
+  ``{ParaCodex}: {A} {Profiling}-{Guided} {Autonomous} {Coding} {Agent} for
+  {Reliable} {Parallel} {Code} {Generation} and {Translation},'' Jan. 2026,
+  arXiv:2601.04327 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2601.04327}
+\BIBentrySTDinterwordspacing
+
+\bibitem{pengSysLLMaticLargeLanguage2025}
+\BIBentryALTinterwordspacing
+H.~Peng, A.~Gupte, R.~Hasler, N.~J. Eliopoulos, C.-C. Ho, R.~Mantri, L.~Deng,
+  K.~Läufer, G.~K. Thiruvathukal, and J.~C. Davis, ``{SysLLMatic}: {Large}
+  {Language} {Models} are {Software} {System} {Optimizers},'' Oct. 2025,
+  arXiv:2506.01249 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2506.01249}
+\BIBentrySTDinterwordspacing
+
+\bibitem{chuGPUKernelOptimization2025}
+\BIBentryALTinterwordspacing
+R.~Chu, A.~Wang, X.~Bai, S.~Liu, and X.~Dong, ``{GPU} {Kernel} {Optimization}
+  {Beyond} {Full} {Builds}: {An} {LLM} {Framework} with {Minimal} {Executable}
+  {Programs},'' Dec. 2025, arXiv:2512.22147 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2512.22147}
+\BIBentrySTDinterwordspacing
+
+\bibitem{weiImprovingParallelProgram2024}
+\BIBentryALTinterwordspacing
+A.~Wei, A.~Nie, T.~S. F.~X. Teixeira, R.~Yadav, W.~Lee, K.~Wang, and A.~Aiken,
+  ``Improving {Parallel} {Program} {Performance} with {LLM} {Optimizers} via
+  {Agent}-{System} {Interfaces},'' 2024, version Number: 4. [Online].
+  Available: \url{https://arxiv.org/abs/2410.15625}
+\BIBentrySTDinterwordspacing
+
+\bibitem{baronioKevinMultiTurnRL2025}
+\BIBentryALTinterwordspacing
+C.~Baronio, P.~Marsella, B.~Pan, S.~Guo, and S.~Alberti, ``Kevin:
+  {Multi}-{Turn} {RL} for {Generating} {CUDA} {Kernels},'' Jul. 2025,
+  arXiv:2507.11948 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2507.11948}
+\BIBentrySTDinterwordspacing
+
+\bibitem{liCUDAL1ImprovingCUDA2026}
+\BIBentryALTinterwordspacing
+X.~Li, X.~Sun, A.~Wang, J.~Li, and C.~Shum, ``{CUDA}-{L1}: {Improving} {CUDA}
+  {Optimization} via {Contrastive} {Reinforcement} {Learning},'' Feb. 2026,
+  arXiv:2507.14111 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2507.14111}
+\BIBentrySTDinterwordspacing
+
+\bibitem{dongKernelBlasterContinualCrossTask2026}
+\BIBentryALTinterwordspacing
+K.~S. Dong, S.~Modi, D.~Nikiforov, S.~Damani, E.~Lin, S.~K.~S. Hari, and
+  C.~Kozyrakis, ``{KernelBlaster}: {Continual} {Cross}-{Task} {CUDA}
+  {Optimization} via {Memory}-{Augmented} {In}-{Context} {Reinforcement}
+  {Learning},'' Feb. 2026, arXiv:2602.14293 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2602.14293}
+\BIBentrySTDinterwordspacing
+
+\bibitem{nicholsIntegratingPerformanceTools2025}
+\BIBentryALTinterwordspacing
+D.~Nichols, K.~Parasyris, C.~Jekel, A.~Bhatele, and H.~Menon, ``Integrating
+  {Performance} {Tools} in {Model} {Reasoning} for {GPU} {Kernel}
+  {Optimization},'' Oct. 2025, arXiv:2510.17158 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2510.17158}
+\BIBentrySTDinterwordspacing
+
+\bibitem{hembergEvolvingCodeLarge2024}
+\BIBentryALTinterwordspacing
+E.~Hemberg, S.~Moskal, and U.-M. O'Reilly, ``Evolving {Code} with {A} {Large}
+  {Language} {Model},'' Jan. 2024, arXiv:2401.07102 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2401.07102}
+\BIBentrySTDinterwordspacing
+
+\bibitem{novikovAlphaEvolveCodingAgent2025}
+\BIBentryALTinterwordspacing
+A.~Novikov, N.~Vũ, M.~Eisenberger, E.~Dupont, P.-S. Huang, A.~Z. Wagner,
+  S.~Shirobokov, B.~Kozlovskii, F.~J.~R. Ruiz, A.~Mehrabian, M.~P. Kumar,
+  A.~See, S.~Chaudhuri, G.~Holland, A.~Davies, S.~Nowozin, P.~Kohli, and
+  M.~Balog, ``{AlphaEvolve}: {A} coding agent for scientific and algorithmic
+  discovery,'' Jun. 2025, arXiv:2506.13131 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2506.13131}
+\BIBentrySTDinterwordspacing
+
 \bibitem{IEEEStandardFloatingPoint2019}
 \BIBentryALTinterwordspacing
 {IEEE Computer Society}, ``{IEEE} {Standard} for {Floating}-{Point}
   {Arithmetic},'' \emph{IEEE Std 754-2019 (Revision of IEEE 754-2008)}, pp.
   1--84, Jul. 2019. [Online]. Available:
   \url{https://ieeexplore.ieee.org/stampPDF/getPDF.jsp}
+\BIBentrySTDinterwordspacing
+
+\bibitem{louvetNewtonRaphsonAlgorithmsFloatingpoint2010}
+\BIBentryALTinterwordspacing
+N.~Louvet, J.-M. Muller, and A.~Panhaleux, ``Newton-{Raphson} algorithms for
+  floating-point division using an {FMA},'' in \emph{{ASAP} 2010 - 21st {IEEE}
+  {International} {Conference} on {Application}-specific {Systems},
+  {Architectures} and {Processors}}, Jul. 2010, pp. 200--207. [Online].
+  Available: \url{https://ieeexplore.ieee.org/document/5540948/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{liuCodeExecutionPretrained2023}
@@ -218,13 +545,22 @@ C.~Lyu, L.~Yan, R.~Xing, W.~Li, Y.~Samih, T.~Ji, and L.~Wang, ``Large
   \url{http://arxiv.org/abs/2410.06667}
 \BIBentrySTDinterwordspacing
 
-\bibitem{jainLiveCodeBenchHolisticContamination2024}
+\bibitem{liBlendedAnalysisPredictive2025}
 \BIBentryALTinterwordspacing
-N.~Jain, K.~Han, A.~Gu, W.-D. Li, F.~Yan, T.~Zhang, S.~Wang, A.~Solar-Lezama,
-  K.~Sen, and I.~Stoica, ``{LiveCodeBench}: {Holistic} and {Contamination}
-  {Free} {Evaluation} of {Large} {Language} {Models} for {Code},'' Jun. 2024,
-  arXiv:2403.07974 [cs]. [Online]. Available:
-  \url{http://arxiv.org/abs/2403.07974}
+Y.~Li, H.~Dhulipala, A.~Yadavally, X.~Rong, S.~Wang, and T.~N. Nguyen,
+  ``\BIBforeignlanguage{en}{Blended {Analysis} for {Predictive} {Execution}},''
+  \emph{\BIBforeignlanguage{en}{Proceedings of the ACM on Software
+  Engineering}}, vol.~2, no. FSE, pp. 2987--3008, Jun. 2025. [Online].
+  Available: \url{https://dl.acm.org/doi/10.1145/3729402}
+\BIBentrySTDinterwordspacing
+
+\bibitem{chenReasoningRuntimeBehavior2025}
+\BIBentryALTinterwordspacing
+J.~Chen, Z.~Pan, X.~Hu, Z.~Li, G.~Li, and X.~Xia, ``Reasoning {Runtime}
+  {Behavior} of a {Program} with {LLM}: {How} {Far} are {We}?'' in \emph{2025
+  {IEEE}/{ACM} 47th {International} {Conference} on {Software} {Engineering}
+  ({ICSE})}, Apr. 2025, pp. 1869--1881. [Online]. Available:
+  \url{https://ieeexplore.ieee.org/document/11029885/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{xieCOREBenchmarkingLLMs2025}
@@ -233,6 +569,15 @@ D.~Xie, M.~Zheng, X.~Liu, J.~Wang, C.~Wang, L.~Tan, and X.~Zhang, ``{CORE}:
   {Benchmarking} {LLMs} {Code} {Reasoning} {Capabilities} through {Static}
   {Analysis} {Tasks},'' Jul. 2025, arXiv:2507.05269 [cs]. [Online]. Available:
   \url{http://arxiv.org/abs/2507.05269}
+\BIBentrySTDinterwordspacing
+
+\bibitem{jainLiveCodeBenchHolisticContamination2024}
+\BIBentryALTinterwordspacing
+N.~Jain, K.~Han, A.~Gu, W.-D. Li, F.~Yan, T.~Zhang, S.~Wang, A.~Solar-Lezama,
+  K.~Sen, and I.~Stoica, ``{LiveCodeBench}: {Holistic} and {Contamination}
+  {Free} {Evaluation} of {Large} {Language} {Models} for {Code},'' Jun. 2024,
+  arXiv:2403.07974 [cs]. [Online]. Available:
+  \url{http://arxiv.org/abs/2403.07974}
 \BIBentrySTDinterwordspacing
 
 \bibitem{pydaShortcomingsCodeLLMs2025}

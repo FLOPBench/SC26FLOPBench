@@ -2,7 +2,7 @@
 \label{sec:results}
 
 This section evaluates whether off-the-shelf LLMs can act as useful Roofline triage tools for GPU kernels.
-We organize the evaluation around the four research questions of \autoref{sec:introduction}: whether the models can classify a kernel's Roofline regime from static artifacts (RQ1), what cross-compiled SASS adds and why (RQ2), how consistent the predictions are across repeated queries (RQ3), and how the signals compare in accuracy and cost against lightweight static baselines and against profiling itself (RQ4).
+We organize the evaluation around the four research questions of \autoref{sec:introduction}: whether the models can classify a kernel's Roofline regime from static artifacts (RQ1), what cross-compiled SASS adds and why (RQ2), how consistent the predictions are across repeated queries (RQ3), and how the signals compare in accuracy and per-query cost against lightweight static baselines (RQ4).
 We focus on three LLMs throughout: \gptfivefour, \gptoss, and \opus.
 
 Unless stated otherwise, the cross-model comparisons use the 732 samples completed by all three models in both prompt settings; this shared subset avoids coverage bias from the incomplete \gptoss runs while preserving paired \sourceonly-versus-\sourcesass comparisons.
@@ -82,13 +82,14 @@ The takeaway is that single-shot use is risky for borderline kernels: a deployed
 
 \subsection{RQ4: How Do the Signals Compare in Accuracy and Cost?}
 
-The LLM signals beat lightweight static baselines in most regimes, they form a clear cost/accuracy tier, and they are far cheaper than profiling.
+The LLM signals form a clear cost/accuracy tier, they are inexpensive in absolute per-query terms, and---unlike profiling---they need no target-hardware access.
 
 \textbf{Cost tiering.}
 \autoref{tab:shared-results-summary} reports median per-query cost, and the configurations form a tier.
 The budget \gptoss classifies the \sourceonly FP32 regime at 0.875 balanced accuracy for a median \$0.0006 per query; \gptfivefour reaches 0.889 for \$0.0197; and \opus reaches 0.940 for \$0.0679.
 For FP16, only the SASS-backed frontier tier works, at \$0.0315 (\gptfivefour) to \$0.1066 (\opus) per query.
-The recurring objection from performance-modeling venues---that LLM calls might cost as much as just measuring---does not hold for the \sourceonly single-precision tier: at \$0.0006 per kernel it is orders of magnitude below the marginal cost of a compile-and-profile pass and, unlike profiling, needs no target-hardware access at all.
+The recurring objection from performance-modeling venues---that LLM calls might cost as much as just measuring---is blunted for the \sourceonly single-precision tier: at a median \$0.0006 per kernel it is inexpensive in absolute terms and, unlike profiling, needs no target-hardware access at all.
+We do not collect end-to-end build-and-profile timings, so we make no measured time- or cost-saving claim against profiling; the advantages we establish are absolute query cost and the elimination of target-hardware access.
 The frontier+SASS tier that additionally cracks FP16 is the premium option, and we treat its cost honestly: it is the regime where the ``just measure'' objection is most defensible.
 
 \textbf{Versus static baselines.}

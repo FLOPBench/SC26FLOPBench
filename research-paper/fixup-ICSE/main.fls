@@ -217,6 +217,7 @@ INPUT /usr/share/texlive/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 INPUT /usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 INPUT /usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 INPUT /usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
+INPUT /usr/share/texlive/texmf-dist/tex/latex/graphics/color.sty
 INPUT ./main.out
 INPUT ./main.out
 INPUT main.out
@@ -287,6 +288,7 @@ INPUT ./sections/02_background_related_work.tex
 INPUT sections/02_background_related_work.tex
 INPUT /usr/share/texmf/fonts/enc/dvips/lm/lm-rmtt.enc
 INPUT /usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc
+INPUT /usr/share/texmf/fonts/tfm/public/lm/rm-lmcsco10.tfm
 INPUT ./sections/03_task_methodology.tex
 INPUT ./sections/03_task_methodology.tex
 INPUT ./sections/03_task_methodology.tex
@@ -321,7 +323,6 @@ INPUT ./tables/metric_guide.tex
 INPUT ./tables/metric_guide.tex
 INPUT ./tables/metric_guide.tex
 INPUT tables/metric_guide.tex
-INPUT /usr/share/texmf/fonts/tfm/public/lm/rm-lmcsco10.tfm
 INPUT /usr/share/texmf/tex/latex/lm/omslmr.fd
 INPUT /usr/share/texmf/tex/latex/lm/omslmr.fd
 INPUT /usr/share/texmf/tex/latex/lm/omslmr.fd
