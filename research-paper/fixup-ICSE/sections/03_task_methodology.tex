@@ -80,15 +80,15 @@ Profiling the corpus on four NVIDIA GPUs yields 1{,}016 samples, and each sample
 
 \input{tables/gpu_specs}
 
-We profile on four GPUs chosen to span different memory and compute regimes: RTX~3080, A10, A100, and H100.
+We profile on four NVIDIA GPUs that span different memory and compute regimes: RTX~3080, A10, A100, and H100.
 \autoref{tab:gpu-specs} lists their characteristics and the resulting DRAM-level balance points used for \bandwidthbound/\computebound classification.
 The architectural question is therefore not whether LLMs generalize to all accelerators; it is whether the same prompting strategy remains useful across noticeably different NVIDIA deployment targets.
 
 \input{tables/gt_distribution}
 
-\autoref{tab:gt-distribution} highlights the resulting class imbalance: across the full 1{,}016 samples, FP16 has 687 zero-FLOP cases, FP32 has 676, and FP64 has 868.
+\autoref{tab:gt-distribution} highlights the resulting \rai label class imbalance: across the full 1{,}016 GPU--kernel profiling samples, FP16 has 687 zero-FLOP cases, FP32 has 676, and FP64 has 868.
 FP16 is especially architecture-sensitive because the A100/H100 binaries contain many more nonzero FP16 measurements than the 3080/A10.
-This imbalance is why we separate the evaluation tasks by precision instead of reporting a single aggregate error number.
+This imbalance is why we separate the evaluation tasks by precision instead of reporting single aggregate errors.
 
 \input{tables/llm_comparison}
 
@@ -101,21 +101,25 @@ This imbalance is why we separate the evaluation tasks by precision instead of r
 \noindent\textbf{Models and Sample Accounting.}
 We study three off-the-shelf LLMs (\autoref{tab:llm-comparison}): the two frontier models \gptfivefour and \opus, and the roughly 100$\times$ cheaper open-source baseline \gptoss.
 We do not fine-tune the models, we only vary prompting by the two evidence configurations (\sourceonly and \sourcesass), and supplied GPU specifications from \autoref{tab:gpu-specs}. 
-Because querying every input more than once across all three models is prohibitively expensive, our primary study collects exactly one sample per (kernel, GPU, evidence) combination on each LLM, with the released client defaulting to temperature 0.2 and top-$p$ 0.1.
-Over the shared corpus of 254 kernels on four GPUs (1{,}016 kernel--GPU samples per evidence setting), we report this coverage explicitly rather than hiding it inside aggregate metrics:
-\begin{itemize}[leftmargin=1.2em]
-  \item 1{,}016 \sourcesass and 1{,}016 \sourceonly samples for \opus,
-  \item 1{,}016 \sourcesass and 1{,}016 \sourceonly samples for \gptfivefour, and
-  \item 845 \sourcesass and 858 \sourceonly samples for \gptoss.
-\end{itemize}
-\gptoss shortfalls primarily reflect context-overflow or completion failures on long prompts.
-For fair cross-model comparison we restrict to the \emph{intersection} of samples completed by all three models in both evidence settings, which leaves 732 kernel--GPU samples.
-This figure is smaller than any single model's coverage (e.g. \gptoss's 845) because the missing samples do not coincide across models or settings: each model--evidence cell drops its own failed inputs, so the set common to all six cells (three models $\times$ two settings) is strictly smaller than any one cell.
-Aligning on a fixed common set is what makes the comparison fair: scoring models on different, only partially overlapping subsets would let an accuracy gap reflect \emph{which} kernels each model happened to attempt rather than its actual capability---particularly since \gptoss's failures concentrate on the longest, hardest prompts, whose removal would otherwise flatter its accuracy.
-Within-model source-versus-SASS comparisons instead need only control for the two evidence settings of a single model, so they are paired on the larger subset completed by both settings for that model.
+Because querying every input more than once across all three models is prohibitively expensive, our primary study collects exactly one sample per (kernel, GPU, evidence) combination on each LLM.
+%, with the released client defaulting to temperature 0.2 and top-$p$ 0.1.
+Over the shared corpus of 254 kernels on four GPUs (1{,}016 kernel--GPU samples per evidence setting), the \gptoss model repeatedly failed to return valid responses for a substantial fraction of inputs, while \gptfivefour and \opus completed all samples in both evidence settings.
+%we report this coverage explicitly rather than hiding it inside aggregate metrics:
+%\begin{itemize}[leftmargin=1.2em]
+%  \item 1{,}016 \sourcesass and 1{,}016 \sourceonly samples for \opus,
+%  \item 1{,}016 \sourcesass and 1{,}016 \sourceonly samples for \gptfivefour, and
+%  \item 845 \sourcesass and 858 \sourceonly samples for \gptoss.
+%\end{itemize}
+\gptoss's shortfalls primarily reflect context-overflow or completion failures on long prompts.
+For fair cross-model comparison we restrict our analysis to the \emph{intersection} of samples completed by all three LLMs in both evidence settings, which leaves 732 kernel--GPU samples.
+%This figure is smaller than any single model's coverage (e.g. \gptoss's 845) because the missing samples do not coincide across models or settings: each model--evidence cell drops its own failed inputs, so the set common to all six cells (three models $\times$ two settings) is strictly smaller than any one cell.
+%Aligning on a fixed common set is what makes the comparison fair: scoring models on different, only partially overlapping subsets would let an accuracy gap reflect \emph{which} kernels each model happened to attempt rather than its actual capability---particularly since \gptoss's failures concentrate on the longest, hardest prompts, whose removal would otherwise flatter its accuracy.
+%Within-model source-versus-SASS comparisons instead need only control for the two evidence settings of a single model, so they are paired on the larger subset completed by both settings for that model.
 
-A single sample per input cannot establish reliability, so we additionally run a smaller repeated-query study (\autoref{sec:repeat-consistency}): on a stratified panel of 24 kernels we resample each (kernel, GPU, evidence) combination four times on every model, since repeating the full grid would be cost-prohibitive.
-This collects 384 samples per model per evidence setting (96 kernel--GPU samples $\times$ four repeats), or 2{,}304 repeated-query samples in total.
+A single sample per input cannot establish reliability, since LLM outputs are nondeterministic, so we additionally run a smaller repeated-query study to characterize run-to-run variability without re-running the full grid.
+We select a small, deterministic, stratified panel of 24 kernels from the evaluated set using \texttt{select\_repeat\_trial\_kernels.py}, chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features identified in our failure analysis (division, special math, reusable subexpressions, and loop-invariant floating-point work), rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
+We resample each (kernel, GPU, evidence) combination four times on every model (no kernel perturbation), collecting 384 samples per model per evidence setting (96 kernel--GPU samples $\times$ four repeats), or 2{,}304 repeated-query samples in total.
+From these we measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
 
 
 
@@ -142,12 +146,6 @@ As reference points, always predicting zero yields 0.50 balanced accuracy on zer
 
 
 
-
-\noindent\textbf{Repeated-Query Consistency.}\label{sec:repeat-consistency}
-A single query per kernel cannot establish reliability, since LLM outputs are nondeterministic.
-To characterize run-to-run variability without re-running the full grid, we select a small, deterministic, stratified panel of 24 kernels from the evaluated set using \texttt{select\_repeat\_trial\_kernels.py}.
-The panel is chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features identified in our failure analysis (division, special math, reusable subexpressions, and loop-invariant floating-point work), rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
-We then resample the models on this panel, repeating each query four times across all four GPUs and both evidence settings (no kernel perturbation), and measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
 
 
 

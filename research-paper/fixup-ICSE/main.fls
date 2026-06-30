@@ -333,7 +333,6 @@ INPUT ./sections/05_results.tex
 INPUT ./sections/05_results.tex
 INPUT ./sections/05_results.tex
 INPUT sections/05_results.tex
-INPUT /usr/share/texmf/fonts/enc/dvips/lm/lm-ts1.enc
 INPUT ./tables/results_summary_shared.tex
 INPUT ./tables/results_summary_shared.tex
 INPUT ./tables/results_summary_shared.tex
@@ -344,6 +343,7 @@ INPUT ./tables/shared_class_balance.tex
 INPUT ./tables/shared_class_balance.tex
 INPUT ./tables/shared_class_balance.tex
 INPUT tables/shared_class_balance.tex
+INPUT /usr/share/texmf/fonts/enc/dvips/lm/lm-ts1.enc
 INPUT ./tables/compute_bound_prf.tex
 INPUT ./tables/compute_bound_prf.tex
 INPUT ./tables/compute_bound_prf.tex

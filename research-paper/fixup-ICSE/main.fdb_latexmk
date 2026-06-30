@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main"] 1782855499.10956 "main.aux" "main.bbl" "main" 1782855592.55497 0
+["bibtex main"] 1782857824.85559 "main.aux" "main.bbl" "main" 1782857826.85329 0
   "./refs.bib" 1782834420.5092 967616 cfd6ef55e1b3008b1dfd1727d90ce9ea ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1782855592.37348 25812 b5b60a276f05fbf4de13484f40066e18 "pdflatex"
+  "main.aux" 1782857826.65546 25682 ca6c797dda4da220ab5bdc5f8c673c34 "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1782855590.58822 "main.tex" "main.pdf" "main" 1782855592.55517 0
+["pdflatex"] 1782857824.91673 "main.tex" "main.pdf" "main" 1782857826.85359 0
   "/etc/texmf/web2c/texmf.cnf" 1777425773.65832 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmb7t.tfm" 1136768653 2172 fd0c924230362ff848a33632ed45dc23 ""
@@ -163,13 +163,13 @@
   "figures/nonzero_ape_boxplots.png" 1781132658 128553 0d9991fe0c4db19e12b06ee4625136c6 ""
   "figures/optimization_loop.png" 1781132658 468209 4f13cce412740bc7a347ebf2dfcdbc47 ""
   "figures/prompting_pipeline.png" 1781132658 385197 abeb8ab75e87ab2f3260a0cbd3e57613 ""
-  "main.aux" 1782855592.37348 25812 b5b60a276f05fbf4de13484f40066e18 "pdflatex"
-  "main.bbl" 1782855499.16537 29913 61acb6f025cd25a5271e7107abbe4dcf "bibtex main"
-  "main.out" 1782855592.37448 4000 d24b92fa125e9cbd6fdd0c5182b89288 "pdflatex"
+  "main.aux" 1782857826.65546 25682 ca6c797dda4da220ab5bdc5f8c673c34 "pdflatex"
+  "main.bbl" 1782857824.90946 29913 61acb6f025cd25a5271e7107abbe4dcf "bibtex main"
+  "main.out" 1782857826.65646 4000 d24b92fa125e9cbd6fdd0c5182b89288 "pdflatex"
   "main.tex" 1782854355.21516 3210 ac66082c3e80403571c34cef955759a3 ""
   "sections/01_introduction.tex" 1782855326.14031 8816 babd1071b391071ad8a03e10fecd9972 ""
   "sections/02_background_related_work.tex" 1782855377.9065 10973 c50c8a318f6d4b5864428e7eec0b3c96 ""
-  "sections/03_task_methodology.tex" 1782855587.32248 15824 419f4c4fe938808e3d23102f1902970d ""
+  "sections/03_task_methodology.tex" 1782857820.23846 15639 f6c09f816b33073a841bef2abe5c7e68 ""
   "sections/05_results.tex" 1782828650.32424 11127 ba9e5981fa3372f8a8679b6b1898dda8 ""
   "sections/06_discussion.tex" 1782828672.23624 7208 0e02d157a61b8282ee07a6dc36e2e67d ""
   "sections/07_threats.tex" 1782325978.97062 4154 868a50d32418fdb4f851361ac3120e15 ""
@@ -180,7 +180,7 @@
   "tables/gpu_specs.tex" 1782842073.65401 888 e9eb8e00fa624c9e2384474162d70aad ""
   "tables/gt_distribution.tex" 1782848359.57083 999 16162bd95f6332a42f21e12837cd0a4c ""
   "tables/illustrative_rows.tex" 1782325547.2899 2049 2d76cbf0ae79ffeefeb7cfd8162565c8 ""
-  "tables/llm_comparison.tex" 1782842082.43901 645 c44e87a6a766c0d38d63cfa037ef8fbd ""
+  "tables/llm_comparison.tex" 1782856858.45583 627 24f3ee8401cbf9fa97b2ef2e54c3a57f ""
   "tables/repeated_query_variance.tex" 1782765638.29153 991 056dbd03eb0fbb4e66e79f5b5fbd63e8 ""
   "tables/results_summary_shared.tex" 1782786100.57 1288 c4e94321b43994a3f3877318b709bdd4 ""
   "tables/shared_class_balance.tex" 1782325952.46584 672 294087b2ff6ef129dd4a9022ac235a06 ""

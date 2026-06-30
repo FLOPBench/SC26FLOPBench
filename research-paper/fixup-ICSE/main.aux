@@ -78,35 +78,34 @@
 \newlabel{tab:gpu-specs}{{I}{5}{Profiled GPUs and DRAM-level balance points used for \bandwidthbound /\computebound classification. Peak throughput is in TFLOP/s; balance points (BP) are in FLOP/byte}{table.1}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Ground-truth RAI\xspace  class distribution by GPU and precision over the full corpus. Sub-columns count, among the same 254 first-invocation kernels per cell, those with zero RAI\xspace  (0 FLOP), nonzero \textsc  {BB}\xspace  , and nonzero \textsc  {CB}\xspace  labels.}}{5}{table.2}\protected@file@percent }
 \newlabel{tab:gt-distribution}{{II}{5}{Ground-truth \rai class distribution by GPU and precision over the full corpus. Sub-columns count, among the same 254 first-invocation kernels per cell, those with zero \rai (0 FLOP), nonzero \bandwidthbound , and nonzero \computebound labels}{table.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens, as of March 2026.}}{6}{table.3}\protected@file@percent }
-\newlabel{tab:llm-comparison}{{III}{6}{The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens, as of March 2026}{table.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens.}}{6}{table.3}\protected@file@percent }
+\newlabel{tab:llm-comparison}{{III}{6}{The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens}{table.3}{}}
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0a}Regime classification (primary).}{6}{paragraph.3.0.0.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0b}Numeric RAI\xspace  error (diagnostic).}{6}{paragraph.3.0.0.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0c}Zero detection.}{6}{paragraph.3.0.0.3}\protected@file@percent }
-\newlabel{sec:repeat-consistency}{{\mbox  {III-}0c}{6}{Zero detection}{paragraph.3.0.0.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {IV}Evaluation}{7}{section.4}\protected@file@percent }
-\newlabel{sec:results}{{IV}{7}{Evaluation}{section.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Evaluation}{6}{section.4}\protected@file@percent }
+\newlabel{sec:results}{{IV}{6}{Evaluation}{section.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Shared-subset summary on the 732 samples completed by all three models in both prompt settings. Each precision column reports ``MedAPE / BalAcc'': the median absolute percent error on nonzero RAI\xspace  cases and the balanced accuracy on nonzero \textsc  {BB}\xspace  /\textsc  {CB}\xspace  triage. Median cost and time are per-query values on the same shared subset.}}{7}{table.4}\protected@file@percent }
+\newlabel{tab:shared-results-summary}{{IV}{7}{Shared-subset summary on the 732 samples completed by all three models in both prompt settings. Each precision column reports ``MedAPE / BalAcc'': the median absolute percent error on nonzero \rai cases and the balanced accuracy on nonzero \bandwidthbound /\computebound triage. Median cost and time are per-query values on the same shared subset}{table.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Ground-truth class balance on the 732-sample shared subset used for all paired cross-model comparisons. The imbalance is precision-dependent: FP16/FP32 have more nonzero samples than FP64, but all three precisions remain zero-heavy, which is why Tasks~A/C/D are reported separately.}}{7}{table.5}\protected@file@percent }
+\newlabel{tab:shared-class-balance}{{V}{7}{Ground-truth class balance on the 732-sample shared subset used for all paired cross-model comparisons. The imbalance is precision-dependent: FP16/FP32 have more nonzero samples than FP64, but all three precisions remain zero-heavy, which is why Tasks~A/C/D are reported separately}{table.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}RQ1: Can LLMs Classify the Roofline Regime From Static Artifacts?}{7}{subsection.4.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}RQ2: What Does Cross-Compiled SASS Add, and Why?}{7}{subsection.4.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Shared-subset summary on the 732 samples completed by all three models in both prompt settings. Each precision column reports ``MedAPE / BalAcc'': the median absolute percent error on nonzero RAI\xspace  cases and the balanced accuracy on nonzero \textsc  {BB}\xspace  /\textsc  {CB}\xspace  triage. Median cost and time are per-query values on the same shared subset.}}{8}{table.4}\protected@file@percent }
-\newlabel{tab:shared-results-summary}{{IV}{8}{Shared-subset summary on the 732 samples completed by all three models in both prompt settings. Each precision column reports ``MedAPE / BalAcc'': the median absolute percent error on nonzero \rai cases and the balanced accuracy on nonzero \bandwidthbound /\computebound triage. Median cost and time are per-query values on the same shared subset}{table.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Ground-truth class balance on the 732-sample shared subset used for all paired cross-model comparisons. The imbalance is precision-dependent: FP16/FP32 have more nonzero samples than FP64, but all three precisions remain zero-heavy, which is why Tasks~A/C/D are reported separately.}}{8}{table.5}\protected@file@percent }
-\newlabel{tab:shared-class-balance}{{V}{8}{Ground-truth class balance on the 732-sample shared subset used for all paired cross-model comparisons. The imbalance is precision-dependent: FP16/FP32 have more nonzero samples than FP64, but all three precisions remain zero-heavy, which is why Tasks~A/C/D are reported separately}{table.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset. These metrics complement the balanced-accuracy headline by exposing whether a method reaches high recall by over-predicting the compute-bound side. A dash marks an undefined value: when a model predicts no compute-bound kernels for a precision (as every model does for \textit  {source-only}\xspace  FP16), recall is $0$ and precision/F1 have a zero denominator.}}{8}{table.6}\protected@file@percent }
+\newlabel{tab:compute-bound-prf}{{VI}{8}{Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset. These metrics complement the balanced-accuracy headline by exposing whether a method reaches high recall by over-predicting the compute-bound side. A dash marks an undefined value: when a model predicts no compute-bound kernels for a precision (as every model does for \sourceonly FP16), recall is $0$ and precision/F1 have a zero denominator}{table.6}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Absolute percent error on nonzero RAI\xspace  cases, by model, precision, and evidence setting. The distribution has both a useful low-error region and a long failure tail. \textit  {source+SASS}\xspace  sharply expands the low-error FP16 region for the frontier models and tightens many FP32/FP64 distributions, mirroring the classification gains.}}{8}{figure.4}\protected@file@percent }
 \newlabel{fig:nonzero-ape}{{4}{8}{Absolute percent error on nonzero \rai cases, by model, precision, and evidence setting. The distribution has both a useful low-error region and a long failure tail. \sourcesass sharply expands the low-error FP16 region for the frontier models and tightens many FP32/FP64 distributions, mirroring the classification gains}{figure.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}RQ3: How Consistent Are the Predictions Across Repeated Queries?}{8}{subsection.4.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}RQ4: How Do the Signals Compare in Accuracy and Cost?}{8}{subsection.4.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset. These metrics complement the balanced-accuracy headline by exposing whether a method reaches high recall by over-predicting the compute-bound side. A dash marks an undefined value: when a model predicts no compute-bound kernels for a precision (as every model does for \textit  {source-only}\xspace  FP16), recall is $0$ and precision/F1 have a zero denominator.}}{9}{table.6}\protected@file@percent }
-\newlabel{tab:compute-bound-prf}{{VI}{9}{Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset. These metrics complement the balanced-accuracy headline by exposing whether a method reaches high recall by over-predicting the compute-bound side. A dash marks an undefined value: when a model predicts no compute-bound kernels for a precision (as every model does for \sourceonly FP16), recall is $0$ and precision/F1 have a zero denominator}{table.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{9}{section.5}\protected@file@percent }
 \newlabel{sec:discussion}{{V}{9}{Discussion}{section.5}{}}
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0a}What this enables for AI-assisted software engineering.}{9}{paragraph.5.0.0.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0b}Where \textit  {source-only}\xspace  and \textit  {source+SASS}\xspace  fit in a real workflow.}{9}{paragraph.5.0.0.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0c}Cost, and why we do not claim a speedup over profiling.}{9}{paragraph.5.0.0.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0d}Why deterministic and learned static features still matter.}{9}{paragraph.5.0.0.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0e}What the released samples look like in practice.}{9}{paragraph.5.0.0.5}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces Deployment routing summary from the shared subset. These are corpus-backed first-stage choices, not universal rules.}}{10}{table.7}\protected@file@percent }
 \newlabel{tab:deployment-matrix}{{VII}{10}{Deployment routing summary from the shared subset. These are corpus-backed first-stage choices, not universal rules}{table.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0e}What the released samples look like in practice.}{10}{paragraph.5.0.0.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0f}What tool builders should and should not take from the results.}{10}{paragraph.5.0.0.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0g}What the exploratory failure map still suggests.}{10}{paragraph.5.0.0.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0h}Why the benchmark release matters.}{10}{paragraph.5.0.0.8}\protected@file@percent }
@@ -116,27 +115,27 @@
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0a}Benchmark representativeness.}{10}{paragraph.6.0.0.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0b}Hardware scope.}{10}{paragraph.6.0.0.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0c}Task scope.}{10}{paragraph.6.0.0.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0d}Ground-truth measurement.}{10}{paragraph.6.0.0.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0e}Prompting and model stability.}{10}{paragraph.6.0.0.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0f}Coverage imbalance.}{10}{paragraph.6.0.0.6}\protected@file@percent }
 \bibstyle{IEEEtran}
 \bibdata{refs}
 \bibcite{samuelwilliamsRooflineInsightfulVisual2009}{1}
 \bibcite{liRiseAITeammates2025}{2}
 \bibcite{gongLanguageModelsCode2025}{3}
 \bibcite{ouyangKernelBenchCanLLMs2025}{4}
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0d}Ground-truth measurement.}{11}{paragraph.6.0.0.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0e}Prompting and model stability.}{11}{paragraph.6.0.0.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0f}Coverage imbalance.}{11}{paragraph.6.0.0.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0g}Baseline limitations.}{11}{paragraph.6.0.0.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0h}Failure-analysis validity.}{11}{paragraph.6.0.0.8}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0i}Possible benchmark leakage.}{11}{paragraph.6.0.0.9}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{11}{section.7}\protected@file@percent }
-\newlabel{sec:conclusion}{{VII}{11}{Conclusion}{section.7}{}}
-\@writefile{toc}{\contentsline {section}{References}{11}{section*.1}\protected@file@percent }
 \bibcite{chenCUDALLMLLMsCan2025}{5}
 \bibcite{boletCanLargeLanguage2025}{6}
 \bibcite{alfredCompilersPrinciplesTechniques2007}{7}
 \bibcite{wangOmniwisePredictingGPU2025}{8}
 \bibcite{leeForecastingGPUPerformance2025}{9}
 \bibcite{nguyen-nhatLLMPerfGPUPerformance2024}{10}
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0g}Baseline limitations.}{11}{paragraph.6.0.0.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0h}Failure-analysis validity.}{11}{paragraph.6.0.0.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {VI-}0i}Possible benchmark leakage.}{11}{paragraph.6.0.0.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{11}{section.7}\protected@file@percent }
+\newlabel{sec:conclusion}{{VII}{11}{Conclusion}{section.7}{}}
+\@writefile{toc}{\contentsline {section}{References}{11}{section*.1}\protected@file@percent }
 \bibcite{HeCBenchMasterZjinlcf}{11}
 \bibcite{hongAnalyticalModelGPU2009}{12}
 \bibcite{baghsorkhiAdaptivePerformanceModeling2010}{13}
