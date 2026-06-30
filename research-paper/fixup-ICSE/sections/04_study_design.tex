@@ -32,8 +32,6 @@ Across the full 1{,}016 samples, FP16 has 687 zero cases, FP32 has 676, and FP64
 FP16 is especially architecture-sensitive because the A100/H100 binaries contain many more nonzero FP16 measurements than the 3080/A10.
 This is precisely why we separate the evaluation tasks instead of reporting a single aggregate error number.
 
-\input{tables/shared_class_balance}
-
 \subsection{Models, Prompts, and Sample Accounting}
 
 We study three off-the-shelf LLMs: \gptfivefour, \opus, and the cheaper \gptoss baseline.

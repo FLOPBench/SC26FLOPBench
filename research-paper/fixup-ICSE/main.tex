@@ -13,6 +13,7 @@
 \usepackage{float}
 \usepackage{url}
 \urlstyle{tt}
+\usepackage[hidelinks]{hyperref}
 \emergencystretch=1em
 
 \newcommand{\rai}{RAI\xspace}
@@ -30,7 +31,7 @@
 
 \begin{document}
 
-\title{When Can Off-the-Shelf LLMs Classify the GPU Roofline?\\ The Role of Source- versus Compilation-Level Evidence}
+\title{When Can Off-the-Shelf LLMs Classify the GPU Roofline?}
 
 \author{\IEEEauthorblockN{Anonymous Author(s)}
 \IEEEauthorblockA{Anonymous Institution(s)}}
@@ -38,21 +39,14 @@
 \maketitle
 
 \begin{abstract}
-AI coding agents increasingly propose GPU code changes, but evaluating those changes still depends on compile-run-profile loops on scarce target hardware.
-We study a software-engineering question that sits earlier in that loop: before any profiling run, can off-the-shelf large language models decide whether a GPU kernel is bandwidth-bound or compute-bound on a target device, and what evidence do they need to do it?
+GPU kernel optimization hinges on an early decision: is a kernel limited by memory bandwidth or by compute?
+Answering it today requires profiling on the target GPU, hardware that is often unavailable early in development, in continuous integration, or to the AI coding agents that increasingly propose GPU code changes.
+We ask whether off-the-shelf large language models can make this call from static code alone, before any profiling run.
 
-We cast the task as predicting profiler-derived DRAM-level Roofline behavior from software artifacts.
-For each first kernel invocation, models predict launch dimensions, FP16/FP32/FP64 floating-point work, and DRAM bytes read and written; we derive Roofline Arithmetic Intensity (\rai) and the bandwidth-bound versus compute-bound (\bandwidthbound/\computebound) Roofline regime from those quantities.
-We evaluate 254 CUDA and OpenMP kernels (95 programs, 1{,}016 profiled samples) across four NVIDIA GPUs, comparing \sourceonly prompts against prompts that add post-compilation SASS, which is obtainable by cross-compilation without target hardware.
-
-Our central finding is about evidence, not raw accuracy.
-Source code alone is enough for the frontier models to classify the FP32 Roofline regime well (\sourceonly balanced accuracy 0.940 for \opus), but it is essentially blind for half precision, where every model stays at the 0.500 chance baseline.
-The reason is mechanistic: the decisive FP16 arithmetic is compiler-synthesized (e.g.,\ \texttt{HFMA2}) and invisible in source.
-Adding cross-compiled SASS recovers it, lifting FP16 BB/CB balanced accuracy from 0.500 to 0.984 for \opus and 0.870 for \gptfivefour.
-These classification signals are cheap: a budget open model classifies the \sourceonly FP32 regime at 0.875 balanced accuracy for roughly \$0.0006 per kernel, orders of magnitude below a profiling run, while frontier+SASS is a premium tier that additionally cracks FP16.
-Numeric \rai itself is accurate only in identifiable regimes and is best read as a diagnostic for \emph{why} classification succeeds or fails; lightweight static baselines recover part of the same signal and win in a few regimes, so the deployable shape is a cost-tiered cascade rather than an LLM-only oracle.
-We package the benchmark---source, build context, runtime arguments, SASS, profiler-derived labels, and model outputs---as a reusable artifact for execution-free GPU performance reasoning; public URLs are omitted in this anonymous version.
-Our claim is bounded: off-the-shelf LLMs can classify the Roofline regime of a first kernel invocation within identifiable, cheaply-detectable evidence tiers, but they do not replace profiling.
+We prompt the models to estimate a kernel's floating-point work and memory traffic, from which its Roofline arithmetic intensity and its bandwidth- versus compute-bound (\bandwidthbound/\computebound) class follow, and we evaluate 254 CUDA and OpenMP kernels across four NVIDIA GPUs.
+Our central finding is about evidence rather than raw accuracy: from source code, the strongest model classifies the FP32 regime correctly for roughly nine in ten kernels, but is no better than a coin flip on FP16; supplying the compiled assembly closes that gap, taking FP16 from chance to near-perfect.
+The signal is also cheap: a budget model triages FP32 for a fraction of a cent per query, far below the cost of a profiling run. We further characterize how stable these calls are under repeated queries.
+We release a dataset of kernels, build context, assembly, and profiler ground truth, and we bound the claim carefully: these models triage the Roofline regime within identifiable evidence tiers; they do not replace profiling.
 \end{abstract}
 
 \begin{IEEEkeywords}

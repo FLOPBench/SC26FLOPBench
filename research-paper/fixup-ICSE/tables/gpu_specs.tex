@@ -1,24 +1,25 @@
-\begin{table*}[t]
+\begin{table}[t]
   \centering
-  \caption{Profiled GPUs and DRAM-level balance points used for \bandwidthbound/\computebound classification.}
+  \caption{Profiled GPUs and DRAM-level balance points used for \bandwidthbound/\computebound classification.
+  Peak throughput is in TFLOP/s; balance points (BP) are in FLOP/byte.}
   \label{tab:gpu-specs}
-  \small
-  \setlength{\tabcolsep}{4pt}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
   \begin{tabular}{lcccc}
     \toprule
     & RTX 3080 & A10 & A100 & H100 \\
     \midrule
-    Base architecture & Ampere (GA102) & Ampere (GA102) & Ampere (GA100) & Hopper (GH100) \\
-    Compute capability & 8.6 & 8.6 & 8.0 & 9.0 \\
-    Memory bandwidth (GB/s) & 760 & 600 & 1{,}555 & 3{,}360 \\
-    L2 cache (MB) & 5 & 6 & 40 & 50 \\
-    FP16 peak (TFLOP/s) & 30.55 & 15.62 & 77.97 & 133.82 \\
-    FP32 peak (TFLOP/s) & 30.55 & 15.62 & 19.49 & 66.91 \\
-    FP64 peak (TFLOP/s) & 0.477 & 0.244 & 9.75 & 33.45 \\
+    Architecture & Ampere & Ampere & Ampere & Hopper \\
+    Compute cap. & 8.6 & 8.6 & 8.0 & 9.0 \\
+    BW (GB/s) & 760 & 600 & 1{,}555 & 3{,}360 \\
+    L2 (MB) & 5 & 6 & 40 & 50 \\
+    FP16 peak & 30.55 & 15.62 & 77.97 & 133.82 \\
+    FP32 peak & 30.55 & 15.62 & 19.49 & 66.91 \\
+    FP64 peak & 0.477 & 0.244 & 9.75 & 33.45 \\
     \midrule
-    FP16 balance point (FLOP/byte) & 40.20 & 26.03 & 50.14 & 39.83 \\
-    FP32 balance point (FLOP/byte) & 40.20 & 26.03 & 12.53 & 19.91 \\
-    FP64 balance point (FLOP/byte) & 0.63 & 0.41 & 6.27 & 9.96 \\
+    FP16 BP & 40.20 & 26.03 & 50.14 & 39.83 \\
+    FP32 BP & 40.20 & 26.03 & 12.53 & 19.91 \\
+    FP64 BP & 0.63 & 0.41 & 6.27 & 9.96 \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}

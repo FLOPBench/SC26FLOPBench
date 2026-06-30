@@ -21,6 +21,11 @@
 \providecommand{\BIBdecl}{\relax}
 \BIBdecl
 
+\bibitem{samuelwilliamsRooflineInsightfulVisual2009}
+S.~Williams, A.~Waterman, and D.~A. Patterson, ``Roofline: an insightful visual
+  performance model for multicore architectures,'' \emph{Communications of The
+  ACM}, vol.~52, no.~4, pp. 65--76, Apr. 2009, mAG ID: 2002555321.
+
 \bibitem{liRiseAITeammates2025}
 \BIBentryALTinterwordspacing
 H.~Li, H.~Zhang, and A.~E. Hassan, ``The {Rise} of {AI} {Teammates} in
@@ -53,10 +58,60 @@ W.~Chen, J.~Zhu, Q.~Fan, Y.~Ma, and A.~Zou, ``{CUDA}-{LLM}: {LLMs} {Can}
   [Online]. Available: \url{http://arxiv.org/abs/2506.09092}
 \BIBentrySTDinterwordspacing
 
-\bibitem{samuelwilliamsRooflineInsightfulVisual2009}
-S.~Williams, A.~Waterman, and D.~A. Patterson, ``Roofline: an insightful visual
-  performance model for multicore architectures,'' \emph{Communications of The
-  ACM}, vol.~52, no.~4, pp. 65--76, Apr. 2009, mAG ID: 2002555321.
+\bibitem{boletCanLargeLanguage2025}
+\BIBentryALTinterwordspacing
+G.~Bolet, G.~Georgakoudis, H.~Menon, K.~Parasyris, N.~Hasabnis, H.~Estes,
+  K.~Cameron, and G.~Oren, ``\BIBforeignlanguage{en}{Can {Large} {Language}
+  {Models} {Predict} {Parallel} {Code} {Performance}?}'' in
+  \emph{\BIBforeignlanguage{en}{Proceedings of the 34th {International}
+  {Symposium} on {High}-{Performance} {Parallel} and {Distributed}
+  {Computing}}}.\hskip 1em plus 0.5em minus 0.4em\relax University of Notre
+  Dame Conference Facilities Notre Dame IN USA: ACM, Jul. 2025, pp. 1--6.
+  [Online]. Available: \url{https://dl.acm.org/doi/10.1145/3731545.3743645}
+\BIBentrySTDinterwordspacing
+
+\bibitem{alfredCompilersPrinciplesTechniques2007}
+\BIBentryALTinterwordspacing
+A.~V. Aho, M.~S. Lam, R.~Sethi, and J.~D. Ullman, \emph{Compilers:
+  {Principles}, {Techniques}, and {Tools}}, 2nd~ed.\hskip 1em plus 0.5em minus
+  0.4em\relax Pearson, 2007. [Online]. Available:
+  \url{https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472}
+\BIBentrySTDinterwordspacing
+
+\bibitem{wangOmniwisePredictingGPU2025}
+\BIBentryALTinterwordspacing
+Z.~Wang, C.~Ramos, M.~A. Awad, and K.~Lowery, ``Omniwise: {Predicting} {GPU}
+  {Kernels} {Performance} with {LLMs},'' Jun. 2025, arXiv:2506.20886 [cs].
+  [Online]. Available: \url{http://arxiv.org/abs/2506.20886}
+\BIBentrySTDinterwordspacing
+
+\bibitem{leeForecastingGPUPerformance2025}
+\BIBentryALTinterwordspacing
+S.~Lee, A.~Phanishayee, and D.~Mahajan, ``Forecasting {GPU} {Performance} for
+  {Deep} {Learning} {Training} and {Inference},'' in \emph{Proceedings of the
+  30th {ACM} {International} {Conference} on {Architectural} {Support} for
+  {Programming} {Languages} and {Operating} {Systems}, {Volume} 1}, ser.
+  {ASPLOS} '25.\hskip 1em plus 0.5em minus 0.4em\relax New York, NY, USA:
+  Association for Computing Machinery, Mar. 2025, pp. 493--508. [Online].
+  Available: \url{https://dl.acm.org/doi/10.1145/3669940.3707265}
+\BIBentrySTDinterwordspacing
+
+\bibitem{nguyen-nhatLLMPerfGPUPerformance2024}
+\BIBentryALTinterwordspacing
+M.-K. Nguyen-Nhat, H.~D.~N. Do, H.~T. Le, and T.~T. Dao, ``{LLMPerf}: {GPU}
+  {Performance} {Modeling} meets {Large} {Language} {Models},'' in \emph{2024
+  32nd {International} {Conference} on {Modeling}, {Analysis} and {Simulation}
+  of {Computer} and {Telecommunication} {Systems} ({MASCOTS})}.\hskip 1em plus
+  0.5em minus 0.4em\relax Piscataway, NJ, USA: IEEE, Oct. 2024, pp. 1--8.
+  [Online]. Available: \url{https://ieeexplore.ieee.org/document/10786558/}
+\BIBentrySTDinterwordspacing
+
+\bibitem{HeCBenchMasterZjinlcf}
+\BIBentryALTinterwordspacing
+{HeCBench Developers}, ``\BIBforeignlanguage{en}{{HeCBench}/ at master ·
+  zjin-lcf/{HeCBench}},'' 2026. [Online]. Available:
+  \url{https://github.com/zjin-lcf/HeCBench}
+\BIBentrySTDinterwordspacing
 
 \bibitem{hongAnalyticalModelGPU2009}
 \BIBentryALTinterwordspacing
@@ -137,43 +192,6 @@ Y.~Peng, A.~D. Gotmare, M.~R. Lyu, C.~Xiong, S.~Savarese, and D.~Sahoo,
   ({Forge})}.\hskip 1em plus 0.5em minus 0.4em\relax Piscataway, NJ, USA: IEEE,
   Apr. 2025, pp. 1--13. [Online]. Available:
   \url{https://ieeexplore.ieee.org/document/11052794/}
-\BIBentrySTDinterwordspacing
-
-\bibitem{nguyen-nhatLLMPerfGPUPerformance2024}
-\BIBentryALTinterwordspacing
-M.-K. Nguyen-Nhat, H.~D.~N. Do, H.~T. Le, and T.~T. Dao, ``{LLMPerf}: {GPU}
-  {Performance} {Modeling} meets {Large} {Language} {Models},'' in \emph{2024
-  32nd {International} {Conference} on {Modeling}, {Analysis} and {Simulation}
-  of {Computer} and {Telecommunication} {Systems} ({MASCOTS})}.\hskip 1em plus
-  0.5em minus 0.4em\relax Piscataway, NJ, USA: IEEE, Oct. 2024, pp. 1--8.
-  [Online]. Available: \url{https://ieeexplore.ieee.org/document/10786558/}
-\BIBentrySTDinterwordspacing
-
-\bibitem{wangOmniwisePredictingGPU2025}
-\BIBentryALTinterwordspacing
-Z.~Wang, C.~Ramos, M.~A. Awad, and K.~Lowery, ``Omniwise: {Predicting} {GPU}
-  {Kernels} {Performance} with {LLMs},'' Jun. 2025, arXiv:2506.20886 [cs].
-  [Online]. Available: \url{http://arxiv.org/abs/2506.20886}
-\BIBentrySTDinterwordspacing
-
-\bibitem{boletCanLargeLanguage2025}
-\BIBentryALTinterwordspacing
-G.~Bolet, G.~Georgakoudis, H.~Menon, K.~Parasyris, N.~Hasabnis, H.~Estes,
-  K.~Cameron, and G.~Oren, ``\BIBforeignlanguage{en}{Can {Large} {Language}
-  {Models} {Predict} {Parallel} {Code} {Performance}?}'' in
-  \emph{\BIBforeignlanguage{en}{Proceedings of the 34th {International}
-  {Symposium} on {High}-{Performance} {Parallel} and {Distributed}
-  {Computing}}}.\hskip 1em plus 0.5em minus 0.4em\relax University of Notre
-  Dame Conference Facilities Notre Dame IN USA: ACM, Jul. 2025, pp. 1--6.
-  [Online]. Available: \url{https://dl.acm.org/doi/10.1145/3731545.3743645}
-\BIBentrySTDinterwordspacing
-
-\bibitem{alfredCompilersPrinciplesTechniques2007}
-\BIBentryALTinterwordspacing
-A.~V. Aho, M.~S. Lam, R.~Sethi, and J.~D. Ullman, \emph{Compilers:
-  {Principles}, {Techniques}, and {Tools}}, 2nd~ed.\hskip 1em plus 0.5em minus
-  0.4em\relax Pearson, 2007. [Online]. Available:
-  \url{https://www.pearson.com/en-us/subject-catalog/p/compilers-principles-techniques-and-tools/P200000003472}
 \BIBentrySTDinterwordspacing
 
 \bibitem{IEEEStandardFloatingPoint2019}
