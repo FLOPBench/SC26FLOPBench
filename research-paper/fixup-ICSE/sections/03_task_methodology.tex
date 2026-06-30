@@ -90,6 +90,11 @@ The architectural question is therefore not whether LLMs generalize to all accel
 FP16 is especially architecture-sensitive because the A100/H100 binaries contain many more nonzero FP16 measurements than the 3080/A10.
 This imbalance is why we separate the evaluation tasks by precision instead of reporting single aggregate errors.
 
+\noindent\textbf{Error-Prone Code Features.}
+We additionally run an auxiliary feature-voting pipeline in which inexpensive LLMs label each kernel's source for patterns that are known to complicate floating-point and traffic reasoning: division, special math (transcendental and other intrinsic functions), reusable subexpressions, and loop-invariant floating-point work.
+We use these labels in two ways: to stratify the repeated-query panel into harder and easier kernels, and, after evaluation, to characterize where prediction errors cluster.
+This labeling is exploratory: the labels are not human-validated, so we use them to describe recurring failure patterns rather than to make causal claims, and we summarize association strength with Cliff's $\delta$.
+
 \input{tables/llm_comparison}
 
 
@@ -98,7 +103,7 @@ This imbalance is why we separate the evaluation tasks by precision instead of r
 
 
 
-\noindent\textbf{Models and Sample Accounting.}
+\noindent\textbf{Models and Experiments.}
 We study three off-the-shelf LLMs (\autoref{tab:llm-comparison}): the two frontier models \gptfivefour and \opus, and the roughly 100$\times$ cheaper open-source baseline \gptoss.
 We do not fine-tune the models, we only vary prompting by the two evidence configurations (\sourceonly and \sourcesass), and supplied GPU specifications from \autoref{tab:gpu-specs}. 
 Because querying every input more than once across all three models is prohibitively expensive, our primary study collects exactly one sample per (kernel, GPU, evidence) combination on each LLM.
@@ -117,7 +122,7 @@ For fair cross-model comparison we restrict our analysis to the \emph{intersecti
 %Within-model source-versus-SASS comparisons instead need only control for the two evidence settings of a single model, so they are paired on the larger subset completed by both settings for that model.
 
 A single sample per input cannot establish reliability, since LLM outputs are nondeterministic, so we additionally run a smaller repeated-query study to characterize run-to-run variability without re-running the full grid.
-We select a small, deterministic, stratified panel of 24 kernels from the evaluated set using \texttt{select\_repeat\_trial\_kernels.py}, chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features identified in our failure analysis (division, special math, reusable subexpressions, and loop-invariant floating-point work), rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
+We select a small, deterministic, stratified panel of 24 kernels from the evaluated set, chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features above, rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
 We resample each (kernel, GPU, evidence) combination four times on every model (no kernel perturbation), collecting 384 samples per model per evidence setting (96 kernel--GPU samples $\times$ four repeats), or 2{,}304 repeated-query samples in total.
 From these we measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
 
@@ -131,7 +136,7 @@ We report a deliberately small set of metrics organized around the primary outco
 
 \paragraph{Regime classification (primary).}
 For nonzero cases we compare the predicted and expected side of the GPU-specific balance point: a kernel is \computebound when its \rai exceeds that balance point and \bandwidthbound otherwise.
-Because the class ratios are uneven, we report balanced accuracy (macro recall), which cannot be inflated by predicting the majority class, and the released artifact additionally exports \computebound precision/recall/F1 so reviewers can see whether high recall comes from over-predicting the compute side.
+Because the class ratios are uneven, we report balanced accuracy (macro recall), which cannot be inflated by predicting the majority class, and we additionally report \computebound precision/recall/F1 so that high recall coming from over-predicting the compute side stays visible.
 If a model predicts zero for a truly nonzero kernel, we conservatively count it as a memory-side failure, since a zero prediction still fails to identify compute-side behavior.
 
 \paragraph{Numeric \rai error (diagnostic).}
@@ -152,15 +157,20 @@ As reference points, always predicting zero yields 0.50 balanced accuracy on zer
 
 
 
-\noindent\textbf{Static Baselines (Deferred).}
-To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, we additionally plan a like-for-like comparison against lightweight static baselines defined for our exact target: a context-only median predictor, deterministic source-lexical and SASS-mnemonic heuristics, and lightweight learned static predictors over the same source- and disassembly-derived features.
-Because we are still constructing these baselines to match the per-precision DRAM-level Roofline target, we defer the comparison to a subsequent revision (RQ4) and report it as future work rather than a measured result here.
+\noindent\textbf{Static Baselines.}
+To test whether the LLM signal is worth its cost beyond off-the-shelf prompting, we compare each model against lightweight static predictors defined for the exact same per-precision DRAM-level Roofline target, scored on the same 732-sample shared subset with the same ground truth and balance points so the comparison is like-for-like.
+We use two families.
+The first is a set of deterministic references that compute a per-precision \rai analytically, with no training.
+The \textit{source-lexical heuristic} approximates \rai on the comment-stripped source as a count of arithmetic tokens (the operators \texttt{+\,-\,*\,/} together with \texttt{fma}/\texttt{mad}/\texttt{mul}/\texttt{add}/\texttt{sub}/\texttt{div} keywords) divided by four times a count of memory references (array-index \texttt{[} and pointer-dereference \texttt{->} tokens), then gates each precision on whether its type keywords (\texttt{half}, \texttt{float}, \texttt{double}, or the matching math intrinsics) appear at all.
+The \textit{SASS-mnemonic heuristic} instead reads the compiled kernel's static instruction mix and forms, per precision, a floating-point operation count from the relevant mnemonics---weighting fused and packed instructions by their operation count (\texttt{FFMA} and \texttt{DFMA} as two, the packed-half \texttt{HFMA2}/\texttt{HADD2}/\texttt{HMUL2} as two, and the tensor-core \texttt{HMMA} as sixteen)---divided by the number of global-memory instructions (\texttt{LDG}/\texttt{STG}/\texttt{ATOMG}/\texttt{ATOM}) times the precision's byte width (two, four, or eight for FP16/FP32/FP64).
+A \textit{context-median predictor} completes the family by returning the median \rai of the training kernels within each runtime$\times$GPU group.
+The second is a set of learned tree models---Random Forest and Extra Trees regressors---each trained either on source-derived features alone (matching \sourceonly) or on source plus SASS-derived features (matching \sourcesass).
+The source features are comment-stripped token counts capturing arithmetic, memory, control-flow, synchronization, math-intrinsic, type, and thread-indexing usage; the SASS features add a histogram of instruction mnemonics binned into memory, branch, integer, per-precision floating-point, special-function, atomic, and barrier classes, while runtime and GPU enter as categorical features.
+Like the LLMs, the learned models predict per-precision \rai directly through a two-stage estimator that first decides whether a kernel does any work at that precision and then regresses \rai (in log space) for the nonzero cases, after which the \bandwidthbound/\computebound label is derived by comparison against the GPU balance point.
+We evaluate with leave-programs-out cross-validation (grouped five-fold by program, so no kernel from a test program appears in training) and report out-of-fold predictions, averaging the learned models over five seeds for stability.
 
 
 
 
 
 
-\noindent\textbf{Exploratory Failure Analysis.}
-The released artifact also contains an auxiliary feature-voting pipeline that uses inexpensive LLMs to label source patterns such as division, special math, reusable subexpressions, and loop-invariant floating-point work.
-We retain this analysis because it helps characterize where prediction errors cluster, but we treat it as exploratory: the feature labels are not human-validated, so we use them to describe repeated failure patterns rather than to make causal claims, and we summarize association strength with Cliff's $\delta$ in the appendix.

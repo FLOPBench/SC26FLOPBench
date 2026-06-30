@@ -1,3 +1,4 @@
-model_name,threads,total_cost_usd,updated
-GPT 5.4,768,31.122342,0
-GPT OSS,48,0.02944293,0
+model_name,threads,updated,total_cost_usd
+anthropic/claude-4.6-opus-20260205,768,768,116.41198
+GPT 5.4,768,0,31.122342
+openai/gpt-oss-120b,768,768,1.093792921

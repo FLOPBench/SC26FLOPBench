@@ -70,15 +70,17 @@ The practical implication is that users should expect the largest \rai errors---
 LLM predictions are nondeterministic, so a single query per kernel cannot establish reliability.
 We resample the models on the small, stratified panel of \autoref{sec:study-design}---repeating each query rather than perturbing the kernel---and measure two kinds of consistency: the coefficient of variation (CV) of the predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
 \autoref{tab:repeated-query-variance} reports both.
-At the time of writing the panel is complete for \gptfivefour and partially complete for \gptoss; the \opus repeats are pending and will be added.
+\input{tables/repeated_query_variance}
 
-Two trends stand out.
-\textbf{(1)} \sourceonly predictions are highly consistent: \gptfivefour holds a median FP32 CV of 0.21 and an FP64 CV of 0.04, and its \bandwidthbound/\computebound call agrees on 71--100\% of cells.
-\textbf{(2)} Adding SASS, which improves accuracy, also \textit{increases} run-to-run variability: \gptfivefour's median CV rises to 0.87 (FP16), 0.61 (FP32), and 0.33 (FP64).
-This is the honest cost of the evidence that cracks half precision---once the model commits to a numeric FP16 estimate rather than a degenerate zero, that estimate varies more across repeats.
-The decision-level consistency is more forgiving than the numeric consistency but is not perfect: the \bandwidthbound/\computebound call still agrees on only 76--86\% of \sourcesass cells, meaning roughly one in four to one in five FP32 calls can flip across identical repeated queries.
+Three trends stand out.
+\textbf{(1)} The decision-level call is generally stable: the \bandwidthbound/\computebound vote is unanimous across repeats in most cells (mostly 82--100\% agreement), so the headline classification is not an artifact of a single lucky draw.
+\textbf{(2)} The most accurate model is also the most consistent.
+\opus holds a near-zero median CV and 88--100\% agreement in \emph{both} evidence settings, and---unlike the other models---adding SASS barely perturbs it (FP16 CV stays 0.00 at 96\% agreement).
+The model one would actually deploy is therefore also the most reliable, and for \opus single-shot use is comparatively safe.
+\textbf{(3)} Where SASS does destabilize predictions, the effect is model-specific rather than intrinsic to the evidence: \gptfivefour's median CV jumps from essentially zero under \sourceonly to 0.87 (FP16), 0.61 (FP32), and 0.33 (FP64) once SASS is added, and \gptoss's \sourcesass agreement falls to 69\% for FP32 and FP64.
+This is the honest cost of the evidence that cracks half precision for the weaker models---once a model commits to a numeric FP16 estimate rather than a degenerate zero, that estimate varies more across repeats---but it is not a property \opus shares.
 
-The takeaway is that single-shot use is risky for borderline kernels: a deployed triage tool should issue a small number of repeated queries and take the majority \bandwidthbound/\computebound vote, especially in the \sourcesass setting where numeric \rai is least stable.
+The takeaway is that single-shot use is risky for the cheaper models and for \gptfivefour under \sourcesass: a deployed triage tool built on those configurations should issue a small number of repeated queries and take the majority \bandwidthbound/\computebound vote, whereas a frontier model such as \opus is stable enough that a single query is usually sufficient.
 
 \subsection{RQ4: How Do the Signals Compare in Accuracy and Cost?}
 
@@ -93,7 +95,10 @@ We do not collect end-to-end build-and-profile timings, so we make no measured t
 The frontier+SASS tier that additionally cracks FP16 is the premium option, and we treat its cost honestly: it is the regime where the ``just measure'' objection is most defensible.
 
 \textbf{Versus static baselines.}
-A credible comparison against lightweight static and learned predictors is the most direct answer to the ``how does this compare to prior static analysis?'' question, and is needed to establish that the LLM signal is worth its cost beyond the profiling comparison.
-We are constructing a like-for-like static baseline for \bandwidthbound/\computebound classification and defer that comparison to a subsequent revision.
+\input{tables/llm_vs_static_task_c}
+To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, we compare the best off-the-shelf LLM against the best static reference for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting, on the same shared subset and ground truth (\autoref{tab:llm-vs-static-task-c}).
+Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins, $p<0.001$), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5, $p<0.001$), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4, $p<0.001$), and in each of these the LLM's numeric \rai error is far lower (MedAPE 18--44\% vs.\ 100--163\%).
+The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable---the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MedAPE---and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MedAPE).
+Across the six regimes the LLMs significantly beat the best static baseline in three---the high-value SASS-backed and single-precision frontier cells---and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
 
 The takeaway across the four questions is a cost-tiered deployment rather than an LLM-only oracle: cheap models give useful \sourceonly single-precision triage for fractions of a cent, frontier models with cross-compiled SASS additionally recover half precision, and a few repeated queries guard the borderline calls.

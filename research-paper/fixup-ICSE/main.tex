@@ -40,6 +40,9 @@
 
 \maketitle
 
+% Suppress "[Online]. Available: <url>" rendering in the bibliography to save space.
+\bstctlcite{IEEEexample:BSTcontrol}
+
 \begin{abstract}
 GPU kernel optimization hinges on an early decision: is a kernel limited by memory bandwidth or by compute?
 Answering it today requires profiling on the target GPU, hardware that is often unavailable early in development, in continuous integration, or to the AI coding agents that increasingly propose GPU code changes.
@@ -66,7 +69,8 @@ software performance, GPUs, Roofline, arithmetic intensity, large language model
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
 
-\appendices
-\input{sections/09_appendix}
+% Appendix dropped for the 10-page limit (appendix counts toward the page budget).
+%\appendices
+%\input{sections/09_appendix}
 
 \end{document}
