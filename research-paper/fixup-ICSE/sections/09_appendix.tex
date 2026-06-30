@@ -18,14 +18,6 @@
   \label{fig:appendix-ape-by-runtime}
 \end{figure*}
 
-\section{Static Reference Baselines}
-
-\input{tables/deterministic_baselines}
-
-\section{Seed Sensitivity}
-
-\input{tables/learned_seed_sensitivity}
-
 \section{Illustrative Released Rows}
 
 \input{tables/illustrative_rows}
@@ -44,14 +36,11 @@
   \label{fig:feature-heatmap}
 \end{figure*}
 
-\section{Repeated-Query Robustness (Planned)}
+\section{Repeated-Query Variability (Detailed)}
 \label{sec:appendix-repeated-query}
 
-% PLACEHOLDER SECTION -- fill once the deferred repeated-query experiment is run.
-The released evaluation subset queries each model once per sample, so it cannot characterize run-to-run stochastic variability.
-We plan to close this gap with a low-cost repeated-query study rather than re-running the full grid.
-On a stratified panel of roughly 50 kernels chosen to span precision, error magnitude, balance-point proximity, class, and runtime (not only low-error cases), we will query \gptoss 5--10 times---and a small \opus subset---and report the run-to-run distribution of the headline classification metric.
-Table~\ref{tab:repeated-query-variance} is the placeholder for that result; the panel-construction protocol is recorded in the project plan.
+\autoref{tab:repeated-query-variance} gives the per-precision detail behind the consistency results of RQ3 (\autoref{sec:results}): the coefficient of variation of predicted \rai and the \bandwidthbound/\computebound agreement rate across the four repeated queries, for each model and evidence setting on the 24-kernel panel of \autoref{sec:study-design}.
+The panel is complete for \gptfivefour and partially complete for \gptoss; the \opus repeats are pending and will be added.
 
 \input{tables/repeated_query_variance}
 
@@ -60,10 +49,10 @@ Table~\ref{tab:repeated-query-variance} is the placeholder for that result; the 
 
 % PLACEHOLDER SECTION -- fill once the deferred perturbation experiment is run.
 Because the corpus is public, some kernels may appear in pretraining data, so accurate predictions could reflect recall rather than reasoning.
-We plan a perturbation probe to separate the two on a panel that deliberately over-samples near-exact and well-known kernels (where memorization is the competing explanation), with high-error controls.
-Each kernel receives two perturbation types with opposite expectations: \emph{cosmetic} edits (renamed identifiers, reordered functions) under which a reasoning model should be invariant, and \emph{semantic} edits (changed loop trip counts, array dimensions, or problem-size arguments) that move the ground truth---under which a reasoning model's prediction should track the new value while a memorizing model stays anchored to the original.
-Where the perturbed kernel must be re-profiled to obtain new ground truth, we will use a single locally available GPU, since this probe tests the model rather than cross-device generality.
-We will report the correlation between predicted and true \rai change, not absolute error alone.
+We plan a \emph{cosmetic} perturbation probe that renames kernel and function identifiers and strips comments while leaving the computation, and therefore the ground-truth \rai, unchanged.
+A model that reasons from program structure should be largely invariant to these edits, whereas a model leaning on memorized identifiers or familiar source text should degrade.
+Because cosmetic edits do not change the ground truth, this probe needs no re-profiling and no target-hardware access, which is essential because the original profiling GPUs are no longer available to us.
+We will report the change in \bandwidthbound/\computebound classification accuracy and \rai error between original and cosmetically perturbed kernels.
 
 \section{Anonymity Note}
 

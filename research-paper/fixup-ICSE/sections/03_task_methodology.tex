@@ -9,14 +9,12 @@ At prediction time the LLM does not execute the program, collect profiler counte
 
 We do not ask the model to emit the regime label or \rai directly.
 For each profiled sample, meaning one first-invocation kernel execution on one GPU, the model predicts seven values: grid size, block size, FP16/FP32/FP64 operation counts, and DRAM bytes read and written.
-We then derive \rai separately for each precision,
+We then derive \rai separately for each precision $p \in \{\texttt{FP16}, \texttt{FP32}, \texttt{FP64}\}$,
 \[
 \texttt{\rai}_{p}
 =
-\frac{\texttt{FLOP}_{p}}
+\frac{\texttt{FLOPCount}_{p}}
      {\texttt{BytesRead} + \texttt{BytesWritten}},
-\qquad
-p \in \{\texttt{FP16}, \texttt{FP32}, \texttt{FP64}\},
 \]
 and classify each precision relative to that GPU's balance point.
 This decomposition makes failures interpretable: an incorrect launch configuration propagates into total work, an incorrect FLOP count indicates a semantic or compiler-lowering error, and an incorrect byte estimate indicates difficulty reasoning about DRAM-visible traffic.
