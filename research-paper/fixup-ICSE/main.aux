@@ -67,29 +67,23 @@
 \@writefile{toc}{\contentsline {section}{\numberline {III}Methodology}{4}{section.3}\protected@file@percent }
 \newlabel{sec:task-methodology}{{III}{4}{Methodology}{section.3}{}}
 \newlabel{sec:study-design}{{III}{4}{Methodology}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Prediction Task}{4}{subsection.3.1}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Per-kernel prompting workflow. Each query includes the target kernel name, source files, compile commands, runtime arguments, and GPU specifications. The \textit  {source+SASS}\xspace  setting adds the target kernel's SASS sections and reachable helper routines so we can measure the value of post-compilation evidence.}}{4}{figure.2}\protected@file@percent }
 \newlabel{fig:prompting-pipeline}{{2}{4}{Per-kernel prompting workflow. Each query includes the target kernel name, source files, compile commands, runtime arguments, and GPU specifications. The \sourcesass setting adds the target kernel's SASS sections and reachable helper routines so we can measure the value of post-compilation evidence}{figure.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Input Evidence and Prompting}{4}{subsection.3.2}\protected@file@percent }
 \citation{jinBenchmarkSuiteImproving2023}
 \citation{kadoshQuantifyingOpenMPStatistical2023}
 \@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Dataset-construction pipeline. For each target kernel we build the executable, recover the source files, compile commands, and runtime arguments, cross-compile to obtain SASS, and profile the first invocation to collect the floating-point and DRAM-traffic ground truth used to label the Roofline regime.}}{5}{figure.3}\protected@file@percent }
 \newlabel{fig:dataset-creation}{{3}{5}{Dataset-construction pipeline. For each target kernel we build the executable, recover the source files, compile commands, and runtime arguments, cross-compile to obtain SASS, and profile the first invocation to collect the floating-point and DRAM-traffic ground truth used to label the Roofline regime}{figure.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Benchmark Corpus and Ground Truth}{5}{subsection.3.3}\protected@file@percent }
+\newlabel{fn:github}{{2}{5}{}{Hfootnote.2}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Profiled GPUs and DRAM-level balance points used for \textsc  {BB}\xspace  /\textsc  {CB}\xspace  classification. Peak throughput is in TFLOP/s; balance points (BP) are in FLOP/byte.}}{5}{table.1}\protected@file@percent }
 \newlabel{tab:gpu-specs}{{I}{5}{Profiled GPUs and DRAM-level balance points used for \bandwidthbound /\computebound classification. Peak throughput is in TFLOP/s; balance points (BP) are in FLOP/byte}{table.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Ground-truth RAI\xspace  class distribution by GPU and precision over the full corpus. Each GPU/precision cell covers the same 254 first-invocation kernels; the three sub-columns count kernels with zero RAI\xspace  (0 FLOP), nonzero \textsc  {BB}\xspace  , and nonzero \textsc  {CB}\xspace  labels. Zero-valued RAI\xspace  dominates every precision, nonzero FP16 cases concentrate on the A100 and H100, and the nonzero \textsc  {BB}\xspace  /\textsc  {CB}\xspace  mix shifts with each device's balance point.}}{5}{table.2}\protected@file@percent }
-\newlabel{tab:gt-distribution}{{II}{5}{Ground-truth \rai class distribution by GPU and precision over the full corpus. Each GPU/precision cell covers the same 254 first-invocation kernels; the three sub-columns count kernels with zero \rai (0 FLOP), nonzero \bandwidthbound , and nonzero \computebound labels. Zero-valued \rai dominates every precision, nonzero FP16 cases concentrate on the A100 and H100, and the nonzero \bandwidthbound /\computebound mix shifts with each device's balance point}{table.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Ground-truth RAI\xspace  class distribution by GPU and precision over the full corpus. Sub-columns count, among the same 254 first-invocation kernels per cell, those with zero RAI\xspace  (0 FLOP), nonzero \textsc  {BB}\xspace  , and nonzero \textsc  {CB}\xspace  labels.}}{5}{table.2}\protected@file@percent }
+\newlabel{tab:gt-distribution}{{II}{5}{Ground-truth \rai class distribution by GPU and precision over the full corpus. Sub-columns count, among the same 254 first-invocation kernels per cell, those with zero \rai (0 FLOP), nonzero \bandwidthbound , and nonzero \computebound labels}{table.2}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens, as of March 2026.}}{6}{table.3}\protected@file@percent }
 \newlabel{tab:llm-comparison}{{III}{6}{The three off-the-shelf LLMs studied, sorted by release date. Costs are per million tokens (input\,/\,output) and context limits are maximum input\,/\,output tokens, as of March 2026}{table.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Models and Sample Accounting}{6}{subsection.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Evaluation Metrics}{6}{subsection.3.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-E}0a}Regime classification (primary).}{6}{paragraph.3.5.0.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-E}0b}Numeric RAI\xspace  error (diagnostic).}{6}{paragraph.3.5.0.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-E}0c}Zero detection.}{6}{paragraph.3.5.0.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Repeated-Query Consistency}{6}{subsection.3.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-G}}Static Baselines (Deferred)}{6}{subsection.3.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-H}}Exploratory Failure Analysis}{6}{subsection.3.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0a}Regime classification (primary).}{6}{paragraph.3.0.0.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0b}Numeric RAI\xspace  error (diagnostic).}{6}{paragraph.3.0.0.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {III-}0c}Zero detection.}{6}{paragraph.3.0.0.3}\protected@file@percent }
+\newlabel{sec:repeat-consistency}{{\mbox  {III-}0c}{6}{Zero detection}{paragraph.3.0.0.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Evaluation}{7}{section.4}\protected@file@percent }
 \newlabel{sec:results}{{IV}{7}{Evaluation}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}RQ1: Can LLMs Classify the Roofline Regime From Static Artifacts?}{7}{subsection.4.1}\protected@file@percent }
