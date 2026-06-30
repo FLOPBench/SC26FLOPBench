@@ -1,11 +1,18 @@
-\section{Task Formulation and Methodology}
+\section{Methodology}
 \label{sec:task-methodology}
+\label{sec:study-design}
 
 \subsection{Prediction Task}
 
-Our primary target is a kernel's \bandwidthbound/\computebound Roofline regime on a given GPU: whether, on its \emph{first invocation}, the kernel sits on the memory-bandwidth-limited or the compute-limited side of that device's Roofline balance point.
+Our primary target is a kernel's \bandwidthbound/\computebound Roofline \textit{regime} on a given GPU: whether, on its \emph{first invocation}, the kernel sits on the memory-bandwidth-limited or the compute-limited side of that device's Roofline balance point.
 The underlying quantity is the DRAM-level Roofline Arithmetic Intensity (\rai), the ratio of floating-point work to DRAM traffic; comparing \rai against the GPU-specific balance point yields the regime label, and we treat the numeric \rai as a diagnostic that explains \emph{why} a classification is right or wrong.
-At prediction time the LLM does not execute the program, collect profiler counters, or observe runtime traces; it receives software artifacts and must infer the quantities from which \rai, and hence the regime, are derived.
+At prediction time the LLM receives software artifacts and must infer the quantities from which \rai, and hence the regime, are derived.
+
+We deliberately scope this task to its simplest useful version via two design decisions.
+First, we predict \rai at the DRAM level rather than at each level of the memory hierarchy: a single, interpretable byte denominator is a far easier target than reasoning about arithmetic intensity at every cache level.
+Second, we evaluate only a kernel's first invocation, whose cold-start cache behavior is easier to reason about than a later invocation that would force the model to essentially simulate the cache state left by prior iterations.
+Both choices give the models an easier problem on which to measure baseline competence before moving to steady-state, warm-cache prediction, which we leave to future work.
+They also narrow the claim: we study execution-free early triage for a first kernel invocation at the DRAM level, and do not claim to predict steady-state runtime, cache-resident arithmetic intensity, or end-to-end application performance.
 
 We do not ask the model to emit the regime label or \rai directly.
 For each profiled sample, meaning one first-invocation kernel execution on one GPU, the model predicts seven values: grid size, block size, FP16/FP32/FP64 operation counts, and DRAM bytes read and written.
@@ -13,7 +20,7 @@ We then derive \rai separately for each precision $p \in \{\texttt{FP16}, \textt
 \[
 \texttt{\rai}_{p}
 =
-\frac{\texttt{FLOPCount}_{p}}
+\frac{\texttt{FLOP}_{p}}
      {\texttt{BytesRead} + \texttt{BytesWritten}},
 \]
 and classify each precision relative to that GPU's balance point.
@@ -27,17 +34,17 @@ This matches the per-precision balance points used for triage and makes compiler
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figures/prompting_pipeline.png}
+  \includegraphics[width=0.8\linewidth]{figures/prompting_pipeline.png}
   \caption{Per-kernel prompting workflow.
-  Each query includes the target kernel name (mangled and demangled), source files, compile commands, runtime arguments, and GPU specifications.
+  Each query includes the target kernel name, source files, compile commands, runtime arguments, and GPU specifications.
   The \sourcesass setting adds the target kernel's SASS sections and reachable helper routines so we can measure the value of post-compilation evidence.}
   \Description{A per-kernel prompt pipeline showing source files, build commands, runtime arguments, and GPU specifications as shared inputs, with SASS blocks added only in the source-plus-SASS setting before the model predicts launch sizes, FLOPs, and bytes.}
   \label{fig:prompting-pipeline}
 \end{figure}
 
 \autoref{fig:prompting-pipeline} summarizes the evidence supplied to the model for one target kernel on one GPU.
-Every prompt contains the kernel identifier in both mangled and demangled form, the compile commands, the relevant source files and headers, the executable's runtime arguments, and the target-GPU specifications.
-The identifier is given in both forms because low-level artifacts such as SASS refer to mangled symbols while source reasoning is easier in demangled form, and for OpenMP kernels we additionally preserve the source location needed to disambiguate the target-offload region, since one executable may contain several kernels but the model reasons about only one.
+Every prompt contains the kernel identifier, the compile commands, the relevant source files and headers, the executable's runtime arguments, and the target-GPU specifications.
+For OpenMP kernels we additionally preserve the source location needed to disambiguate the target-offload region, since one executable may contain several kernels but the model reasons about only one.
 Compile commands are included because macros, include paths, and optimization flags affect both the visible source and the compiled behavior, and source files are embedded directly and wrapped in XML-style tags so the model reasons over the exact code used to build the executable.
 The prompt is split into a system message that defines the task and output constraints and a task message that carries the kernel, source, build, runtime, and hardware context, and we enforce structured output through tool calling so each response returns the seven predicted quantities with a short explanation for each; the explanations support sanity checking and the later exploratory failure analysis but are not used to compute any reported metric.
 A full prompt and response example appears in the appendix.
@@ -47,7 +54,7 @@ The \sourcesass configuration augments the same prompt with SASS sections for th
 \sourceonly corresponds to early development, code review, or agent planning, when only pre-compilation artifacts are available, whereas \sourcesass assumes target-specific compilation is possible but still avoids execution and profiling.
 Crucially, that SASS is obtained by cross-compilation (\texttt{nvcc -arch} followed by \texttt{cuobjdump -sass}) and so requires no target hardware; we therefore treat \sourcesass as \emph{execution-free} rather than broadly ``hardware-free,'' and comparing the two settings isolates what compiler lowering adds over source-visible semantics.
 
-\subsection{Profiler-Derived Ground Truth}
+\subsection{Benchmark Corpus and Ground Truth}
 
 \begin{figure}[t]
   \centering
@@ -58,41 +65,69 @@ Crucially, that SASS is obtained by cross-compilation (\texttt{nvcc -arch} follo
   \label{fig:dataset-creation}
 \end{figure}
 
-Ground truth comes from an offline benchmark-building process (\autoref{fig:dataset-creation}), not from the prediction loop.
-We profile each benchmark with NVIDIA Nsight Compute, retain the first invocation of the target kernel in each run, and average over three repeated executions to reduce profiling noise.
-DRAM traffic uses the \ctr{dram__bytes_read.sum} and \ctr{dram__bytes_write.sum} counters, and floating-point counts are reconstructed from executed-operation counters for each precision:
+We draw workloads from the HeCBench suite \cite{jinBenchmarkSuiteImproving2023}, focusing on CUDA and OpenMP target-offload programs because they are both common GPU programming models and represent distinct source/build ecosystems \cite{kadoshQuantifyingOpenMPStatistical2023}.
+The final corpus contains 95 benchmark programs (56 CUDA, 39 OpenMP), which expose 254 first-invocation GPU kernels (155 CUDA, 99 OpenMP); we preserve the suite's natural CUDA/OpenMP mix rather than artificially balancing the two.
+As summarized in \autoref{fig:dataset-creation}, ground-truth \rai labels come from an offline benchmark-building process: we profile each benchmark's first kernel invocation with NVIDIA Nsight Compute, average over three runs to reduce noise, and derive per-precision FLOP counts and DRAM byte traffic from the profiler counters (the exact counters are documented in the released code).
+Profiling the corpus on four NVIDIA GPUs yields 1{,}016 samples, and each sample induces three precision-specific \rai labels (FP16/FP32/FP64), so the profiler-derived ground-truth space contains 3{,}048 precision-specific evaluation points before any model-query filtering.
+
+\input{tables/gpu_specs}
+
+We profile on four GPUs chosen to span different memory and compute regimes: RTX~3080, A10, A100, and H100.
+\autoref{tab:gpu-specs} lists their characteristics and the resulting DRAM-level balance points used for \bandwidthbound/\computebound classification.
+The architectural question is therefore not whether models generalize to all accelerators; it is whether the same prompting strategy remains useful across noticeably different NVIDIA deployment targets.
+
+\input{tables/gt_distribution}
+
+\autoref{tab:gt-distribution} highlights the resulting class imbalance: across the full 1{,}016 samples, FP16 has 687 zero cases, FP32 has 676, and FP64 has 868, and FP16 is especially architecture-sensitive because the A100/H100 binaries contain many more nonzero FP16 measurements than the 3080/A10.
+This is precisely why we separate the evaluation tasks instead of reporting a single aggregate error number.
+
+\subsection{Models and Sample Accounting}
+
+\input{tables/llm_comparison}
+
+We study three off-the-shelf LLMs (\autoref{tab:llm-comparison}): the two frontier models \gptfivefour and \opus, and the roughly 100$\times$ cheaper open-source baseline \gptoss.
+We do not fine-tune the models, train task-specific heads, or expose runtime feedback inside the prediction loop, and all comparisons use the two released prompt configurations that differ only by the presence of SASS (\sourceonly and \sourcesass).
+The committed run script invokes one trial per sample for \texttt{openai/gpt-5.4}, \texttt{anthropic/claude-opus-4.6}, and \texttt{openai/gpt-oss-120b}, with the released client defaulting to temperature 0.2 and top-$p$ 0.1.
+
+The frontier models were queried once per sample in the released evaluation subset, which is a limitation of the artifact, so we report coverage explicitly rather than hiding it inside aggregate metrics:
 \begin{itemize}[leftmargin=1.2em]
-  \item FP32:
-  \begin{quote}\raggedright\footnotesize
-    \ctr{smsp__sass_thread_inst_executed_op_fadd_pred_on.sum.per_cycle_elapsed},
-    \ctr{smsp__sass_thread_inst_executed_op_fmul_pred_on.sum.per_cycle_elapsed},
-    \ctr{derived__smsp__sass_thread_inst_executed_op_ffma_pred_on_x2}.
-  \end{quote}
-  \item FP64:
-  \begin{quote}\raggedright\footnotesize
-    \ctr{smsp__sass_thread_inst_executed_op_dadd_pred_on.sum.per_cycle_elapsed},
-    \ctr{smsp__sass_thread_inst_executed_op_dmul_pred_on.sum.per_cycle_elapsed},
-    \ctr{derived__smsp__sass_thread_inst_executed_op_dfma_pred_on_x2}.
-  \end{quote}
-  \item FP16:
-  \begin{quote}\raggedright\footnotesize
-    \ctr{smsp__sass_thread_inst_executed_op_hadd_pred_on.sum.per_cycle_elapsed},
-    \ctr{smsp__sass_thread_inst_executed_op_hmul_pred_on.sum.per_cycle_elapsed},
-    \ctr{derived__smsp__sass_thread_inst_executed_op_hfma_pred_on_x4}.
-  \end{quote}
+  \item 3{,}048 \sourcesass and 3{,}048 \sourceonly predictions for \opus,
+  \item 3{,}048 \sourcesass and 3{,}045 \sourceonly predictions for \gptfivefour, and
+  \item 2{,}535 \sourcesass and 2{,}574 \sourceonly predictions for \gptoss.
 \end{itemize}
-We convert those per-cycle rates to total operation counts using
-\ctr{smsp__cycles_elapsed.avg.per_second}
-and
-\ctr{gpu__time_duration.sum}.
+\gptoss incompletions primarily reflect context-overflow or completion failures on long prompts.
+For fair cross-model comparison we use the 732 samples completed by all three models in both prompt settings, and within-model source-versus-SASS comparisons are paired on the subset completed by both settings for that model.
 
-These choices fix the scope of the task.
-Because bytes are counted at the DRAM interface, the model must predict \emph{DRAM-visible} traffic rather than raw source-level memory operations, and writes that remain in the cache hierarchy are not immediately visible in the denominator.
-Likewise, compiler-injected helper routines for division or transcendental functions contribute to the measured FLOP counts even when they are not obvious in source; these are precisely the cases where \sourcesass can add value.
+\subsection{Evaluation Metrics}
 
-\subsection{Why First Invocation and DRAM-Level \rai}
+We report a deliberately small set of metrics organized around the primary outcome (\bandwidthbound/\computebound regime classification) and a numeric diagnostic (\rai error).
 
-We make two deliberate simplifications.
-First, we evaluate only the first invocation of each kernel, because repeated invocations introduce temporal cache reuse and cross-kernel interference that would substantially widen the reasoning space.
-Second, we focus on DRAM-level \rai rather than a cache-aware Roofline, which keeps the prediction target tied to one interpretable denominator while still exposing realistic error sources such as L2 write-back behavior.
-These simplifications narrow the claim: the paper studies execution-free early triage for a first kernel invocation at the DRAM level, and does not claim to predict steady-state runtime, cache-resident arithmetic intensity, or end-to-end application performance.
+\paragraph{Regime classification (primary).}
+For nonzero cases we compare the predicted and expected side of the GPU-specific balance point: a kernel is \computebound when its \rai exceeds that balance point and \bandwidthbound otherwise.
+Because the class ratios are uneven, we report balanced accuracy (macro recall), which cannot be inflated by predicting the majority class, and the released artifact additionally exports \computebound precision/recall/F1 so reviewers can see whether high recall comes from over-predicting the compute side.
+If a model predicts zero for a truly nonzero kernel, we conservatively count it as a memory-side failure, since a zero prediction still fails to identify compute-side behavior.
+
+\paragraph{Numeric \rai error (diagnostic).}
+For nonzero cases we report the median absolute percent error of predicted \rai, where the percent error for precision $p$ is $100\,(\text{predicted}_p - \text{expected}_p)/\text{expected}_p$.
+The distributions are heavy-tailed, so we emphasize medians and interquartile behavior rather than means.
+
+\paragraph{Zero detection.}
+Because the corpus is zero-heavy, we also report balanced accuracy on distinguishing zero from nonzero \rai; only an exact zero prediction counts as ``zero,'' and any positive or non-finite prediction is conservatively treated as ``nonzero.''
+As reference points, always predicting zero yields 0.50 balanced accuracy on zero detection, and always predicting the majority nonzero class yields 0.50 on regime classification.
+
+\subsection{Repeated-Query Consistency}
+
+A single query per kernel cannot establish reliability, since LLM outputs are nondeterministic.
+To characterize run-to-run variability without re-running the full grid, we select a small, deterministic, stratified panel of 24 kernels from the evaluated set using \texttt{select\_repeat\_trial\_kernels.py}.
+The panel is chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features identified in our failure analysis (division, special math, reusable subexpressions, and loop-invariant floating-point work), rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
+We then resample the models on this panel, repeating each query four times across all four GPUs and both evidence settings (no kernel perturbation), and measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
+
+\subsection{Static Baselines (Deferred)}
+
+To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, we additionally plan a like-for-like comparison against lightweight static baselines defined for our exact target: a context-only median predictor, deterministic source-lexical and SASS-mnemonic heuristics, and lightweight learned static predictors over the same source- and disassembly-derived features.
+Because we are still constructing these baselines to match the per-precision DRAM-level Roofline target, we defer the comparison to a subsequent revision (RQ4) and report it as future work rather than a measured result here.
+
+\subsection{Exploratory Failure Analysis}
+
+The released artifact also contains an auxiliary feature-voting pipeline that uses inexpensive LLMs to label source patterns such as division, special math, reusable subexpressions, and loop-invariant floating-point work.
+We retain this analysis because it helps characterize where prediction errors cluster, but we treat it as exploratory: the feature labels are not human-validated, so we use them to describe repeated failure patterns rather than to make causal claims, and we summarize association strength with Cliff's $\delta$ in the appendix.

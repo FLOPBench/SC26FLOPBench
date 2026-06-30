@@ -1,0 +1,21 @@
+\begin{table}[t]
+  \centering
+  \caption{Ground-truth \rai class distribution by GPU and precision over the full corpus.
+  Each GPU/precision cell covers the same 254 first-invocation kernels; the three sub-columns count kernels with zero \rai (0 FLOP), nonzero \bandwidthbound, and nonzero \computebound labels.
+  Zero-valued \rai dominates every precision, nonzero FP16 cases concentrate on the A100 and H100, and the nonzero \bandwidthbound/\computebound mix shifts with each device's balance point.}
+  \label{tab:gt-distribution}
+  \scriptsize
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{l ccc ccc ccc}
+    \toprule
+    & \multicolumn{3}{c}{FP16} & \multicolumn{3}{c}{FP32} & \multicolumn{3}{c}{FP64} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+    GPU & 0 & \bandwidthbound & \computebound & 0 & \bandwidthbound & \computebound & 0 & \bandwidthbound & \computebound \\
+    \midrule
+    RTX 3080 & 249 & 5   & 0  & 169 & 70 & 15 & 217 & 10 & 27 \\
+    A10      & 249 & 5   & 0  & 169 & 68 & 17 & 217 & 8  & 29 \\
+    A100     & 60  & 169 & 25 & 169 & 65 & 20 & 217 & 31 & 6  \\
+    H100     & 129 & 103 & 22 & 169 & 66 & 19 & 217 & 31 & 6  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
