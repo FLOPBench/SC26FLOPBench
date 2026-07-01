@@ -7,13 +7,12 @@ Our primary target is a kernel's \bandwidthbound/\computebound Roofline \textit{
 The underlying quantity is the DRAM-level Roofline Arithmetic Intensity (\rai), the ratio of floating-point work to DRAM traffic; comparing \rai against the GPU-specific balance point yields the regime label, and we treat the numeric \rai as a diagnostic that explains \emph{why} a classification is right or wrong.
 At prediction time the LLM receives software artifacts and must infer the quantities from which \rai, and hence the regime, are derived.
 
-We deliberately scope this task to its simplest useful version via two design decisions.
-First, we predict \rai at the DRAM level rather than at each level of the memory hierarchy: a single, interpretable byte denominator is a far easier target than reasoning about arithmetic intensity at every cache level.
-Second, we evaluate only a kernel's first invocation, whose cold-start cache behavior is easier to reason about than a later invocation that would force the model to essentially simulate the cache state left by prior iterations.
-Both choices give the models an easier problem on which to measure baseline competence before moving to steady-state, warm-cache prediction, and end-to-end application performance, which we leave to future work.
-%They also narrow the claim: we study execution-free early triage for a first kernel invocation at the DRAM level, and do not claim to predict steady-state runtime, cache-resident arithmetic intensity, or end-to-end application performance.
+We deliberately scope this task to its simplest useful version via two design decisions:
+(1) We predict \rai at the DRAM level rather than at each level of the memory hierarchy: a single, interpretable byte denominator is a far easier target than reasoning about arithmetic intensity at every cache level.
+(2) We evaluate only a kernel's first invocation, whose cold-start cache behavior is easier to reason about than a later invocation that would force the LLMs to essentially simulate the cache state left by prior iterations.
+Both choices give the LLMs an easier problem on which to measure baseline competence before we move to steady-state, warm-cache prediction, and end-to-end application performance in future work.
 
-We do not ask the model to emit the regime label or \rai directly.
+We do not ask the LLMs to emit the regime label or \rai directly.
 For each profiled first-invocation kernel execution on a GPU, the model predicts seven values: grid size, block size, FP16/FP32/FP64 operation counts, and DRAM bytes read and written.
 We then derive \rai separately for each precision $p \in \{\texttt{FP16}, \texttt{FP32}, \texttt{FP64}\}$,
 \[
@@ -52,7 +51,6 @@ Compile commands matter because macros, include paths, and optimization flags af
 The prompt is split into a system message that defines the task and output constraints and a task message that carries the kernel, source, build, runtime, and hardware context, where we enforce structured output through tool calling so each response returns the seven predicted quantities with a short explanation for each; the explanations support sanity checking but are not used to compute any reported metric.
 A full prompt and response example appears in our GitHub repo \footnote{\githubrepo\label{fn:github}}.
 
-%The distinction between the two settings is important.
 As part of LLM prompting, we study two evidence settings that differ by the presence of post-compilation SASS.
 \textbf{\sourceonly} corresponds to early development, code review, or agent planning, when only pre-compilation artifacts are available.
 \textbf{\sourcesass} instead adds SASS (i.e. GPU assembly) to the prompt, exposing the compiler's final instruction selection and code generation decisions.
@@ -68,14 +66,13 @@ Crucially, comparing the \sourceonly and \sourcesass evidence settings isolates 
   \includegraphics[width=\linewidth]{figures/datasetCreation.png}
   \caption{Dataset-construction pipeline.
   For each target kernel we build the executable, recover the source files, compile commands, and runtime arguments, cross-compile to obtain SASS, and profile the first invocation to collect the floating-point and DRAM-traffic ground truth used to label the Roofline regime.}
-  %\Description{A pipeline diagram showing executable build, recovery of source, compile commands, runtime arguments and SASS, and first-invocation profiling that yields FLOP and DRAM-traffic ground truth.}
   \label{fig:dataset-creation}
 \end{figure}
 
 \noindent\textbf{Corpus and Ground Truth.}
 We draw workloads from the HeCBench suite \cite{jinBenchmarkSuiteImproving2023}, focusing on CUDA and OpenMP target-offload programs because they are both common GPU programming models and represent distinct source/build ecosystems \cite{kadoshQuantifyingOpenMPStatistical2023}.
 Our final corpus contains 95 programs (56 CUDA, 39 OpenMP), which expose 254 first-invocation GPU kernels (155 CUDA, 99 OpenMP); we preserve the suite's natural CUDA/OpenMP mix rather than artificially balancing the two.
-As summarized in \autoref{fig:dataset-creation}, ground-truth \rai labels come from an offline profiling process: we profile each program's first kernel invocation, averaging over three runs to reduce noise, and derive per-precision FLOP counts and DRAM byte traffic from the profiler counters. %(the exact counters are documented in the released code\footref{fn:github}).
+As summarized in \autoref{fig:dataset-creation}, ground-truth \rai labels come from an offline profiling process: we profile each program's first kernel invocation, averaging over three runs to reduce noise, and derive per-precision FLOP counts and DRAM byte traffic from the profiler counters. 
 Profiling the corpus on four NVIDIA GPUs yields 1{,}016 samples, and each sample induces three precision-specific \rai labels (FP16/FP32/FP64), so the profiler-derived ground-truth space contains 3{,}048 precision-specific evaluation points. 
 
 \input{tables/gpu_specs}
@@ -112,9 +109,10 @@ Over the shared corpus of 254 kernels on four GPUs (1{,}016 kernel--GPU samples 
 For fair cross-model comparison we restrict our analysis to the \emph{intersection} of samples completed by all three LLMs in both evidence settings, which leaves 732 kernel--GPU samples.
 
 A single sample per input cannot establish reliability, since LLM outputs are nondeterministic, so we additionally run a smaller repeated-query study to characterize run-to-run variability without re-running the full grid.
-We select a small, deterministic, stratified panel of 24 kernels from the evaluated set, chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features above, rather than only low-error cases; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
-We resample each (kernel, GPU, evidence) combination four times on every model (no kernel perturbation), collecting 384 samples per model per evidence setting (96 kernel--GPU samples $\times$ four repeats), or 2{,}304 repeated-query samples in total.
-From these we measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats.
+We select a small, deterministic, stratified panel of 24 kernels from the evaluated set, chosen to span precision, proximity to the balance point, \bandwidthbound/\computebound class, runtime (CUDA/OpenMP), and a hard-versus-easy split based on the error-prone code features above, rather than only low-error cases. 
+%; selection is fully deterministic, with ties broken by name so the panel reproduces exactly.
+We resample each (kernel, GPU, evidence) combination four times on every model, collecting 384 samples per model per evidence setting (96 kernel--GPU samples $\times$ four repeats), or 2{,}304 repeated-query samples in total.
+From these we measure two kinds of consistency: the coefficient of variation of predicted \rai across repeats, and whether the \bandwidthbound/\computebound classification is unanimous across repeats.
 
 
 
@@ -126,11 +124,11 @@ We report a deliberately small set of metrics organized around the primary outco
 
 \paragraph{Regime classification (primary).}
 For nonzero cases we compare the predicted and expected side of the GPU-specific balance point: a kernel is \computebound when its \rai exceeds that balance point and \bandwidthbound otherwise.
-Because the class ratios are uneven, we report balanced accuracy (macro recall), which cannot be inflated by predicting the majority class, and we additionally report \computebound precision/recall/F1 so that high recall coming from over-predicting the compute side stays visible.
+Because the class ratios are uneven, we report balanced accuracy (BAcc, macro recall), which cannot be inflated by predicting the majority class, and we additionally report \computebound precision/recall/F1 so that high recall coming from over-predicting the compute side stays visible.
 If a model predicts zero for a truly nonzero kernel, we conservatively count it as a memory-side failure, since a zero prediction still fails to identify compute-side behavior.
 
 \paragraph{Numeric \rai error (diagnostic).}
-For nonzero cases we report the median absolute percent error of predicted \rai, where the percent error for precision $p$ is $100\,(\text{predicted}_p - \text{expected}_p)/\text{expected}_p$.
+For nonzero cases we report the median absolute percent error (MdAPE) of predicted \rai, where the percent error for precision $p$ is $100\,(\text{predicted}_p - \text{expected}_p)/\text{expected}_p$.
 The distributions are heavy-tailed, so we emphasize medians and interquartile behavior rather than means.
 
 \paragraph{Zero detection.}
@@ -155,6 +153,8 @@ The second is a set of \textit{learned} tree models---Random Forest and Extra Tr
 Like the LLMs, these predict per-precision \rai through a two-stage estimator (zero-vs-nonzero, then log-space regression), from which the \bandwidthbound/\computebound label follows by comparison against the GPU balance point.
 We evaluate with leave-programs-out (grouped five-fold) cross-validation and average over five seeds for stability.
 Exact token, mnemonic, and feature definitions are in the released code.
+
+\input{tables/compute_bound_prf}
 
 
 

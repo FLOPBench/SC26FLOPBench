@@ -38,11 +38,11 @@ For each kernel the models predict launch dimensions, per-precision FP16/FP32/FP
 We highlight three findings up front:
 \textbf{(1)} from source artifacts alone, the strongest model already classifies the FP32 regime correctly for roughly nine in ten kernels, yet every model---frontier or budget---sits at chance for FP16;
 \textbf{(2)} this FP16 gap is an \emph{evidence} gap rather than a model-capability gap: the decisive FP16 arithmetic is compiler-synthesized and absent from source, and adding cross-compiled SASS closes the gap, lifting FP16 classification from chance to near-perfect for the stronger models;
-\textbf{(3)} the signal is cheap and tiered---a budget model triages FP32 for a fraction of a cent per query, with no target-hardware access required---and stable enough under repeated queries to act on, while numeric \rai remains accurate only in identifiable regimes and is best used as a diagnostic, not a runtime substitute.
+\textbf{(3)} the signal is cheap and tiered (a budget model triages FP32 for a fraction of a cent per query with no target hardware) and stable enough under repeated queries to act on, while numeric \rai stays accurate in identifiable regimes, best read as a diagnostic.
 
 \noindent\textbf{Research Questions.}
 We organize the study around four guiding questions:
-\begin{enumerate}[leftmargin=1.4em, label={}, itemindent=0pt]
+\begin{enumerate}[leftmargin=0em, label={}, itemindent=0pt]
   \item \textbf{(RQ1) Static classification:} Can off-the-shelf LLMs classify a kernel's \bandwidthbound/\computebound Roofline regime from source artifacts alone, and for which precisions?
   \item \textbf{(RQ2) Compilation evidence:} What does cross-compiled SASS add to that classification, and why?
   \item \textbf{(RQ3) Consistency:} How consistent are the predictions across repeated queries to the same model?
@@ -50,10 +50,10 @@ We organize the study around four guiding questions:
 \end{enumerate}
 
 \noindent\textbf{Contributions.}
-This paper makes the following contributions:
+This paper contributes the following:
 \begin{itemize}[leftmargin=1.4em]
   \item We formulate execution-free Roofline-regime classification as a software-engineering task for early GPU-kernel triage, with software artifacts as inputs and profiler-derived \bandwidthbound/\computebound labels as ground truth.
-  \item We show that the source-versus-compilation evidence boundary, not model choice, governs FP16 triage, and we give the mechanistic explanation: the decisive FP16 arithmetic is compiler-synthesized and recoverable from cross-compiled SASS without target hardware.
+  \item We show that the source-versus-compilation evidence boundary, not model choice, governs FP16 triage, giving a mechanistic explanation: the decisive FP16 arithmetic is compiler-synthesized and recoverable from cross-compiled SASS without target hardware.
   \item We characterize the run-to-run consistency of these predictions under repeated queries, identifying where a single query is trustworthy and where a simple majority vote is warranted.
   \item We quantify the accuracy and per-query cost of off-the-shelf prompting against context-only, deterministic, and lightweight learned static baselines, yielding a deployable cost-tiered cascade among execution-free strategies rather than an LLM-only oracle.
   \item We release a dataset for hardware-free Roofline reasoning---GPU kernels, compilation and execution context, post-compilation SASS, profiler-derived ground truth, and model outputs---documenting limits that future work can address with repeated-query and reasoning-versus-memorization studies.\footnote{\githubrepo}

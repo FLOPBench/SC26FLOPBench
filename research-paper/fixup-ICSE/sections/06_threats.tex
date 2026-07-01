@@ -2,8 +2,8 @@
 \label{sec:threats}
 
 \noindent\textbf{External validity.}
-Our claims are scoped to the task and corpus defined in \autoref{sec:task-methodology}: 95 HeCBench programs exposing 254 first-invocation kernels, four NVIDIA GPUs (RTX~3080, A10, A100, H100), and per-precision DRAM-level \rai on a kernel's first invocation.
-The corpus is a meaningful but selective sample of CUDA and OpenMP software, and the architectural generalization claims extend only to these device families.
+Our claims are scoped to the task and corpus defined in \autoref{sec:task-methodology}: 95 HeCBench programs exposing 254 first-invocation kernels, four NVIDIA GPUs, and per-precision DRAM-level \rai on a kernel's first invocation.
+Our corpus is a meaningful but selective sample of CUDA and OpenMP software, and the architectural generalization claims extend only to these device families.
 The dataset does not cover AMD or Intel GPUs, other programming models such as HIP and SYCL, steady-state warm-cache behavior, or end-to-end application performance, and the results should not be extrapolated beyond execution-free first-invocation triage.
 
 \noindent\textbf{Construct validity.}
