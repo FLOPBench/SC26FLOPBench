@@ -479,7 +479,6 @@ INPUT ./tables/compute_bound_prf.tex
 INPUT ./tables/compute_bound_prf.tex
 INPUT ./tables/compute_bound_prf.tex
 INPUT tables/compute_bound_prf.tex
-INPUT /usr/share/texmf/fonts/tfm/public/lm/rm-lmcsco10.tfm
 INPUT /usr/share/texmf/fonts/tfm/public/lm/ts1-lmcsc10.tfm
 INPUT ./sections/04_results.tex
 INPUT ./sections/04_results.tex

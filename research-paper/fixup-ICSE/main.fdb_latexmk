@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main"] 1782889311.65507 "main.aux" "main.bbl" "main" 1782889700.99705 0
+["bibtex main"] 1782890876.89164 "main.aux" "main.bbl" "main" 1782890878.47444 0
   "./refs.bib" 1782861068.82755 967678 4d82c44ab20264cbb006576b7e5c340b ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1782889700.78673 17666 97debab1893e2dfacae00d44b104988a "pdflatex"
+  "main.aux" 1782890878.25223 17312 771323ad45ab82599d6e7fec2b1ccb2a "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1782889699.4394 "main.tex" "main.pdf" "main" 1782889700.99721 0
+["pdflatex"] 1782890876.95479 "main.tex" "main.pdf" "main" 1782890878.47464 0
   "/etc/texmf/web2c/texmf.cnf" 1777425773.65832 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmb7t.tfm" 1136768653 2172 fd0c924230362ff848a33632ed45dc23 ""
@@ -262,25 +262,25 @@
   "figures/nonzero_ape_boxplots.png" 1781132658 128553 0d9991fe0c4db19e12b06ee4625136c6 ""
   "figures/optimization_loop.png" 1781132658 468209 4f13cce412740bc7a347ebf2dfcdbc47 ""
   "figures/prompting_pipeline.png" 1781132658 385197 abeb8ab75e87ab2f3260a0cbd3e57613 ""
-  "main.aux" 1782889700.78673 17666 97debab1893e2dfacae00d44b104988a "pdflatex"
-  "main.bbl" 1782889311.70719 21984 cdab14214065a17376a607b84e0465dc "bibtex main"
-  "main.out" 1782889700.78773 2390 363a465b589684e0797d11b584f411b4 "pdflatex"
-  "main.tex" 1782889099.43705 4543 05afe4edb1ae26f461ba5cd2098211c3 ""
+  "main.aux" 1782890878.25223 17312 771323ad45ab82599d6e7fec2b1ccb2a "pdflatex"
+  "main.bbl" 1782890876.94723 21984 cdab14214065a17376a607b84e0465dc "bibtex main"
+  "main.out" 1782890878.25323 2390 363a465b589684e0797d11b584f411b4 "pdflatex"
+  "main.tex" 1782890874.14023 4548 fea36dbc9ea4337e5d4abaa6bc56e1fc ""
   "sections/01_introduction.tex" 1782887758.03623 8747 1b95890b904d77fb2f044fa38d7707ec ""
   "sections/02_background_related_work.tex" 1782855377.9065 10973 c50c8a318f6d4b5864428e7eec0b3c96 ""
   "sections/03_task_methodology.tex" 1782888369.67075 14701 94ae2d7b989da468458dc57b53effe9a ""
-  "sections/04_results.tex" 1782886284.481 13543 a0891695b2798fff5b97f70b6cdb9e15 ""
+  "sections/04_results.tex" 1782890131.88224 13653 45b5b4172e9323a419548de8013a609c ""
   "sections/05_discussion.tex" 1782884910.18684 3314 302da51f814294bf53c9325449afd411 ""
   "sections/06_threats.tex" 1782886968.98243 2649 ab49d5352708a4fe42c4bb3e54c39582 ""
-  "sections/07_conclusion.tex" 1782887115.38673 2259 9ba08228cd8d52accf259a9989eaaf1f ""
-  "tables/compute_bound_prf.tex" 1782888767.99821 1950 80ce906b689465c53673a000965a31c5 ""
+  "sections/07_conclusion.tex" 1782890725.61764 1752 afd7fda6c8fc548cfd367106b8446e2a ""
+  "tables/compute_bound_prf.tex" 1782890140.74324 1912 066ffa99594b6a73523fa0ee759bd613 ""
   "tables/deployment_matrix.tex" 1782888772.47221 1041 b6eeba6551273add6c677d89be9c0b50 ""
-  "tables/feature_error_association.tex" 1782889679.39457 1565 98eea340321e2f1652882fb726683fc1 ""
+  "tables/feature_error_association.tex" 1782890142.62624 1527 6c79fde6eec2d44e2b44f74274854771 ""
   "tables/gpu_specs.tex" 1782888780.93635 859 814d18e135879720f0edc85aacb8dbb6 ""
   "tables/gt_distribution.tex" 1782888785.32635 946 91086b629717b56495b2f995d4e8a9a8 ""
   "tables/llm_comparison.tex" 1782889299.68219 590 f6f5192ff806c03c43e6b8c500623bca ""
   "tables/llm_vs_static.tex" 1782888801.59335 1195 095fab2d65e289785cf93d502725456b ""
-  "tables/repeated_query_variance.tex" 1782889697.15073 1082 276e3b8f7597e520ae406b6aec26493d ""
+  "tables/repeated_query_variance.tex" 1782890144.08624 1044 9597237e0306ce79f3f4945e94b1260c ""
   (generated)
   "main.aux"
   "main.log"

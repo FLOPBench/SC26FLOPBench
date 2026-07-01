@@ -2,22 +2,12 @@
 \label{sec:conclusion}
 
 We framed LLM-based GPU performance reasoning as a software-engineering problem: deciding a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts, before any profiling run, for developers and coding agents that cannot reach the target accelerator.
-We can now answer the four research questions directly.
+Off-the-shelf LLMs already handle this well for the FP32 and FP64 regimes from source alone, but sit at chance for FP16 until cross-compiled SASS is supplied---after which FP16 classification becomes near-perfect for the stronger models.
+The decisive FP16 arithmetic is compiler-synthesized and invisible in source, so the source-versus-compilation boundary, not model choice, governs the hardest case; crucially, cross-compilation exposes it without any target-hardware access.
 
-\noindent\textbf{RQ1 (source-only classification).}
-Off-the-shelf LLMs classify the FP32 and FP64 Roofline regimes well from source alone---\opus reaches 0.940 balanced accuracy for FP32 and 0.755 for FP64, and even the budget \gptoss reaches 0.875 for FP32---but they are no better than chance for FP16 (0.500 for all three models).
+The signal is also practical to deploy.
+It is cheap and tiered---a budget model triages the FP32 regime for a fraction of a cent per query with no GPU---stable enough under repeated queries to act on, with the most accurate model also the most consistent, and it beats lightweight static baselines in the high-value regimes.
+No single configuration wins everywhere, so the right deployment is a cost-tiered cascade that matches the model and evidence tier to the target precision, not an LLM-only oracle.
 
-\noindent\textbf{RQ2 (what SASS adds, and why).}
-Cross-compiled SASS closes the FP16 gap, lifting FP16 balanced accuracy from 0.500 to 0.984 (\opus) and 0.870 (\gptfivefour).
-The cause is mechanistic: the decisive FP16 arithmetic is compiler-synthesized \texttt{HFMA2} work that is invisible in source.
-The actionable form of this finding is that FP16 Roofline reasoning requires \emph{compilation}, not execution, and compilation needs no target hardware.
-
-\noindent\textbf{RQ3 (consistency across repeats).}
-Decision-level \bandwidthbound/\computebound predictions are mostly stable across repeated queries (82--100\% agreement), and the most accurate model, \opus, is also the most consistent---so single-shot use is safe for it, while the cheaper \gptfivefour and \gptoss warrant a small majority vote.
-
-\noindent\textbf{RQ4 (accuracy and cost).}
-The LLM signals beat lightweight static baselines in most regimes and form a clear cost tier: source-only FP32 classification is near-free (\$0.0006 per kernel) and hardware-free, while the frontier+SASS tier costs about \$0.11 per kernel and is justified by access and timing rather than dollar savings.
-Static baselines win in source-only FP16 and \sourcesass FP64, which is why we frame deployment as a cost-tiered cascade rather than an LLM-only oracle.
-
-These models do not replace profilers, they do not predict runtime in general, numeric \rai is reliable only in identifiable regimes, and the cascade remains a routing hypothesis we have not yet validated end-to-end.
-What we show is narrower and useful: execution-free Roofline-regime classification is a well-posed software-engineering task, off-the-shelf prompting already solves it well in identifiable, cheaply-detectable evidence tiers, and the source-versus-compilation boundary---not model choice---is what governs the hardest case.
+These models do not replace profilers, they do not predict runtime in general, and numeric \rai is reliable only in identifiable regimes; the cascade itself remains a routing hypothesis we have not yet validated end-to-end.
+What we show is narrower and useful: execution-free Roofline-regime classification is a well-posed software-engineering task, and off-the-shelf prompting already solves it in identifiable, cheaply-detectable evidence tiers.
