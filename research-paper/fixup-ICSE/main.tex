@@ -17,6 +17,18 @@
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=teal,urlcolor=blue}
 \emergencystretch=1em
 
+% Tighten float-to-text separation to reclaim whitespace after tables/figures.
+% Set here in our preamble (not in IEEEtran.cls); IEEEtran defaults are
+% \textfloatsep/\dbltextfloatsep = 1.55\baselineskip and \floatsep/\intextsep = 0.85.
+\AtBeginDocument{%
+  \setlength{\textfloatsep}{0.8\baselineskip plus 0.2\baselineskip minus 0.4\baselineskip}%
+  \setlength{\dbltextfloatsep}{0.8\baselineskip plus 0.2\baselineskip minus 0.4\baselineskip}%
+  \setlength{\floatsep}{0.6\baselineskip plus 0.2\baselineskip minus 0.2\baselineskip}%
+  \setlength{\dblfloatsep}{0.6\baselineskip plus 0.2\baselineskip minus 0.2\baselineskip}%
+  \setlength{\intextsep}{0.6\baselineskip plus 0.2\baselineskip minus 0.2\baselineskip}%
+  \setlength{\abovecaptionskip}{0.3\baselineskip}%
+}
+
 \usepackage[most]{tcolorbox}
 % RQ answer call-out: light-green fill, dark-green left rule, near-zero margins.
 \newtcolorbox{rqsummary}{%

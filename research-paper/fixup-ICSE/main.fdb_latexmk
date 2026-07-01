@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex main"] 1782888006.315 "main.aux" "main.bbl" "main" 1782888378.11094 0
+["bibtex main"] 1782889103.92512 "main.aux" "main.bbl" "main" 1782889105.55413 0
   "./refs.bib" 1782861068.82755 967678 4d82c44ab20264cbb006576b7e5c340b ""
   "/usr/share/texlive/texmf-dist/bibtex/bst/ieeetran/IEEEtran.bst" 1440712899 57748 7c8250ecf02814ce6ddc0cdbb63df1dd ""
-  "main.aux" 1782888377.91375 17896 4eaacbef682dfe5b75d7b831313d1f82 "pdflatex"
+  "main.aux" 1782889105.34805 17894 f70044cfadbb1e03efb78af88b62a9da "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1782888376.59377 "main.tex" "main.pdf" "main" 1782888378.11109 0
+["pdflatex"] 1782889103.98236 "main.tex" "main.pdf" "main" 1782889105.5543 0
   "/etc/texmf/web2c/texmf.cnf" 1777425773.65832 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/times/ptmb7t.tfm" 1136768653 2172 fd0c924230362ff848a33632ed45dc23 ""
@@ -262,10 +262,10 @@
   "figures/nonzero_ape_boxplots.png" 1781132658 128553 0d9991fe0c4db19e12b06ee4625136c6 ""
   "figures/optimization_loop.png" 1781132658 468209 4f13cce412740bc7a347ebf2dfcdbc47 ""
   "figures/prompting_pipeline.png" 1781132658 385197 abeb8ab75e87ab2f3260a0cbd3e57613 ""
-  "main.aux" 1782888377.91375 17896 4eaacbef682dfe5b75d7b831313d1f82 "pdflatex"
-  "main.bbl" 1782888006.36677 21984 cdab14214065a17376a607b84e0465dc "bibtex main"
-  "main.out" 1782888377.91475 2390 363a465b589684e0797d11b584f411b4 "pdflatex"
-  "main.tex" 1782887103.46773 3778 8ebd2c35b62634be844f2a1a346b65d8 ""
+  "main.aux" 1782889105.34805 17894 f70044cfadbb1e03efb78af88b62a9da "pdflatex"
+  "main.bbl" 1782889103.97605 21984 cdab14214065a17376a607b84e0465dc "bibtex main"
+  "main.out" 1782889105.35005 2390 363a465b589684e0797d11b584f411b4 "pdflatex"
+  "main.tex" 1782889099.43705 4543 05afe4edb1ae26f461ba5cd2098211c3 ""
   "sections/01_introduction.tex" 1782887758.03623 8747 1b95890b904d77fb2f044fa38d7707ec ""
   "sections/02_background_related_work.tex" 1782855377.9065 10973 c50c8a318f6d4b5864428e7eec0b3c96 ""
   "sections/03_task_methodology.tex" 1782888369.67075 14701 94ae2d7b989da468458dc57b53effe9a ""
@@ -273,14 +273,14 @@
   "sections/05_discussion.tex" 1782884910.18684 3314 302da51f814294bf53c9325449afd411 ""
   "sections/06_threats.tex" 1782886968.98243 2649 ab49d5352708a4fe42c4bb3e54c39582 ""
   "sections/07_conclusion.tex" 1782887115.38673 2259 9ba08228cd8d52accf259a9989eaaf1f ""
-  "tables/compute_bound_prf.tex" 1782883977.91968 1966 55f841f48f6e82e02908c427b0c6f083 ""
-  "tables/deployment_matrix.tex" 1782881662.80058 1057 412638adbc93010824946f38c138969b ""
-  "tables/feature_error_association.tex" 1782879873.22916 1581 9f2f570816b12e5f212973e035cb408f ""
-  "tables/gpu_specs.tex" 1782868798.25563 875 878cb61e094ba1f440c1110998a550de ""
-  "tables/gt_distribution.tex" 1782878166.70244 962 979c685544133dc667c7f71a506487dc ""
-  "tables/llm_comparison.tex" 1782868798.25663 614 30a3326751c0aa281837925fe06883aa ""
-  "tables/llm_vs_static.tex" 1782881645.38958 1211 6f7c084a45994a386905dc683b130f47 ""
-  "tables/repeated_query_variance.tex" 1782878164.82744 1098 9bc7693589704d2889e182ad5b52178d ""
+  "tables/compute_bound_prf.tex" 1782888767.99821 1950 80ce906b689465c53673a000965a31c5 ""
+  "tables/deployment_matrix.tex" 1782888772.47221 1041 b6eeba6551273add6c677d89be9c0b50 ""
+  "tables/feature_error_association.tex" 1782888776.84121 1565 9ba1a612c7d0873f37716142eb7bb4cd ""
+  "tables/gpu_specs.tex" 1782888780.93635 859 814d18e135879720f0edc85aacb8dbb6 ""
+  "tables/gt_distribution.tex" 1782888785.32635 946 91086b629717b56495b2f995d4e8a9a8 ""
+  "tables/llm_comparison.tex" 1782888796.40535 598 1347f21e64813d2e4961bb88fc6466dd ""
+  "tables/llm_vs_static.tex" 1782888801.59335 1195 095fab2d65e289785cf93d502725456b ""
+  "tables/repeated_query_variance.tex" 1782888806.10735 1082 715a467989390e4024284d17e380329b ""
   (generated)
   "main.aux"
   "main.log"
