@@ -117,7 +117,7 @@ This is the cost of the evidence that cracks FP16 for the weaker models: once a 
 The LLM signals form a clear cost/accuracy tier, they are inexpensive in absolute per-query terms, and (unlike profiling) they need no target-hardware access.
 
 \textbf{Cost tiering.}
-\autoref{tab:shared-results-summary} reports median per-query cost, per LLM-evidence configuration.
+\autoref{tab:compute-bound-prf} reports median per-query cost, per LLM-evidence configuration.
 The budget \gptoss classifies the \sourceonly FP32 regime at 0.875 balanced accuracy for a median \$0.0006 per query; \gptfivefour reaches 0.889 for \$0.0197; and \opus reaches 0.940 for \$0.0679.
 For FP16, only the SASS-backed frontier tier works, at \$0.0315 (\gptfivefour) to \$0.1066 (\opus) per query.
 The \sourceonly FP32 tier is inexpensive in absolute terms: at a median \$0.0006 per kernel it needs no target-hardware access at all, unlike profiling.
@@ -125,11 +125,11 @@ We do not present end-to-end build-and-profile timings, so we make no measured t
 The frontier+SASS tier that additionally cracks FP16 is the premium option, and its higher per-query cost is the case where directly profiling may be preferable if the target hardware is available.
 
 \textbf{Versus static baselines.}
-\input{tables/llm_vs_static_task_c}
-To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static-task-c} compares the best off-the-shelf LLM against the best static reference---the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics---for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
+\input{tables/llm_vs_static}
+To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static} compares the best off-the-shelf LLM against the best static reference---the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics---for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
 Because both methods run on the same kernels, we compare them with a paired (McNemar) test: the discordant-wins column counts kernels where exactly one method is correct, reported as LLM wins/static wins, with $p$ testing whether the LLM wins significantly more of these disagreements.
-Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4), and in each of these the LLM's numeric \rai error is far lower (MedAPE 18--44\% vs.\ 100--163\%).
-The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable---the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MedAPE---and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MedAPE).
+Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4), and in each of these the LLM's numeric \rai error is far lower (MdAPE 18--44\% vs.\ 100--163\%).
+The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable---the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MdAPE---and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MdAPE).
 Across the six regimes the LLMs significantly beat the best static baseline in three---the high-value SASS-backed and FP32 frontier regimes---and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
 
 \begin{rqsummary}

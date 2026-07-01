@@ -1,11 +1,11 @@
 \begin{table*}[t]
   \centering
-  \caption{Best-off-the-shelf LLM versus best static reference for nonzero \bandwidthbound/\computebound regime triage on the shared subset. Each cell reports balanced accuracy (BalAcc) and nonzero MedAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for regime-classification correctness on the same samples.}
-  \label{tab:llm-vs-static-task-c}
+  \caption{Best-off-the-shelf LLM versus best static reference for nonzero \bandwidthbound/\computebound regime triage on the shared subset. Each cell reports balanced accuracy (BAcc) and nonzero MdAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for regime-classification correctness on the same samples.}
+  \label{tab:llm-vs-static}
   \scriptsize
   \setlength{\tabcolsep}{4pt}
   \begin{tabular}{lllrllr}
-    Evidence & Precision & Best LLM & BalAcc / MedAPE & Best static & BalAcc / MedAPE & Discordant wins LLM/static ($p$) \\
+    Evidence & Precision & Best LLM & BAcc / MdAPE & Best static & BAcc / MdAPE & Discordant wins LLM/static ($p$) \\
     \midrule
     \sourceonly & FP16 & \gptfivefour & 0.500 / 100.0 & Source learned ET & 0.723 / 217.7 & 10/17 (0.248) \\
     \sourceonly & FP32 & \opus & 0.940 / 43.9 & Source learned RF & 0.750 / 100.0 & 52/3 (<0.001) \\
