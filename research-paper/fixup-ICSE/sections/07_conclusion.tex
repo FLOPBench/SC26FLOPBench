@@ -1,13 +1,13 @@
-\section{Conclusion}
+\section{Conclusion \& Future Work}
 \label{sec:conclusion}
 
-We framed LLM-based GPU performance reasoning as a software-engineering problem: deciding a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts, before any profiling run, for developers and coding agents that cannot reach the target accelerator.
-Off-the-shelf LLMs already handle this well for the FP32 and FP64 regimes from source alone, but sit at chance for FP16 until cross-compiled SASS is supplied---after which FP16 classification becomes near-perfect for the stronger models.
-The decisive FP16 arithmetic is compiler-synthesized and invisible in source, so the source-versus-compilation boundary, not model choice, governs the hardest case; crucially, cross-compilation exposes it without any target-hardware access.
+We framed early GPU performance reasoning as a software-engineering problem: deciding a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts alone, before any profiling run, for developers and coding agents that cannot reach the target accelerator.
+Evaluating three LLMs on 254 HeCBench kernels across four NVIDIA GPUs, we find that prompting already solves this task for the FP32 and FP64 regimes from source alone, while FP16 sits at chance until cross-compiled SASS is supplied, after which the stronger models classify it near-perfectly.
+We demonstrate that FP16, the hardest regime, is governed by the evidence tier rather than the model: the cross-compiled SASS that closes the gap needs no target hardware.
 
-The signal is also practical to deploy.
-It is cheap and tiered---a budget model triages the FP32 regime for a fraction of a cent per query with no GPU---stable enough under repeated queries to act on, with the most accurate model also the most consistent, and it beats lightweight static baselines in the high-value regimes.
-No single configuration wins everywhere, so the right deployment is a cost-tiered cascade that matches the model and evidence tier to the target precision, not an LLM-only oracle.
+This regime prediction is also practical to deploy: it is cheap and tiered (a budget model triages FP32 for a fraction of a cent per query with no GPU), stable enough under repeated queries to act on, and beats lightweight static baselines in the high-value regimes.
+Because no single model-and-evidence pairing wins across every precision, deployment should be a cost-tiered cascade routing each precision to the model and evidence tier that handle it best, not an LLM-only oracle.
 
-These models do not replace profilers, they do not predict runtime in general, and numeric \rai is reliable only in identifiable regimes; the cascade itself remains a routing hypothesis we have not yet validated end-to-end.
-What we show is narrower and useful: execution-free Roofline-regime classification is a well-posed software-engineering task, and off-the-shelf prompting already solves it in identifiable, cheaply-detectable evidence tiers.
+Several directions remain open.
+The cost-tiered cascade is so far a routing guide, not a system validated end-to-end; building and measuring it inside a real agentic optimization loop is the natural next step.
+Finally, complementary studies include a memorization analysis to probe generalizability across kernel source perturbations, and broader coverage of hardware and runtimes (AMD/Intel GPUs, HIP/SYCL), along with end-to-end warm-cache kernel behavior.

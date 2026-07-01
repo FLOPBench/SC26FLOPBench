@@ -44,7 +44,7 @@ These systems show that LLMs can optimize code \emph{when} hardware feedback is 
 
 \noindent\textbf{LLMs for GPU performance prediction.}
 A smaller but much closer body of work uses LLMs as performance predictors rather than optimizers, and the nearest results are all \emph{fine-tuned}.
-LLMPerf \cite{nguyen-nhatLLMPerfGPUPerformance2024} fine-tunes models as GPU performance estimators for source programs, and Omniwise \cite{wangOmniwisePredictingGPU2025} introduces a fine-tuning pipeline that predicts several GPU metrics---including bandwidth, cache behavior, GFLOPs, and arithmetic intensity---directly from code, reporting over 90\% of predictions within 10\%.
+LLMPerf \cite{nguyen-nhatLLMPerfGPUPerformance2024} fine-tunes models as GPU performance estimators for source programs, and Omniwise \cite{wangOmniwisePredictingGPU2025} introduces a fine-tuning pipeline that predicts several GPU metrics (including bandwidth, cache behavior, GFLOPs, and arithmetic intensity) directly from code, reporting over 90\% of predictions within 10\%.
 Omniwise is closest to our work, but it answers a different question (what a \emph{trained} model predicts) and targets AMD GPUs with no released model retargetable to the NVIDIA GPUs and counters we study, so it cannot be run on our corpus; its strong fine-tuned numbers only sharpen the off-the-shelf gap we characterize.
 Most directly, Bolet \textit{et al.}~\cite{boletCanLargeLanguage2025} framed LLM-based prediction as a \emph{coarse} Roofline classification that labels whole kernels as \computebound or \bandwidthbound.
 We are the zero-training, classification-first counterpart to this line: we prompt off-the-shelf models and generalize that single coarse label into a per-precision decomposed signal, predicting launch dimensions, FP16/FP32/FP64 work, and DRAM bytes, from which both the \bandwidthbound/\computebound regime and \rai follow.
@@ -58,7 +58,7 @@ We further contrast \sourceonly reasoning with prompts containing the kernel's S
 \noindent\textbf{Program reasoning and code-property modeling.}
 Classifying a kernel's Roofline regime also relates to whether LLMs can infer latent execution behavior from source.
 Work on code execution, predictive execution, and runtime-behavior reasoning shows that models can sometimes simulate program behavior but often struggle as reasoning depth and trace complexity grow \cite{liuCodeExecutionPretrained2023,lyuLargeLanguageModels2024,liBlendedAnalysisPredictive2025,chenReasoningRuntimeBehavior2025}, and benchmarks for static-analysis-style reasoning and broader code evaluation similarly find current code LLMs brittle on deeper semantic tasks \cite{xieCOREBenchmarkingLLMs2025,jainLiveCodeBenchHolisticContamination2024}.
-Related work further argues that text-only code LLMs struggle to model latent properties such as performance, motivating structured or lower-level representations \cite{pydaShortcomingsCodeLLMs2025}---which is precisely the role our \sourcesass setting probes.
+Related work further argues that text-only code LLMs struggle to model latent properties such as performance, motivating structured or lower-level representations \cite{pydaShortcomingsCodeLLMs2025}, which is precisely the role our \sourcesass setting probes.
 Regime classification fits this landscape because it requires recovering execution-relevant behavior from code in a form that is directly actionable for performance engineering.
     
 

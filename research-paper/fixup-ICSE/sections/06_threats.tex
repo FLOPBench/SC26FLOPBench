@@ -19,4 +19,5 @@ Stronger compiler-driven or larger-scale learned baselines could therefore outpe
 \noindent\textbf{Failure-analysis validity and dataset leakage.}
 The feature/error analysis is exploratory: its source-feature labels come from an auxiliary LLM-voting pipeline rather than human annotation, so we treat the feature/error association as descriptive evidence about recurring error patterns, not statistically validated causal evidence.
 Separately, because the models are off-the-shelf and trained on large web corpora, some kernels or their close variants may have appeared in pretraining data, and we cannot rule out such contamination completely.
+Although we doubt any of the sampled LLMs were exposed to the profiling data and task in our corpus, an additional study of kernel variants with source perturbations would clarify the extent to which the LLMs generalize to more kernels.
 Both are reasons to frame this work as an empirical study rather than a claim about intrinsic reasoning ability in isolation.

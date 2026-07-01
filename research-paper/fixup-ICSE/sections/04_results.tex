@@ -21,16 +21,16 @@ There are a few trends to note:
 \textbf{(1)} From \sourceonly prompts, \opus classifies the FP32 regime at 0.940 balanced accuracy and FP64 at 0.755; \gptfivefour reaches 0.889/0.670, and even the budget \gptoss reaches 0.875/0.690.
 These are strong numbers for a pre-compilation signal: the models recover the compute-versus-memory branch for most FP32 and FP64 kernels using only source code, build context, runtime arguments, and GPU specifications.
 \textbf{(2)} The FP16 case is a clean failure.
-From \sourceonly prompts, every model---including the frontier ones---sits exactly at the 0.500 chance baseline for FP16.
+From \sourceonly prompts, every model, including the frontier ones, sits exactly at the 0.500 chance baseline for FP16.
 The same models that classify FP32 and FP64 regimes well are no better than a coin flip on FP16 under \sourceonly evidence; we return to why in RQ2.
 
 Because the panel is \computebound-poor (\autoref{sec:task-methodology}), we confirm the strong numbers are not an over-prediction artifact: the \computebound precision/recall breakdown (\autoref{tab:compute-bound-prf}) shows \sourceonly \opus reaches 1.000 \computebound precision at 0.880 recall for FP32, and 0.966 precision at 0.528 recall for FP64.
-The lower FP64 recall is honest---the models miss roughly half of the compute-bound FP64 kernels even when they place the rest correctly.
+The lower FP64 recall is honest: the models miss roughly half of the compute-bound FP64 kernels even when they place the rest correctly.
 
 The takeaway is that \textbf{(a)} off-the-shelf LLMs are already reliable FP32 and FP64 regime classifiers from \sourceonly artifacts, with a clear ``you-get-what-you-paid-for'' ordering from \gptoss to \opus, and \textbf{(b)} FP16 triage is not available from \sourceonly evidence and must escalate to more evidence, which motivates RQ2.
 
 \begin{rqsummary}
-\textbf{RQ1 Summary:} From \sourceonly artifacts, off-the-shelf LLMs reliably classify the FP32 and FP64 Roofline regimes---\opus reaches 0.940 balanced accuracy on FP32 and even the budget \gptoss reaches 0.875---but under the same \sourceonly evidence every model, frontier ones included, is no better than a coin flip on FP16.
+\textbf{RQ1 Summary:} From \sourceonly artifacts, off-the-shelf LLMs reliably classify the FP32 and FP64 Roofline regimes (\opus reaches 0.940 balanced accuracy on FP32 and even the budget \gptoss reaches 0.875), but under the same \sourceonly evidence every model, frontier ones included, is no better than a coin flip on FP16.
 \end{rqsummary}
 
 
@@ -42,7 +42,7 @@ The takeaway is that \textbf{(a)} off-the-shelf LLMs are already reliable FP32 a
 
 It closes the FP16 gap, and the mechanism is compiler-synthesized arithmetic.
 Adding \sourcesass lifts FP16 \bandwidthbound/\computebound balanced accuracy from the 0.500 \sourceonly baseline to 0.984 for \opus and 0.870 for \gptfivefour (\autoref{tab:compute-bound-prf}).
-The gain is specific to the evidence, not the model: the same frontier models were at chance for FP16 under \sourceonly, while \gptoss---which makes weaker use of long SASS prompts---only reaches 0.583.
+The gain is specific to the evidence, not the model: the same frontier models were at chance for FP16 under \sourceonly, while \gptoss, which makes weaker use of long SASS prompts, only reaches 0.583.
 \sourcesass helps FP32 and FP64 much more modestly (\opus FP32 balanced accuracy rises 0.940$\rightarrow$0.967, FP64 0.755$\rightarrow$0.765), because FP32 and FP64 arithmetic is already mostly source-visible.
 
 The reason is mechanistic and visible in the collected samples.
@@ -69,9 +69,9 @@ The distributions are heavy-tailed (i.e. some kernels are predicted almost exact
 \noindent\textbf{Error-prone code features.}
 \input{tables/feature_error_association}
 Using the source-feature labels of \autoref{sec:task-methodology}, the residual numeric errors concentrate where the same code patterns appear regardless of model or prompt type (\autoref{tab:feature-error-association}).
-Four FLOP-perturbing features dominate across every model and evidence setting---FLOP division, reusable float subexpressions, transcendental (``special'') math functions, and loop-invariant FLOP work, each with a Cliff's $\delta$ around 0.2--0.36---whereas structural features such as deterministic launch bounds show essentially no association.
+Four FLOP-perturbing features dominate across every model and evidence setting: FLOP division, reusable float subexpressions, transcendental (``special'') math functions, and loop-invariant FLOP work, each with a Cliff's $\delta$ around 0.2--0.36, whereas structural features such as deterministic launch bounds show essentially no association.
 These features either inject FLOPs the compiler lowers from a single source token (division, transcendentals) or remove repeated work the model over-counts statically (subexpression elimination, loop-invariant hoisting), so they directly perturb the FLOP term of \rai.
-The practical implication is that users should expect the largest \rai errors---and should most want SASS---on kernels dense in these features.
+The practical implication is that users should expect the largest \rai errors (and should most want SASS) on kernels dense in these features.
 
 \begin{rqsummary}
 \textbf{RQ2 Summary:} Cross-compiled \sourcesass closes the FP16 gap, lifting FP16 accuracy from 0.500 to 0.984 for \opus, because it exposes the compiler-synthesized packed-half (\texttt{HFMA2}) arithmetic that source hides; FP32 and FP64, already source-visible, gain little.
@@ -123,11 +123,11 @@ The frontier+SASS tier that additionally cracks FP16 is the premium option, and 
 
 \noindent\textbf{Versus static baselines.}
 \input{tables/llm_vs_static}
-To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static} compares the best off-the-shelf LLM against the best static reference---the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics---for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
+To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static} compares the best off-the-shelf LLM against the best static reference, the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics, for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
 Because both methods run on the same kernels, we compare them with a paired (McNemar) test: the discordant-wins column counts kernels where exactly one method is correct, reported as LLM wins/static wins, with $p$ testing whether the LLM wins significantly more of these disagreements.
 Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4), and in each of these the LLM's numeric \rai error is far lower (MdAPE 18--44\% vs.\ 100--163\%).
-The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable---the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MdAPE---and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MdAPE).
-Across the six regimes the LLMs significantly beat the best static baseline in three---the high-value SASS-backed and FP32 frontier regimes---and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
+The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable (the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MdAPE), and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MdAPE).
+Across the six regimes the LLMs significantly beat the best static baseline in three (the high-value SASS-backed and FP32 frontier regimes), and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
 
 \begin{rqsummary}
 \textbf{RQ4 Summary:} In the high-value regimes the LLMs significantly beat lightweight static baselines (e.g.\ \sourcesass FP16 0.984 vs.\ 0.608 balanced accuracy, $p<0.001$), at fractions of a cent per query and with no target-hardware access. No single configuration wins every regime, so the cost-effective choice is to match the model and evidence tier to the target precision.

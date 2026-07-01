@@ -2,7 +2,7 @@
 \label{sec:discussion}
 
 \noindent\textbf{What this enables for AI-assisted software engineering.}
-The central positive result---that off-the-shelf LLMs can classify a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts, without touching the target accelerator---is directly relevant to AI coding agents and developer-facing tools.
+The central positive result, that off-the-shelf LLMs can classify a kernel's \bandwidthbound/\computebound Roofline regime from software artifacts without touching the target accelerator, is directly relevant to AI coding agents and developer-facing tools.
 Before spending target-GPU time, an agent can ask a narrower question than ``will this be faster?'': is this kernel limited by data movement or by computation, and is the available evidence enough to answer that yet?
 The answer is evidence-dependent, and numeric \rai serves as a secondary diagnostic: when it is accurate it reinforces the regime call, and when it falls in the heavy-tailed failure region it signals that the sample should be escalated to profiling.
 
@@ -13,12 +13,12 @@ Execution-free reasoning has two meaningful stages.
 \noindent\textbf{Why deterministic and learned static features still matter.}
 The reference baselines sharpen the methodological boundary: a simple lexical rule cannot explain the useful FP32/FP64 \sourceonly signal, yet supervised source baselines recover corpus-level triage cues and architecture-specific SASS counts expose substantial post-compilation structure.
 Our results suggest a cascade combining deterministic compiler or disassembly features, lightweight supervised models, and LLM reasoning could outperform any single strategy by routing each evidence tier to the method that wins it.
-\autoref{tab:deployment-matrix} records the per-regime first-stage choice the released evidence supports---a routing guide, not a measured system, since we have not built the combined cascade and choosing a route presumes the precision and evidence tier are known in advance.
+\autoref{tab:deployment-matrix} records the per-regime first-stage choice the released evidence supports: a routing guide, not a measured system, since we have not built the combined cascade and choosing a route presumes the precision and evidence tier are known in advance.
 
 \input{tables/deployment_matrix}
 
 \noindent\textbf{What tool builders should and should not take from the results.}
-Tool builders should use the method as a triage filter---to prioritize profiling effort, annotate likely memory- versus compute-side cases, or flag kernels too uncertain to trust---not as a runtime substitute, speedup estimator, or universal static analysis of GPU performance.
+Tool builders should use the method as a triage filter (to prioritize profiling effort, annotate likely memory- versus compute-side cases, or flag kernels too uncertain to trust), not as a runtime substitute, speedup estimator, or universal static analysis of GPU performance.
 
 \noindent\textbf{Why the dataset release matters.}
 Even with the method's limitations, the released corpus is a useful contribution in its own right: it exposes a well-posed software-engineering task with source files, build context, runtime arguments, SASS, profiler-derived labels, and model outputs, and the added deterministic and learned reference baselines make it a testbed for comparing execution-free reasoning strategies rather than only for ranking LLMs.

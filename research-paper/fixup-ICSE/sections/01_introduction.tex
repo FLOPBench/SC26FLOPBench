@@ -2,7 +2,7 @@
 \label{sec:introduction}
 
 GPU performance engineering is fundamentally profiler-driven.
-Developers optimize kernels by compiling candidate variants, running them on the target accelerator, reading hardware counters, and only then deciding whether computation, memory traffic, or both deserve attention---typically through Roofline-style analysis \cite{samuelwilliamsRooflineInsightfulVisual2009}.
+Developers optimize kernels by compiling candidate variants, running them on the target accelerator, reading hardware counters, and only then deciding whether computation, memory traffic, or both deserve attention, typically through Roofline-style analysis \cite{samuelwilliamsRooflineInsightfulVisual2009}.
 This workflow is already costly for humans, and it becomes far more expensive in the agentic software-engineering loops that are now reshaping how GPU code is written: with the growing adoption of AI coding \textit{teammates} \cite{liRiseAITeammates2025}, an LLM increasingly proposes many candidate edits and expects profiler feedback after each one \cite{gongLanguageModelsCode2025,ouyangKernelBenchCanLLMs2025,chenCUDALLMLLMsCan2025}.
 \autoref{fig:optimization-loop} sketches this profiler-in-the-loop workflow and the earlier, hardware-free triage step we study.
 
@@ -21,22 +21,22 @@ The practical question is therefore not whether an LLM can \emph{replace} a prof
 
 That bandwidth-bound versus compute-bound (\bandwidthbound/\computebound) decision is the first branch of Roofline analysis \cite{samuelwilliamsRooflineInsightfulVisual2009}, and it is the one that decides which optimization direction is even worth attempting.
 Crucially, it is a \emph{classification}, not a precise number: a developer who learns that a kernel is firmly compute-bound can act on that without knowing its arithmetic intensity to two decimal places.
-We therefore make Roofline-regime classification the primary object of study, and treat the underlying Roofline Arithmetic Intensity (\rai)---the ratio of floating-point work to bytes moved---as a diagnostic that explains \emph{why} a classification is right or wrong rather than as the headline deliverable.
+We therefore make Roofline-regime classification the primary object of study, and treat the underlying Roofline Arithmetic Intensity (\rai), the ratio of floating-point work to bytes moved, as a diagnostic that explains \emph{why} a classification is right or wrong rather than as the headline deliverable.
 This reframes prior work that asked LLMs only for coarse memory-/compute-bound labels \cite{boletCanLargeLanguage2025} or for raw metric values, and lets us report both an actionable verdict and the numeric reasoning behind it.
 
 The central difficulty is that effective \rai is not always visible in source code.
-Compiler passes---lowering, instruction selection, transcendental expansion, and other low-level transformations---can change the realized compute and memory traffic in ways the source does not reveal \cite{alfredCompilersPrinciplesTechniques2007}.
+Compiler passes (lowering, instruction selection, transcendental expansion, and other low-level transformations) can change the realized compute and memory traffic in ways the source does not reveal \cite{alfredCompilersPrinciplesTechniques2007}.
 Classifying the Roofline regime from source alone is thus a genuine test of whether an LLM can recover profiler-relevant behavior from program structure.
 We therefore study two evidence settings.
-The \sourceonly setting provides only pre-compilation artifacts---source files, build commands, runtime arguments, and GPU specifications---and corresponds to early development, code review, or agent planning.
+The \sourceonly setting provides only pre-compilation artifacts (source files, build commands, runtime arguments, and GPU specifications) and corresponds to early development, code review, or agent planning.
 The \sourcesass setting adds the target kernel's SASS (GPU assembly) disassembly, exposing the compiler's effect to the model.
 Critically, SASS is obtained by \emph{cross-compilation} (for example, \texttt{nvcc -arch=sm\_90} followed by \texttt{cuobjdump -sass}) and so requires no target hardware; both settings remain execution-free at prediction time, and comparing them isolates exactly what compiler lowering adds over source-visible semantics.
 
 Unlike prior work that fine-tunes models for GPU metric prediction \cite{wangOmniwisePredictingGPU2025} or studies broader GPU performance modeling \cite{leeForecastingGPUPerformance2025,nguyen-nhatLLMPerfGPUPerformance2024}, our focus is deliberately narrow: \bandwidthbound/\computebound triage in the zero-training regime, using off-the-shelf LLMs through prompting alone.
-We evaluate three such models on 254 real-world CUDA and OpenMP kernels from the HeCBench suite \cite{HeCBenchMasterZjinlcf} across four NVIDIA GPUs---an RTX~3080, A10, A100, and H100.
+We evaluate three such models on 254 real-world CUDA and OpenMP kernels from the HeCBench suite \cite{HeCBenchMasterZjinlcf} across four NVIDIA GPUs: an RTX~3080, A10, A100, and H100.
 For each kernel the models predict launch dimensions, per-precision FP16/FP32/FP64 floating-point work, and DRAM bytes read and written, from which we derive both \rai and its \bandwidthbound/\computebound side relative to each GPU's Roofline balance point.
 We highlight three findings up front:
-\textbf{(1)} from source artifacts alone, the strongest model already classifies the FP32 regime correctly for roughly nine in ten kernels, yet every model---frontier or budget---sits at chance for FP16;
+\textbf{(1)} from source artifacts alone, the strongest model already classifies the FP32 regime correctly for roughly nine in ten kernels, yet every model, frontier or budget, sits at chance for FP16;
 \textbf{(2)} this FP16 gap is an \emph{evidence} gap rather than a model-capability gap: the decisive FP16 arithmetic is compiler-synthesized and absent from source, and adding cross-compiled SASS closes the gap, lifting FP16 classification from chance to near-perfect for the stronger models;
 \textbf{(3)} the signal is cheap and tiered (a budget model triages FP32 for a fraction of a cent per query with no target hardware) and stable enough under repeated queries to act on, while numeric \rai stays accurate in identifiable regimes, best read as a diagnostic.
 
@@ -46,7 +46,7 @@ We organize the study around four guiding questions:
   \item \textbf{(RQ1) Static classification:} Can off-the-shelf LLMs classify a kernel's \bandwidthbound/\computebound Roofline regime from source artifacts alone, and for which precisions?
   \item \textbf{(RQ2) Compilation evidence:} What does cross-compiled SASS add to that classification, and why?
   \item \textbf{(RQ3) Consistency:} How consistent are the predictions across repeated queries to the same model?
-  \item \textbf{(RQ4) Cost and baselines:} How do these signals compare---in accuracy and per-query cost---against lightweight static baselines, and how does that cost tier across models?
+  \item \textbf{(RQ4) Cost and baselines:} How do these signals compare, in accuracy and per-query cost, against lightweight static baselines, and how does that cost tier across models?
 \end{enumerate}
 
 \noindent\textbf{Contributions.}
@@ -56,7 +56,7 @@ This paper contributes the following:
   \item We show that the source-versus-compilation evidence boundary, not model choice, governs FP16 triage, giving a mechanistic explanation: the decisive FP16 arithmetic is compiler-synthesized and recoverable from cross-compiled SASS without target hardware.
   \item We characterize the run-to-run consistency of these predictions under repeated queries, identifying where a single query is trustworthy and where a simple majority vote is warranted.
   \item We quantify the accuracy and per-query cost of off-the-shelf prompting against context-only, deterministic, and lightweight learned static baselines, yielding a deployable cost-tiered cascade among execution-free strategies rather than an LLM-only oracle.
-  \item We release a dataset for hardware-free Roofline reasoning---GPU kernels, compilation and execution context, post-compilation SASS, profiler-derived ground truth, and model outputs---documenting limits that future work can address with repeated-query and reasoning-versus-memorization studies.\footnote{\githubrepo}
+  \item We release a dataset for hardware-free Roofline reasoning (GPU kernels, compilation and execution context, post-compilation SASS, profiler-derived ground truth, and model outputs), documenting limits that future work can address with repeated-query and reasoning-versus-memorization studies.\footnote{\githubrepo}
 \end{itemize}
 
 The rest of this paper is organized as follows.
