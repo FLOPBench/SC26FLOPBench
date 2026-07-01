@@ -1,18 +1,18 @@
 \begin{table*}[t]
   \centering
-  \caption{Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset, with median per-query cost (\$) and wall-clock time (s) for each configuration. The precision/recall/F1 metrics complement the balanced-accuracy headline of \autoref{tab:shared-results-summary} by exposing whether a method reaches high recall by over-predicting the compute-bound side. A dash marks an undefined value: when a model predicts no compute-bound kernels for a precision (as every model does for \sourceonly FP16), recall is $0$ and precision/F1 have a zero denominator.}
+  \caption{Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset (SO~=~\sourceonly, S+S~=~\sourcesass), with median per-query cost (\$) and wall-clock time (s). A dash marks an undefined value (no predicted \computebound kernels, hence a zero denominator), as every model shows for SO FP16.}
   \label{tab:compute-bound-prf}
   \scriptsize
-  \setlength{\tabcolsep}{4pt}
+  \setlength{\tabcolsep}{3pt}
   \begin{tabular}{llccccc}
     Model & Evidence & FP16 P/R/F1 & FP32 P/R/F1 & FP64 P/R/F1 & \$ & s \\
     \midrule
-    \gptfivefour & \sourceonly & -- / 0.000 / -- & 0.909 / 0.800 / 0.851 & 0.950 / 0.358 / 0.521 & 0.0197 & 11.3 \\
-    \gptfivefour & \sourcesass & 0.730 / 0.794 / 0.761 & 0.952 / 0.800 / 0.870 & 0.903 / 0.528 / 0.667 & 0.0315 & 12.3 \\
-    \gptoss & \sourceonly & -- / 0.000 / -- & 0.950 / 0.760 / 0.844 & 0.917 / 0.415 / 0.571 & 0.0006 & 33.2 \\
-    \gptoss & \sourcesass & 0.750 / 0.176 / 0.286 & 0.949 / 0.740 / 0.831 & 0.900 / 0.340 / 0.493 & 0.0008 & 32.5 \\
-    \opus & \sourceonly & -- / 0.000 / -- & 1.000 / 0.880 / 0.936 & 0.966 / 0.528 / 0.683 & 0.0679 & 22.5 \\
-    \opus & \sourcesass & 0.850 / 1.000 / 0.919 & 0.979 / 0.940 / 0.959 & 0.938 / 0.566 / 0.706 & 0.1066 & 29.8 \\
+    \gptfivefour & SO & -- / 0.000 / -- & 0.909 / 0.800 / 0.851 & 0.950 / 0.358 / 0.521 & 0.0197 & 11.3 \\
+    \gptfivefour & S+S & 0.730 / 0.794 / 0.761 & 0.952 / 0.800 / 0.870 & 0.903 / 0.528 / 0.667 & 0.0315 & 12.3 \\
+    \gptoss & SO & -- / 0.000 / -- & 0.950 / 0.760 / 0.844 & 0.917 / 0.415 / 0.571 & 0.0006 & 33.2 \\
+    \gptoss & S+S & 0.750 / 0.176 / 0.286 & 0.949 / 0.740 / 0.831 & 0.900 / 0.340 / 0.493 & 0.0008 & 32.5 \\
+    \opus & SO & -- / 0.000 / -- & 1.000 / 0.880 / 0.936 & 0.966 / 0.528 / 0.683 & 0.0679 & 22.5 \\
+    \opus & S+S & 0.850 / 1.000 / 0.919 & 0.979 / 0.940 / 0.959 & 0.938 / 0.566 / 0.706 & 0.1066 & 29.8 \\
     \bottomrule
   \end{tabular}
 \end{table*}

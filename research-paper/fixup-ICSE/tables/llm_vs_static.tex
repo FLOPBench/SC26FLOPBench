@@ -1,6 +1,6 @@
 \begin{table*}[t]
   \centering
-  \caption{Best-off-the-shelf LLM versus best static reference for nonzero \bandwidthbound/\computebound regime triage on the shared subset. Each cell reports balanced accuracy (BAcc) and nonzero MdAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for regime-classification correctness on the same samples.}
+  \caption{Best off-the-shelf LLM versus best static reference for nonzero \bandwidthbound/\computebound triage on the shared subset. Each cell gives BAcc and nonzero MdAPE for the strongest method in that evidence family; discordant-pair columns report exact paired wins on the same samples.}
   \label{tab:llm-vs-static}
   \scriptsize
   \setlength{\tabcolsep}{4pt}
@@ -8,10 +8,10 @@
     Evidence & Precision & Best LLM & BAcc / MdAPE & Best static & BAcc / MdAPE & Discordant wins LLM/static ($p$) \\
     \midrule
     \sourceonly & FP16 & \gptfivefour & 0.500 / 100.0 & Source learned ET & 0.723 / 217.7 & 10/17 (0.248) \\
-    \sourceonly & FP32 & \opus & 0.940 / 43.9 & Source learned RF & 0.750 / 100.0 & 52/3 (<0.001) \\
+    \sourceonly & FP32 & \opus & 0.940 / 43.9 & Source learned RF & 0.750 / 100.0 & 52/3 ($<0.001$) \\
     \sourceonly & FP64 & \opus & 0.755 / 52.0 & Lexical Heuristic & 0.683 / 99.5 & 21/13 (0.229) \\
-    \sourcesass & FP16 & \opus & 0.984 / 20.4 & SASS learned ET & 0.608 / 163.1 & 33/5 (<0.001) \\
-    \sourcesass & FP32 & \opus & 0.967 / 18.3 & SASS learned ET & 0.730 / 100.0 & 57/4 (<0.001) \\
+    \sourcesass & FP16 & \opus & 0.984 / 20.4 & SASS learned ET & 0.608 / 163.1 & 33/5 ($<0.001$) \\
+    \sourcesass & FP32 & \opus & 0.967 / 18.3 & SASS learned ET & 0.730 / 100.0 & 57/4 ($<0.001$) \\
     \sourcesass & FP64 & \opus & 0.765 / 15.3 & SASS learned RF & 0.841 / 62.4 & 5/13 (0.096) \\
     \bottomrule
   \end{tabular}

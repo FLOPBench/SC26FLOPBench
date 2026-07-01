@@ -10,7 +10,7 @@
     \sourceonly FP16 & Static-first & One-shot LLMs stay at the trivial \bandwidthbound/\computebound baseline; cheap source features recover more queueing signal. \\
     \sourceonly FP32/FP64 & Frontier LLM & Best pre-compilation triage overall, especially for FP32 where paired LLM wins are decisive. \\
     \sourcesass FP16/FP32 & Frontier LLM & Largest paired gains once lowered arithmetic and DRAM-visible behavior become explicit. \\
-    \sourcesass FP64 & Static-first, LLM optional & Cheap SASS counts and learned SASS features already match or beat one-shot LLM triage in this regime. \\
+    \sourcesass FP64 & Frontier LLM & Learned SASS features edge the label call, but not significantly, and their numeric \rai is several times coarser, so the frontier LLM stays the better single choice. \\
     \bottomrule
   \end{tabular}
 \end{table}
