@@ -1,22 +1,23 @@
 \begin{table*}[t]
   \centering
   \caption{Shared-subset summary on the 732 samples completed by all three models in both prompt settings.
-  Each precision column reports ``MedAPE / BalAcc'': the median absolute percent error on nonzero \rai cases
-  and the balanced accuracy on nonzero \bandwidthbound/\computebound triage.
-  Median cost and time are per-query values on the same shared subset.}
+  For each precision we report MedAPE (median absolute percent error on nonzero \rai cases)
+  and BalAcc (balanced accuracy on nonzero \bandwidthbound/\computebound triage).
+  The final columns give median per-query cost (\$) and wall-clock time (s) on the same subset.}
   \label{tab:shared-results-summary}
   \scriptsize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{llrcccrr}
-    \toprule
-    Model & Evidence & Samples & FP16 MedAPE / BalAcc & FP32 MedAPE / BalAcc & FP64 MedAPE / BalAcc & Median \$ & Median s \\
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{ll cc cc cc rr}
+    & & \multicolumn{2}{c}{FP16} & \multicolumn{2}{c}{FP32} & \multicolumn{2}{c}{FP64} & \multicolumn{2}{c}{Median} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
+    Model & Evidence & MedAPE & BalAcc & MedAPE & BalAcc & MedAPE & BalAcc & \$ & s \\
     \midrule
-    \gptfivefour & \sourceonly & 732 & 100.0 / 0.500 & 59.2 / 0.889 & 74.5 / 0.670 & 0.0197 & 11.3 \\
-    \gptfivefour & \sourcesass & 732 & 84.2 / 0.870 & 34.9 / 0.895 & 35.4 / 0.737 & 0.0315 & 12.3 \\
-    \gptoss & \sourceonly & 732 & 100.0 / 0.500 & 58.9 / 0.875 & 62.4 / 0.690 & 0.0006 & 33.2 \\
-    \gptoss & \sourcesass & 732 & 100.0 / 0.583 & 61.4 / 0.865 & 58.4 / 0.652 & 0.0008 & 32.5 \\
-    \opus & \sourceonly & 732 & 100.0 / 0.500 & 43.9 / 0.940 & 52.0 / 0.755 & 0.0679 & 22.5 \\
-    \opus & \sourcesass & 732 & 20.4 / 0.984 & 18.3 / 0.967 & 15.3 / 0.765 & 0.1066 & 29.8 \\
+    \gptfivefour & \sourceonly & 100.0 & 0.500 & 59.2 & 0.889 & 74.5 & 0.670 & 0.0197 & 11.3 \\
+    \gptfivefour & \sourcesass & 84.2  & 0.870 & 34.9 & 0.895 & 35.4 & 0.737 & 0.0315 & 12.3 \\
+    \gptoss      & \sourceonly & 100.0 & 0.500 & 58.9 & 0.875 & 62.4 & 0.690 & 0.0006 & 33.2 \\
+    \gptoss      & \sourcesass & 100.0 & 0.583 & 61.4 & 0.865 & 58.4 & 0.652 & 0.0008 & 32.5 \\
+    \opus        & \sourceonly & 100.0 & 0.500 & 43.9 & 0.940 & 52.0 & 0.755 & 0.0679 & 22.5 \\
+    \opus        & \sourcesass & 20.4  & 0.984 & 18.3 & 0.967 & 15.3 & 0.765 & 0.1066 & 29.8 \\
     \bottomrule
   \end{tabular}
 \end{table*}

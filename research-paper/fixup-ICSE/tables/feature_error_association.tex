@@ -1,0 +1,27 @@
+\begin{table}[t]
+  \centering
+  \caption{Cliff's $\delta$ between the feature-present and feature-absent nonzero \rai error distributions, per model and evidence setting (SO~=~\sourceonly, SS~=~\sourcesass). Positive $\Rightarrow$ higher error when the feature is present.}
+  \label{tab:feature-error-association}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{l rr rr rr}
+    & \multicolumn{2}{c}{\gptfivefour} & \multicolumn{2}{c}{\gptoss} & \multicolumn{2}{c}{\opus} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+    Feature & SO & SS & SO & SS & SO & SS \\
+    \midrule
+    Has FLOP Division        & 0.32 & 0.34 & 0.33 & 0.34 & 0.34 & 0.36 \\
+    Has Float Subexprs       & 0.30 & 0.32 & 0.29 & 0.32 & 0.30 & 0.31 \\
+    Has Special Math         & 0.26 & 0.26 & 0.25 & 0.28 & 0.25 & 0.29 \\
+    Has Loop-Invariant FLOPs & 0.24 & 0.27 & 0.22 & 0.21 & 0.23 & 0.27 \\
+    \midrule
+    Calls Helper Function     & 0.11 & 0.14 & 0.10 & 0.15 & 0.15 & 0.15 \\
+    Has RNG Inputs            & 0.11 & 0.12 & 0.11 & 0.13 & 0.12 & 0.14 \\
+    Has Branching             & 0.08 & 0.09 & 0.11 & 0.11 & 0.10 & 0.09 \\
+    Uses Preproc Defines      & 0.06 & 0.08 & 0.07 & 0.06 & 0.08 & 0.09 \\
+    Has Data-Dep Branching    & 0.07 & 0.07 & 0.04 & 0.06 & 0.07 & 0.08 \\
+    Uses Input Data from File & 0.02 & 0.01 & 0.05 & 0.04 & 0.02 & 0.01 \\
+    Deterministic Grid Size   & 0.01 & 0.01 & 0.01 & 0.01 & 0.03 & 0.02 \\
+    Deterministic Block Size  & $-0.04$ & $-0.03$ & $-0.08$ & $-0.09$ & $-0.07$ & $-0.04$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}

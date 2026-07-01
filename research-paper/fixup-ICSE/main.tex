@@ -17,6 +17,16 @@
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=teal,urlcolor=blue}
 \emergencystretch=1em
 
+\usepackage[most]{tcolorbox}
+% RQ answer call-out: light-green fill, dark-green left rule, near-zero margins.
+\newtcolorbox{rqsummary}{%
+  enhanced, breakable=false, frame hidden,
+  colback=green!8,
+  borderline west={2pt}{0pt}{green!50!black},
+  boxsep=0pt, left=6pt, right=4pt, top=3pt, bottom=3pt,
+  before skip=4pt, after skip=4pt,
+}
+
 \newcommand{\rai}{RAI\xspace}
 \newcommand{\sourceonly}{\textit{source-only}\xspace}
 \newcommand{\sourcesass}{\textit{source+SASS}\xspace}
