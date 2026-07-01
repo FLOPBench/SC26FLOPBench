@@ -97,20 +97,20 @@
 \@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Cliff's $\delta $ between the feature-present and feature-absent nonzero RAI\xspace  error distributions, per model and evidence setting (SO~=~\textit  {source-only}\xspace  , SS~=~\textit  {source+SASS}\xspace  ). Positive $\Rightarrow $ higher error when the feature is present.}}{8}{table.6}\protected@file@percent }
 \newlabel{tab:feature-error-association}{{VI}{8}{Cliff's $\delta $ between the feature-present and feature-absent nonzero \rai error distributions, per model and evidence setting (SO~=~\sourceonly , SS~=~\sourcesass ). Positive $\Rightarrow $ higher error when the feature is present}{table.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}RQ3: How Consistent Are the Predictions Across Repeated Queries?}{8}{subsection.4.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces Repeated-query response variability on the repeat-trials panel (SO~=~\textit  {source-only}\xspace  , SS~=~\textit  {source+SASS}\xspace  ). ``MCV'' is the median coefficient of variation of predicted RAI\xspace  across repeats (lower is more consistent); ``Agr'' is the fraction of kernel samples whose \textsc  {BB}\xspace  /\textsc  {CB}\xspace  call is unanimous across repeats.}}{9}{table.7}\protected@file@percent }
+\newlabel{tab:repeated-query-variance}{{VII}{9}{Repeated-query response variability on the repeat-trials panel (SO~=~\sourceonly , SS~=~\sourcesass ). ``MCV'' is the median coefficient of variation of predicted \rai across repeats (lower is more consistent); ``Agr'' is the fraction of kernel samples whose \bandwidthbound /\computebound call is unanimous across repeats}{table.7}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}RQ4: How Do the Signals Compare in Accuracy and Cost?}{9}{subsection.4.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{9}{section.5}\protected@file@percent }
-\newlabel{sec:discussion}{{V}{9}{Discussion}{section.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0a}What this enables for AI-assisted software engineering.}{9}{paragraph.5.0.0.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces Repeated-query response variability on the repeat-trials panel. ``CV'' is the median coefficient of variation of predicted RAI\xspace  across repeats (lower is more consistent); ``Agr'' is the fraction of cells whose \textsc  {BB}\xspace  /\textsc  {CB}\xspace  call is unanimous across repeats. Computed at the main-paper decode settings.}}{10}{table.7}\protected@file@percent }
-\newlabel{tab:repeated-query-variance}{{VII}{10}{Repeated-query response variability on the repeat-trials panel. ``CV'' is the median coefficient of variation of predicted \rai across repeats (lower is more consistent); ``Agr'' is the fraction of cells whose \bandwidthbound /\computebound call is unanimous across repeats. Computed at the main-paper decode settings}{table.7}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {VIII}{\ignorespaces Best-off-the-shelf LLM versus best static reference for Task~C nonzero \textsc  {BB}\xspace  /\textsc  {CB}\xspace  triage on the shared subset. Each cell reports balanced accuracy and nonzero MedAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for Task~C correctness on the same samples.}}{10}{table.8}\protected@file@percent }
-\newlabel{tab:llm-vs-static-task-c}{{VIII}{10}{Best-off-the-shelf LLM versus best static reference for Task~C nonzero \bandwidthbound /\computebound triage on the shared subset. Each cell reports balanced accuracy and nonzero MedAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for Task~C correctness on the same samples}{table.8}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {VIII}{\ignorespaces Best-off-the-shelf LLM versus best static reference for nonzero \textsc  {BB}\xspace  /\textsc  {CB}\xspace  regime triage on the shared subset. Each cell reports balanced accuracy (BalAcc) and nonzero MedAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for regime-classification correctness on the same samples.}}{10}{table.8}\protected@file@percent }
+\newlabel{tab:llm-vs-static-task-c}{{VIII}{10}{Best-off-the-shelf LLM versus best static reference for nonzero \bandwidthbound /\computebound regime triage on the shared subset. Each cell reports balanced accuracy (BalAcc) and nonzero MedAPE for the strongest method in that evidence family, selected separately within each prompt/precision regime. The discordant-pair columns report exact paired wins for regime-classification correctness on the same samples}{table.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{10}{section.5}\protected@file@percent }
+\newlabel{sec:discussion}{{V}{10}{Discussion}{section.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0a}What this enables for AI-assisted software engineering.}{10}{paragraph.5.0.0.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0b}Where \textit  {source-only}\xspace  and \textit  {source+SASS}\xspace  fit in a real workflow.}{10}{paragraph.5.0.0.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0c}Cost, and why we do not claim a speedup over profiling.}{10}{paragraph.5.0.0.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0d}Why deterministic and learned static features still matter.}{10}{paragraph.5.0.0.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0e}What the released samples look like in practice.}{10}{paragraph.5.0.0.5}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {IX}{\ignorespaces Deployment routing summary from the shared subset. These are corpus-backed first-stage choices, not universal rules.}}{11}{table.9}\protected@file@percent }
 \newlabel{tab:deployment-matrix}{{IX}{11}{Deployment routing summary from the shared subset. These are corpus-backed first-stage choices, not universal rules}{table.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0e}What the released samples look like in practice.}{11}{paragraph.5.0.0.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0f}What tool builders should and should not take from the results.}{11}{paragraph.5.0.0.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0g}What the exploratory failure map still suggests.}{11}{paragraph.5.0.0.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-}0h}Why the benchmark release matters.}{11}{paragraph.5.0.0.8}\protected@file@percent }
@@ -142,10 +142,10 @@
 \bibcite{lopesExploringGPUPerformance2017}{17}
 \bibcite{braunSimpleModelPortable2021}{18}
 \bibcite{emondsCUDAsapStaticallyDeterminedExecution2023}{19}
+\bibcite{tranAccurateLatencyPredictor2025}{20}
 \@writefile{toc}{\contentsline {section}{\numberline {VII}Conclusion}{12}{section.7}\protected@file@percent }
 \newlabel{sec:conclusion}{{VII}{12}{Conclusion}{section.7}{}}
 \@writefile{toc}{\contentsline {section}{References}{12}{section*.1}\protected@file@percent }
-\bibcite{tranAccurateLatencyPredictor2025}{20}
 \bibcite{amarisComparisonGPUExecution2016}{21}
 \bibcite{wangGPGPUPerformanceEstimation2020}{22}
 \bibcite{leeGCoMDetailedGPU2022}{23}

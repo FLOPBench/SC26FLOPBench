@@ -18,7 +18,7 @@ The paper also clarifies that execution-free reasoning has two meaningful stages
 Treating both stages as the same ``hardware-free'' scenario obscures an important software-engineering distinction: compilation artifacts are themselves a development resource.
 
 \paragraph{Cost, and why we do not claim a speedup over profiling.}
-A recurring objection to LLM-based performance reasoning is that API calls may cost as much as simply measuring on a GPU.
+A natural question about LLM-based performance reasoning is whether API calls cost as much as simply measuring on a GPU.
 Our per-query costs let us bound one side of that comparison.
 The source-only single-precision tier is inexpensive in absolute terms: a \gptoss regime classification costs a median \$0.0006 per kernel-GPU pair, so triaging the entire 732-sample shared subset costs under \$0.50.
 The frontier+SASS tier that additionally recovers half precision is roughly \$0.11 per kernel-GPU pair for \opus.

@@ -1,20 +1,20 @@
-\begin{table*}[t]
+\begin{table}[t]
   \centering
-  \caption{Repeated-query response variability on the repeat-trials panel. ``CV'' is the median coefficient of variation of predicted \rai across repeats (lower is more consistent); ``Agr'' is the fraction of cells whose \bandwidthbound/\computebound call is unanimous across repeats. Computed at the main-paper decode settings.}
+  \caption{Repeated-query response variability on the repeat-trials panel (SO~=~\sourceonly, SS~=~\sourcesass). ``MCV'' is the median coefficient of variation of predicted \rai across repeats (lower is more consistent); ``Agr'' is the fraction of kernel samples whose \bandwidthbound/\computebound call is unanimous across repeats.}
   \label{tab:repeated-query-variance}
   \scriptsize
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{llrrrrrr}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{ll rr rr rr}
     & & \multicolumn{2}{c}{FP16} & \multicolumn{2}{c}{FP32} & \multicolumn{2}{c}{FP64} \\
     \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
-    Model & Evidence & CV & Agr & CV & Agr & CV & Agr \\
+    Model & Evidence & MCV & Agr & MCV & Agr & MCV & Agr \\
     \midrule
-    \texttt{Opus 4.6} & source-only & 0.00 & 100\% & 0.18 & 88\% & 0.00 & 100\% \\
-    \texttt{Opus 4.6} & source+SASS & 0.00 & 96\% & 0.19 & 92\% & 0.08 & 100\% \\
-    \texttt{GPT 5.4} & source-only & 0.00 & 100\% & 0.21 & 71\% & 0.04 & 82\% \\
-    \texttt{GPT 5.4} & source+SASS & 0.87 & 86\% & 0.61 & 76\% & 0.33 & 82\% \\
-    \texttt{GPT OSS} & source-only & 0.00 & 100\% & 0.28 & 88\% & 0.03 & 88\% \\
-    \texttt{GPT OSS} & source+SASS & 0.00 & 95\% & 0.53 & 69\% & 0.41 & 69\% \\
+    \opus        & SO & 0.00 & 100\% & 0.18 & 88\% & 0.00 & 100\% \\
+    \opus        & SS & 0.00 & 96\%  & 0.19 & 92\% & 0.08 & 100\% \\
+    \gptfivefour & SO & 0.00 & 100\% & 0.21 & 71\% & 0.04 & 82\% \\
+    \gptfivefour & SS & 0.87 & 86\%  & 0.61 & 76\% & 0.33 & 82\% \\
+    \gptoss      & SO & 0.00 & 100\% & 0.28 & 88\% & 0.03 & 88\% \\
+    \gptoss      & SS & 0.00 & 95\%  & 0.53 & 69\% & 0.41 & 69\% \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}

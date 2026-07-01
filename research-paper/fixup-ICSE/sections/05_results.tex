@@ -90,46 +90,50 @@ FP16 Roofline reasoning therefore requires post-compilation evidence for accurat
 \subsection{RQ3: How Consistent Are the Predictions Across Repeated Queries?}
 
 LLM predictions are nondeterministic, so a single query per kernel cannot establish reliability.
-We resample the models on the small, stratified panel mentioned in \autoref{sec:study-design} and measure two kinds of consistency: the coefficient of variation (CV) of the predicted \rai across repeats, and whether the \bandwidthbound/\computebound call is unanimous across repeats (i.e. agreement).
+We resample the models on the small, stratified panel mentioned in \autoref{sec:study-design} and measure two kinds of consistency: the median coefficient of variation (MCV) of the predicted \rai across repeats, and whether the \bandwidthbound/\computebound prediction is unanimous across repeats (i.e. agreement).
 \autoref{tab:repeated-query-variance} reports both metrics.
 
 \input{tables/repeated_query_variance}
 
 Three trends stand out.
-\textbf{(1)} The decision-level call is generally stable: the \bandwidthbound/\computebound vote is unanimous across repeats in most cells (mostly 82--100\% agreement), so the headline classification is not an artifact of a single lucky draw.
+\textbf{(1)} The decision-level prediction is generally stable: it is unanimous across repeats for most kernels, with per-configuration agreement mostly in the 82--100\% range, so the headline classification is not an artifact of a single lucky draw.
 \textbf{(2)} The most accurate model is also the most consistent.
-\opus holds a near-zero median CV and 88--100\% agreement in \emph{both} evidence settings, and---unlike the other models---adding SASS barely perturbs it (FP16 CV stays 0.00 at 96\% agreement).
+\opus holds a near-zero MCV and 88--100\% agreement in \emph{both} evidence settings, and, unlike the other models, adding SASS barely perturbs it (FP16 MCV stays 0.00 at 96\% agreement).
 The model one would actually deploy is therefore also the most reliable, and for \opus single-shot use is comparatively safe.
-\textbf{(3)} Where SASS does destabilize predictions, the effect is model-specific rather than intrinsic to the evidence: \gptfivefour's median CV jumps from essentially zero under \sourceonly to 0.87 (FP16), 0.61 (FP32), and 0.33 (FP64) once SASS is added, and \gptoss's \sourcesass agreement falls to 69\% for FP32 and FP64.
-This is the honest cost of the evidence that cracks FP16 for the weaker models---once a model commits to a numeric FP16 estimate rather than a degenerate zero, that estimate varies more across repeats---but it is not a property \opus shares.
-
-The takeaway is that single-shot use is risky for the cheaper models and for \gptfivefour under \sourcesass: a deployed triage tool built on those configurations should issue a small number of repeated queries and take the majority \bandwidthbound/\computebound vote, whereas a frontier model such as \opus is stable enough that a single query is usually sufficient.
+\textbf{(3)} Where SASS does destabilize predictions, the effect is model-specific rather than intrinsic to the evidence: \gptfivefour's MCV jumps from essentially zero under \sourceonly to 0.87 (FP16), 0.61 (FP32), and 0.33 (FP64) once SASS is added, and \gptoss's \sourcesass agreement falls to 69\% for FP32 and FP64.
+This is the cost of the evidence that cracks FP16 for the weaker models: once a model commits to a numeric FP16 estimate rather than a degenerate zero, that estimate varies more across repeats.
 
 \begin{rqsummary}
-\textbf{RQ3 Summary:} Decision-level calls are mostly stable (82--100\% agreement across repeats). \opus is both the most accurate and the most consistent, so a single query usually suffices; the cheaper models and \gptfivefour under \sourcesass vary enough that a deployed tool should issue a few repeated queries and take the majority \bandwidthbound/\computebound vote.
+\textbf{RQ3 Summary:} Decision-level predictions are mostly stable (82--100\% agreement across repeats). \opus is both the most accurate and the most consistent, so a single query usually suffices; the cheaper models and \gptfivefour under \sourcesass vary enough that a deployed tool should issue a few repeated queries and take the majority \bandwidthbound/\computebound vote.
 \end{rqsummary}
+
+
+
+
+
 
 \subsection{RQ4: How Do the Signals Compare in Accuracy and Cost?}
 
-The LLM signals form a clear cost/accuracy tier, they are inexpensive in absolute per-query terms, and---unlike profiling---they need no target-hardware access.
+The LLM signals form a clear cost/accuracy tier, they are inexpensive in absolute per-query terms, and (unlike profiling) they need no target-hardware access.
 
 \textbf{Cost tiering.}
-\autoref{tab:shared-results-summary} reports median per-query cost, and the configurations form a tier.
+\autoref{tab:shared-results-summary} reports median per-query cost, per LLM-evidence configuration.
 The budget \gptoss classifies the \sourceonly FP32 regime at 0.875 balanced accuracy for a median \$0.0006 per query; \gptfivefour reaches 0.889 for \$0.0197; and \opus reaches 0.940 for \$0.0679.
 For FP16, only the SASS-backed frontier tier works, at \$0.0315 (\gptfivefour) to \$0.1066 (\opus) per query.
-The recurring objection from performance-modeling venues---that LLM calls might cost as much as just measuring---is blunted for the \sourceonly FP32 tier: at a median \$0.0006 per kernel it is inexpensive in absolute terms and, unlike profiling, needs no target-hardware access at all.
-We do not collect end-to-end build-and-profile timings, so we make no measured time- or cost-saving claim against profiling; the advantages we establish are absolute query cost and the elimination of target-hardware access.
-The frontier+SASS tier that additionally cracks FP16 is the premium option, and we treat its cost honestly: it is the regime where the ``just measure'' objection is most defensible.
+The \sourceonly FP32 tier is inexpensive in absolute terms: at a median \$0.0006 per kernel it needs no target-hardware access at all, unlike profiling.
+We do not present end-to-end build-and-profile timings, so we make no measured time- or cost-saving claim against profiling; the advantages we establish are absolute query cost and the elimination of target-hardware access.
+The frontier+SASS tier that additionally cracks FP16 is the premium option, and its higher per-query cost is the case where directly profiling may be preferable if the target hardware is available.
 
 \textbf{Versus static baselines.}
 \input{tables/llm_vs_static_task_c}
-To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, we compare the best off-the-shelf LLM against the best static reference for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting, on the same shared subset and ground truth (\autoref{tab:llm-vs-static-task-c}).
-Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins, $p<0.001$), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5, $p<0.001$), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4, $p<0.001$), and in each of these the LLM's numeric \rai error is far lower (MedAPE 18--44\% vs.\ 100--163\%).
+To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static-task-c} compares the best off-the-shelf LLM against the best static reference---the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics---for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
+Because both methods run on the same kernels, we compare them with a paired (McNemar) test: the discordant-wins column counts kernels where exactly one method is correct, reported as LLM wins/static wins, with $p$ testing whether the LLM wins significantly more of these disagreements.
+Where the signal matters most the LLMs win decisively and significantly on the same samples: \sourceonly FP32 (\opus 0.940 vs.\ 0.750 balanced accuracy, 52/3 discordant wins), \sourcesass FP16 (0.984 vs.\ 0.608, 33/5), and \sourcesass FP32 (0.967 vs.\ 0.730, 57/4), and in each of these the LLM's numeric \rai error is far lower (MedAPE 18--44\% vs.\ 100--163\%).
 The static baselines are competitive only in the two regimes where the LLMs are weakest: \sourceonly FP16, where neither method is usable---the best LLM is degenerate at 0.500 while the best static reaches 0.723 but with a 218\% MedAPE---and \sourcesass FP64 triage, where a learned tree edges \opus on balanced accuracy (0.841 vs.\ 0.765) but not significantly ($p=0.096$) and still with a worse numeric error (62\% vs.\ 15\% MedAPE).
-Across the six regimes the LLMs significantly beat the best static baseline in three---the high-value SASS-backed and FP32 frontier cells---and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
+Across the six regimes the LLMs significantly beat the best static baseline in three---the high-value SASS-backed and FP32 frontier regimes---and the remaining differences are not statistically significant; even where a static baseline edges ahead on the classification call, its \rai estimate is too coarse to be used as a numeric diagnostic.
 
 \begin{rqsummary}
-\textbf{RQ4 Summary:} In the high-value cells the LLMs significantly beat lightweight static baselines (e.g.\ \sourcesass FP16 0.984 vs.\ 0.608 balanced accuracy, $p<0.001$), at fractions of a cent per query and with no target-hardware access; the signals form a clear cost/accuracy tier rather than a single oracle.
+\textbf{RQ4 Summary:} In the high-value regimes the LLMs significantly beat lightweight static baselines (e.g.\ \sourcesass FP16 0.984 vs.\ 0.608 balanced accuracy, $p<0.001$), at fractions of a cent per query and with no target-hardware access. No single configuration wins every regime, so the cost-effective choice is to match the model and evidence tier to the target precision.
 \end{rqsummary}
 
-The takeaway across the four questions is a cost-tiered deployment rather than an LLM-only oracle: cheap models give useful \sourceonly FP32 triage for fractions of a cent, frontier models with cross-compiled SASS additionally recover FP16, and a few repeated queries guard the borderline calls.
+The takeaway across the four RQs is that off-the-shelf LLMs are a practical, hardware-free Roofline triage tool once matched to the available evidence: \sourceonly artifacts suffice for FP32 and FP64 at fractions of a cent, cross-compiled SASS is what unlocks FP16, and single-shot use is safe for a frontier \opus model but should become a small majority vote for the cheaper \gptfivefour and \gptoss models.
