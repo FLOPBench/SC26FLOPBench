@@ -7,7 +7,7 @@ Unless stated otherwise, the cross-model comparisons use the 732-sample shared s
 We report nonzero \bandwidthbound/\computebound regime classification as the primary outcome and treat the numeric \rai error as a diagnostic that explains \textit{why} a classification succeeds or fails.
 Because the \rai-percent-error distributions are heavy-tailed, we emphasize balanced accuracy, medians, and interquartile behavior rather than means.
 
-\input{tables/results_summary_shared}
+\input{tables/compute_bound_prf}
 
 
 
@@ -17,7 +17,7 @@ Because the \rai-percent-error distributions are heavy-tailed, we emphasize bala
 \subsection{RQ1: Can LLMs Classify the Roofline Regime From Static Artifacts?}
 
 For FP32 and FP64, yes; for FP16, not from \sourceonly evidence.
-\autoref{tab:shared-results-summary} reports nonzero \bandwidthbound/\computebound balanced accuracy by model, precision, and evidence setting.
+\autoref{tab:compute-bound-prf} reports nonzero \bandwidthbound/\computebound balanced accuracy by model, precision, and evidence setting.
 There are a few trends to note:
 \textbf{(1)} From \sourceonly prompts, \opus classifies the FP32 regime at 0.940 balanced accuracy and FP64 at 0.755; \gptfivefour reaches 0.889/0.670, and even the budget \gptoss reaches 0.875/0.690.
 These are strong numbers for a pre-compilation signal: the models recover the compute-versus-memory branch for most FP32 and FP64 kernels using only source code, build context, runtime arguments, and GPU specifications.
@@ -27,8 +27,6 @@ The same models that classify FP32 and FP64 regimes well are no better than a co
 
 Because the panel is \computebound-poor (\autoref{sec:task-methodology}), we confirm the strong numbers are not an over-prediction artifact: the \computebound precision/recall breakdown (\autoref{tab:compute-bound-prf}) shows \sourceonly \opus reaches 1.000 \computebound precision at 0.880 recall for FP32, and 0.966 precision at 0.528 recall for FP64.
 The lower FP64 recall is honest---the models miss roughly half of the compute-bound FP64 kernels even when they place the rest correctly.
-
-\input{tables/compute_bound_prf}
 
 The takeaway is that \textbf{(a)} off-the-shelf LLMs are already reliable FP32 and FP64 regime classifiers from \sourceonly artifacts, with a clear ``you-get-what-you-paid-for'' ordering from \gptoss to \opus, and \textbf{(b)} FP16 triage is not available from \sourceonly evidence and must escalate to more evidence, which motivates RQ2.
 
@@ -44,7 +42,7 @@ The takeaway is that \textbf{(a)} off-the-shelf LLMs are already reliable FP32 a
 \subsection{RQ2: What Does Cross-Compiled SASS Add, and Why?}
 
 It closes the FP16 gap, and the mechanism is compiler-synthesized arithmetic.
-Adding \sourcesass lifts FP16 \bandwidthbound/\computebound balanced accuracy from the 0.500 \sourceonly baseline to 0.984 for \opus and 0.870 for \gptfivefour (\autoref{tab:shared-results-summary}).
+Adding \sourcesass lifts FP16 \bandwidthbound/\computebound balanced accuracy from the 0.500 \sourceonly baseline to 0.984 for \opus and 0.870 for \gptfivefour (\autoref{tab:compute-bound-prf}).
 The gain is specific to the evidence, not the model: the same frontier models were at chance for FP16 under \sourceonly, while \gptoss---which makes weaker use of long SASS prompts---only reaches 0.583.
 \sourcesass helps FP32 and FP64 much more modestly (\opus FP32 balanced accuracy rises 0.940$\rightarrow$0.967, FP64 0.755$\rightarrow$0.765), because FP32 and FP64 arithmetic is already mostly source-visible.
 
@@ -53,7 +51,7 @@ FP16 throughput on these GPUs comes from packed \texttt{HFMA2} instructions that
 %In the \texttt{accuracy-cuda} kernel on the A100, \sourceonly \opus predicts zero FP16 work and gets the regime wrong, while under \sourcesass it attributes the nonzero FP16 signal to an executed \texttt{HFMA2.MMA} instruction and classifies correctly.
 This is why the result generalizes beyond a single model: \textit{FP16 Roofline reasoning requires compilation, not execution}, and cross-compilation supplies it without access to the target GPU.
 
-\textbf{Numeric \rai as a diagnostic.}
+\noindent\textbf{Numeric \rai as a diagnostic.}
 The numeric error tracks the same evidence boundary, which is why we read it as a diagnostic rather than a headline.
 \autoref{fig:nonzero-ape} shows the distribution of nonzero \rai absolute percent error.
 Where classification is strong the numeric estimate is also close: under \sourcesass, \opus lands within 25\% error of the profiled \rai on 47.0\% of nonzero FP16, 53.0\% of FP32, and 44.0\% of FP64 samples, with median errors of 20.4\%, 18.3\%, and 15.3\%.
@@ -69,7 +67,7 @@ The distributions are heavy-tailed (i.e. some kernels are predicted almost exact
   \label{fig:nonzero-ape}
 \end{figure}
 
-\textbf{Error-prone code features.}
+\noindent\textbf{Error-prone code features.}
 \input{tables/feature_error_association}
 Using the source-feature labels of \autoref{sec:task-methodology}, the residual numeric errors concentrate where the same code patterns appear regardless of model or prompt type (\autoref{tab:feature-error-association}).
 Four FLOP-perturbing features dominate across every model and evidence setting---FLOP division, reusable float subexpressions, transcendental (``special'') math functions, and loop-invariant FLOP work, each with a Cliff's $\delta$ around 0.2--0.36---whereas structural features such as deterministic launch bounds show essentially no association.
@@ -116,7 +114,7 @@ This is the cost of the evidence that cracks FP16 for the weaker models: once a 
 
 The LLM signals form a clear cost/accuracy tier, they are inexpensive in absolute per-query terms, and (unlike profiling) they need no target-hardware access.
 
-\textbf{Cost tiering.}
+\noindent\textbf{Cost tiering.}
 \autoref{tab:compute-bound-prf} reports median per-query cost, per LLM-evidence configuration.
 The budget \gptoss classifies the \sourceonly FP32 regime at 0.875 balanced accuracy for a median \$0.0006 per query; \gptfivefour reaches 0.889 for \$0.0197; and \opus reaches 0.940 for \$0.0679.
 For FP16, only the SASS-backed frontier tier works, at \$0.0315 (\gptfivefour) to \$0.1066 (\opus) per query.
@@ -124,7 +122,7 @@ The \sourceonly FP32 tier is inexpensive in absolute terms: at a median \$0.0006
 We do not present end-to-end build-and-profile timings, so we make no measured time- or cost-saving claim against profiling; the advantages we establish are absolute query cost and the elimination of target-hardware access.
 The frontier+SASS tier that additionally cracks FP16 is the premium option, and its higher per-query cost is the case where directly profiling may be preferable if the target hardware is available.
 
-\textbf{Versus static baselines.}
+\noindent\textbf{Versus static baselines.}
 \input{tables/llm_vs_static}
 To establish that the LLM signal is worth its cost beyond off-the-shelf prompting, \autoref{tab:llm-vs-static} compares the best off-the-shelf LLM against the best static reference---the learned random-forest (RF) and extra-trees (ET) regressors of \autoref{sec:task-methodology}, alongside lightweight lexical heuristics---for nonzero \bandwidthbound/\computebound triage, per precision and evidence setting on the 732-kernel subset.
 Because both methods run on the same kernels, we compare them with a paired (McNemar) test: the discordant-wins column counts kernels where exactly one method is correct, reported as LLM wins/static wins, with $p$ testing whether the LLM wins significantly more of these disagreements.

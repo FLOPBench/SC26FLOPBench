@@ -72,10 +72,10 @@ Crucially, comparing the \sourceonly and \sourcesass evidence settings isolates 
   \label{fig:dataset-creation}
 \end{figure}
 
-\noindent\textbf{Benchmark Corpus and Ground Truth.}
+\noindent\textbf{Corpus and Ground Truth.}
 We draw workloads from the HeCBench suite \cite{jinBenchmarkSuiteImproving2023}, focusing on CUDA and OpenMP target-offload programs because they are both common GPU programming models and represent distinct source/build ecosystems \cite{kadoshQuantifyingOpenMPStatistical2023}.
-Our final corpus contains 95 benchmark programs (56 CUDA, 39 OpenMP), which expose 254 first-invocation GPU kernels (155 CUDA, 99 OpenMP); we preserve the suite's natural CUDA/OpenMP mix rather than artificially balancing the two.
-As summarized in \autoref{fig:dataset-creation}, ground-truth \rai labels come from an offline benchmark-building process: we profile each benchmark's first kernel invocation, averaging over three runs to reduce noise, and derive per-precision FLOP counts and DRAM byte traffic from the profiler counters. %(the exact counters are documented in the released code\footref{fn:github}).
+Our final corpus contains 95 programs (56 CUDA, 39 OpenMP), which expose 254 first-invocation GPU kernels (155 CUDA, 99 OpenMP); we preserve the suite's natural CUDA/OpenMP mix rather than artificially balancing the two.
+As summarized in \autoref{fig:dataset-creation}, ground-truth \rai labels come from an offline profiling process: we profile each program's first kernel invocation, averaging over three runs to reduce noise, and derive per-precision FLOP counts and DRAM byte traffic from the profiler counters. %(the exact counters are documented in the released code\footref{fn:github}).
 Profiling the corpus on four NVIDIA GPUs yields 1{,}016 samples, and each sample induces three precision-specific \rai labels (FP16/FP32/FP64), so the profiler-derived ground-truth space contains 3{,}048 precision-specific evaluation points. 
 
 \input{tables/gpu_specs}

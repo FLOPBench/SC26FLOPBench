@@ -20,7 +20,7 @@ Our results suggest a cascade combining deterministic compiler or disassembly fe
 \noindent\textbf{What tool builders should and should not take from the results.}
 Tool builders should use the method as a triage filter---to prioritize profiling effort, annotate likely memory- versus compute-side cases, or flag kernels too uncertain to trust---not as a runtime substitute, speedup estimator, or universal static analysis of GPU performance.
 
-\noindent\textbf{Why the benchmark release matters.}
-Even with the method's limitations, the released corpus is a useful contribution in its own right: it exposes a benchmarkable software-engineering task with source files, build context, runtime arguments, SASS, profiler-derived labels, and model outputs, and the added deterministic and learned reference baselines make it a testbed for comparing execution-free reasoning strategies rather than only for ranking LLMs.
+\noindent\textbf{Why the dataset release matters.}
+Even with the method's limitations, the released corpus is a useful contribution in its own right: it exposes a well-posed software-engineering task with source files, build context, runtime arguments, SASS, profiler-derived labels, and model outputs, and the added deterministic and learned reference baselines make it a testbed for comparing execution-free reasoning strategies rather than only for ranking LLMs.
 Triaging the entire 732-sample shared subset with the budget model costs under \$0.50, which keeps such comparisons cheap to run.
 It supports several follow-on directions that require new experiments: stronger compiler-grade analyzers, repeated-query robustness studies, and hybrid predictors that combine compiler features with LLM reasoning.

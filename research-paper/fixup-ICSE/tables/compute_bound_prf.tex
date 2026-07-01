@@ -1,18 +1,22 @@
-\begin{table*}[t]
+\begin{table*}[th!]
   \centering
-  \caption{Nonzero compute-bound precision/recall/F1 on the 732-sample shared subset (SO~=~\sourceonly, S+S~=~\sourcesass), with median per-query cost (\$) and wall-clock time (s). A dash marks an undefined value (no predicted \computebound kernels, hence a zero denominator), as every model shows for SO FP16.}
+  \caption{Per-precision performance on the 732-sample shared subset (SO~=~\sourceonly, S+S~=~\sourcesass). For each precision we report MdAPE (median absolute percent error on nonzero \rai), BAcc (balanced accuracy on nonzero \bandwidthbound/\computebound), and nonzero \computebound precision/recall/F1; the last two columns give median per-query cost (\$) and wall-clock time (s). A dash marks an undefined value (no predicted \computebound kernels, hence a zero denominator), as every model shows for SO FP16.}
   \label{tab:compute-bound-prf}
   \scriptsize
   \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{llccccc}
-    Model & Evidence & FP16 P/R/F1 & FP32 P/R/F1 & FP64 P/R/F1 & \$ & s \\
+  \resizebox{\textwidth}{!}{%
+  \begin{tabular}{ll ccc ccc ccc cc}
+    & & \multicolumn{3}{c}{FP16} & \multicolumn{3}{c}{FP32} & \multicolumn{3}{c}{FP64} & & \\
+    \cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){9-11}
+    Model & Evidence & MdAPE & BAcc & P/R/F1 & MdAPE & BAcc & P/R/F1 & MdAPE & BAcc & P/R/F1 & Med. \$ & s \\
     \midrule
-    \gptfivefour & SO & -- / 0.000 / -- & 0.909 / 0.800 / 0.851 & 0.950 / 0.358 / 0.521 & 0.0197 & 11.3 \\
-    \gptfivefour & S+S & 0.730 / 0.794 / 0.761 & 0.952 / 0.800 / 0.870 & 0.903 / 0.528 / 0.667 & 0.0315 & 12.3 \\
-    \gptoss & SO & -- / 0.000 / -- & 0.950 / 0.760 / 0.844 & 0.917 / 0.415 / 0.571 & 0.0006 & 33.2 \\
-    \gptoss & S+S & 0.750 / 0.176 / 0.286 & 0.949 / 0.740 / 0.831 & 0.900 / 0.340 / 0.493 & 0.0008 & 32.5 \\
-    \opus & SO & -- / 0.000 / -- & 1.000 / 0.880 / 0.936 & 0.966 / 0.528 / 0.683 & 0.0679 & 22.5 \\
-    \opus & S+S & 0.850 / 1.000 / 0.919 & 0.979 / 0.940 / 0.959 & 0.938 / 0.566 / 0.706 & 0.1066 & 29.8 \\
+    \gptfivefour & SO  & 100.0 & 0.500 & -- / 0.000 / --   & 59.2 & 0.889 & 0.909 / 0.800 / 0.851 & 74.5 & 0.670 & 0.950 / 0.358 / 0.521 & 0.0197 & 11.3 \\
+    \gptfivefour & S+S & 84.2  & 0.870 & 0.730 / 0.794 / 0.761 & 34.9 & 0.895 & 0.952 / 0.800 / 0.870 & 35.4 & 0.737 & 0.903 / 0.528 / 0.667 & 0.0315 & 12.3 \\
+    \gptoss      & SO  & 100.0 & 0.500 & -- / 0.000 / --   & 58.9 & 0.875 & 0.950 / 0.760 / 0.844 & 62.4 & 0.690 & 0.917 / 0.415 / 0.571 & 0.0006 & 33.2 \\
+    \gptoss      & S+S & 100.0 & 0.583 & 0.750 / 0.176 / 0.286 & 61.4 & 0.865 & 0.949 / 0.740 / 0.831 & 58.4 & 0.652 & 0.900 / 0.340 / 0.493 & 0.0008 & 32.5 \\
+    \opus        & SO  & 100.0 & 0.500 & -- / 0.000 / --   & 43.9 & 0.940 & 1.000 / 0.880 / 0.936 & 52.0 & 0.755 & 0.966 / 0.528 / 0.683 & 0.0679 & 22.5 \\
+    \opus        & S+S & 20.4  & 0.984 & 0.850 / 1.000 / 0.919 & 18.3 & 0.967 & 0.979 / 0.940 / 0.959 & 15.3 & 0.765 & 0.938 / 0.566 / 0.706 & 0.1066 & 29.8 \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}%
+  }
 \end{table*}

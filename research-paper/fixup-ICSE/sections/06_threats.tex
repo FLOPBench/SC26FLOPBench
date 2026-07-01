@@ -1,22 +1,22 @@
 \section{Threats to Validity and Limitations}
 \label{sec:threats}
 
-\paragraph{External validity.}
+\noindent\textbf{External validity.}
 Our claims are scoped to the task and corpus defined in \autoref{sec:task-methodology}: 95 HeCBench programs exposing 254 first-invocation kernels, four NVIDIA GPUs (RTX~3080, A10, A100, H100), and per-precision DRAM-level \rai on a kernel's first invocation.
 The corpus is a meaningful but selective sample of CUDA and OpenMP software, and the architectural generalization claims extend only to these device families.
-The benchmark does not cover AMD or Intel GPUs, other programming models such as HIP and SYCL, steady-state warm-cache behavior, or end-to-end application performance, and the results should not be extrapolated beyond execution-free first-invocation triage.
+The dataset does not cover AMD or Intel GPUs, other programming models such as HIP and SYCL, steady-state warm-cache behavior, or end-to-end application performance, and the results should not be extrapolated beyond execution-free first-invocation triage.
 
-\paragraph{Construct validity.}
+\noindent\textbf{Construct validity.}
 Ground truth comes from profiler counters rather than source-level reasoning, so the byte denominator is DRAM-visible traffic rather than all source-level loads and stores; cache write-back behavior, replay effects, and profiler noise can therefore influence the target quantity, which we mitigate but do not eliminate by averaging three first-invocation profiles.
 Closed-model behavior can also drift across snapshots, and a single query per input cannot establish reliability.
 We address the latter directly: rather than disclaim run-to-run variability, RQ3 measures it on a stratified repeated-query panel and reports where single-shot use is and is not safe.
 
-\paragraph{Baseline limitations.}
+\noindent\textbf{Baseline limitations.}
 The static baselines are deliberately modest.
 The deterministic references use approximate lexical and instruction-mix counts rather than compiler-grade analyzers, and the learned tree baselines are evaluated with grouped cross-validation on this corpus rather than a separately curated external split (though they remain stable across five seeds).
 Stronger compiler-driven or larger-scale learned baselines could therefore outperform the references reported here.
 
-\paragraph{Failure-analysis validity and benchmark leakage.}
+\noindent\textbf{Failure-analysis validity and dataset leakage.}
 The feature/error analysis is exploratory: its source-feature labels come from an auxiliary LLM-voting pipeline rather than human annotation, so we treat the feature/error association as descriptive evidence about recurring error patterns, not statistically validated causal evidence.
 Separately, because the models are off-the-shelf and trained on large web corpora, some kernels or their close variants may have appeared in pretraining data, and we cannot rule out such contamination completely.
-Both are reasons to frame this work as an empirical benchmark study rather than a claim about intrinsic reasoning ability in isolation.
+Both are reasons to frame this work as an empirical study rather than a claim about intrinsic reasoning ability in isolation.
